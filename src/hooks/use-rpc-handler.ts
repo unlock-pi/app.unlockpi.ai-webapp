@@ -21,7 +21,7 @@ export function useRpcHandler(method: string, handler: (payload: any) => Promise
 
     // Track if we've successfully registered to avoid unregister/re-register cycles
     const registeredRef = useRef(false);
-    const unregisterRef = useRef<(() => void) | undefined>();
+
 
     useEffect(() => {
         if (!room || !room.localParticipant) {
@@ -36,28 +36,31 @@ export function useRpcHandler(method: string, handler: (payload: any) => Promise
             return;
         }
 
+        const handleRpc = async (data: RpcInvocationData) => {
+            console.log(`[RPC] "${method}" called with payload:`, data.payload);
+
+            // Parse payload — agent sends JSON strings via perform_rpc
+            let payload = data.payload;
+            try {
+                payload = JSON.parse(data.payload);
+            } catch (e) {
+                console.warn(`[RPC] "${method}" - payload is not JSON, using raw string`, e);
+            }
+
+            try {
+                const response = await handlerRef.current(payload);
+                const result = JSON.stringify(response || { success: true });
+                console.log(`[RPC] "${method}" completed successfully`);
+                return result;
+            } catch (error) {
+                console.error(`[RPC] "${method}" handler error:`, error);
+                throw error;
+            }
+        };
+
         try {
-            unregisterRef.current = room.localParticipant.registerRpcMethod(method, async (data: RpcInvocationData) => {
-                console.log(`[RPC] "${method}" called with payload:`, data.payload);
-
-                // Parse payload — agent sends JSON strings via perform_rpc
-                let payload = data.payload;
-                try {
-                    payload = JSON.parse(data.payload);
-                } catch (e) {
-                    console.warn(`[RPC] "${method}" - payload is not JSON, using raw string`, e);
-                }
-
-                try {
-                    const response = await handlerRef.current(payload);
-                    const result = JSON.stringify(response || { success: true });
-                    console.log(`[RPC] "${method}" completed successfully`);
-                    return result;
-                } catch (error) {
-                    console.error(`[RPC] "${method}" handler error:`, error);
-                    throw error;
-                }
-            });
+            // registerRpcMethod returns void in current @livekit/components-react version
+            room.localParticipant.registerRpcMethod(method, handleRpc);
             registeredRef.current = true;
             console.log(`[RPC] ✓ Method registered: ${method}`);
         } catch (error) {
@@ -67,14 +70,15 @@ export function useRpcHandler(method: string, handler: (payload: any) => Promise
 
         // Return cleanup function to unregister the method only on unmount
         return () => {
-            if (unregisterRef.current) {
-                try {
-                    unregisterRef.current();
-                    registeredRef.current = false;
+            try {
+                // Check if unregisterRpcMethod exists (it should on LocalParticipant)
+                if (room.localParticipant && 'unregisterRpcMethod' in room.localParticipant) {
+                    (room.localParticipant as any).unregisterRpcMethod(method);
                     console.log(`[RPC] Method unregistered: ${method}`);
-                } catch (error) {
-                    console.error(`[RPC] Failed to unregister method "${method}":`, error);
                 }
+                registeredRef.current = false;
+            } catch (error) {
+                console.error(`[RPC] Failed to unregister method "${method}":`, error);
             }
         };
     }, [room, method]); // Keep both deps to detect changes, but only register once

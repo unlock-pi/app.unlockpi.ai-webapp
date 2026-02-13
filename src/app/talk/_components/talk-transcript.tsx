@@ -59,23 +59,19 @@ export function TalkTranscript({ transcriptLog, liveAgentText, liveUserText }: T
                                 </motion.div>
                             ))}
 
-                            {/* Live streaming text (not yet finalized) */}
-                            {liveAgentText && (
+                            {/* Live streaming text — single combined indicator, no separate floating bubbles */}
+                            {(liveAgentText || liveUserText) && (
                                 <motion.div
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 0.7 }}
-                                    className="self-start text-left max-w-[85%] px-3 py-1.5 rounded-lg text-gray-400 bg-white/5 italic"
+                                    className="px-3 py-1.5 rounded-lg text-gray-400 bg-white/5 italic text-left"
                                 >
-                                    {liveAgentText}
-                                </motion.div>
-                            )}
-                            {liveUserText && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 0.7 }}
-                                    className="self-end text-right max-w-[85%] px-3 py-1.5 rounded-lg text-blue-300/70 bg-blue-500/5 italic"
-                                >
-                                    {liveUserText}
+                                    {liveAgentText && (
+                                        <span className="block text-gray-400">{liveAgentText}</span>
+                                    )}
+                                    {liveUserText && (
+                                        <span className="block text-blue-300/70 text-right">{liveUserText}</span>
+                                    )}
                                 </motion.div>
                             )}
 

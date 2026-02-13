@@ -114,8 +114,8 @@ export function TalkVisualizer({
                 </div>
             </section>
 
-            {/* ── Live transcript (Immediate) ── */}
-            {isLive && liveAgentText && (
+            {/* ── Live transcript (Immediate) — DISABLED: duplicated by TalkTranscript panel at the bottom ── */}
+            {/* {isLive && liveAgentText && (
                 <motion.div
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -123,7 +123,7 @@ export function TalkVisualizer({
                 >
                     {liveAgentText}
                 </motion.div>
-            )}
+            )} */}
 
             {/* ── Board Text (rich markdown board) ── */}
             {boardText && (

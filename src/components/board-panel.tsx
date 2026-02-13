@@ -68,54 +68,172 @@ let mermaidIdCounter = 0;
 /**
  * Renders a Mermaid diagram from source code string.
  * Uses mermaid.js (dynamic import) to parse and render SVG.
+ * Gracefully handles syntax errors by validating with mermaid.parse() first,
+ * and displays a styled fallback with the raw code on failure.
  */
 function MermaidDiagram({ chart }: { chart: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [svg, setSvg] = useState<string>("");
+    const [error, setError] = useState<string | null>(null);
+    const [isClient, setIsClient] = useState(false);
+    // Generate a unique ID per render cycle to avoid stale DOM element conflicts
     const idRef = useRef(`mermaid-${++mermaidIdCounter}`);
 
+    // Ensure we're on the client side
     useEffect(() => {
+        setIsClient(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isClient) return; // Don't run on server side
+
         let cancelled = false;
+        // Reset state on new chart input
+        setSvg("");
+        setError(null);
+        // Fresh ID for each render attempt to prevent mermaid ID collisions
+        idRef.current = `mermaid-${++mermaidIdCounter}`;
 
         async function render() {
+            // Clean up the code to remove common LLM formatting errors (like nested code blocks and HTML entities)
+            let trimmedChart = chart
+                .replace(/&gt;/g, ">")
+                .replace(/&lt;/g, "<")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .trim();
+
+            // Remove code block markers (handle multiple formats)
+            // Remove opening markers (```mermaid or just ```)
+            trimmedChart = trimmedChart.replace(/^```(?:mermaid)?\s*\n?/, "");
+            // Remove closing markers
+            trimmedChart = trimmedChart.replace(/\n?```\s*$/, "");
+            // Final trim
+            trimmedChart = trimmedChart.trim();
+
+            if (!trimmedChart) {
+                if (!cancelled) setError("Empty diagram code.");
+                return;
+            }
+
             try {
                 // Dynamic import to avoid SSR issues
                 const mermaid = (await import("mermaid")).default;
+
+                // Initialize mermaid with dark theme
                 mermaid.initialize({
                     startOnLoad: false,
+                    suppressErrorRendering: true, // Don't inject error SVGs into the DOM
                     theme: "dark",
+                    securityLevel: "loose", // Allow more flexible syntax
                     themeVariables: {
                         darkMode: true,
                         background: "#1a1a1a",
                         primaryColor: "#DC2626",
                         primaryTextColor: "#ffffff",
+                        primaryBorderColor: "#DC2626",
                         lineColor: "#666666",
                         secondaryColor: "#0364CE",
                         tertiaryColor: "#333333",
+                        fontSize: "16px",
+                    },
+                    flowchart: {
+                        htmlLabels: true,
+                        curve: "basis",
                     },
                 });
 
+                // Validate syntax before attempting render to catch errors early
+                try {
+                    await mermaid.parse(trimmedChart);
+                } catch (parseErr: any) {
+                    const msg = parseErr?.message || parseErr?.str || String(parseErr);
+                    console.error("[Mermaid] Syntax error in diagram:", msg);
+                    console.error("[Mermaid] Problematic code:", trimmedChart);
+                    if (!cancelled) setError(`Syntax error: ${msg}`);
+                    return;
+                }
+
+                // Clean up any stale DOM element from a previous failed render with same ID
+                const staleEl = document.getElementById(idRef.current);
+                if (staleEl) staleEl.remove();
+
+                // Wait for next tick to ensure DOM is ready
+                await new Promise(resolve => setTimeout(resolve, 0));
+
+                // Double check we weren't cancelled during the delay
+                if (cancelled) return;
+
+                // Render using mermaid.render with the ID
                 const { svg: renderedSvg } = await mermaid.render(
                     idRef.current,
-                    chart.trim()
+                    trimmedChart
                 );
-                if (!cancelled) setSvg(renderedSvg);
-            } catch (err) {
-                console.warn("[Mermaid] Failed to render diagram:", err);
-                // Show raw code as fallback
-                if (!cancelled)
-                    setSvg(
-                        `<pre style="color:#999;font-size:0.85em;white-space:pre-wrap">${chart}</pre>`
-                    );
+
+                if (!cancelled) {
+                    console.log("[Mermaid] Successfully rendered diagram");
+                    setSvg(renderedSvg);
+
+                    // Clean up the temporary element that mermaid creates
+                    const tempEl = document.getElementById(idRef.current);
+                    if (tempEl) tempEl.remove();
+                }
+            } catch (err: any) {
+                const msg = err?.message || String(err);
+                console.error("[Mermaid] Failed to render diagram:", msg);
+                console.error("[Mermaid] Chart code:", trimmedChart);
+                // Clean up any broken element mermaid may have left in the DOM
+                const brokenEl = document.getElementById(idRef.current);
+                if (brokenEl) brokenEl.remove();
+                if (!cancelled) setError(`Render error: ${msg}`);
             }
         }
 
         render();
         return () => {
             cancelled = true;
+            // Clean up any leftover DOM elements
+            const tempEl = document.getElementById(idRef.current);
+            if (tempEl) tempEl.remove();
         };
-    }, [chart]);
+    }, [chart, isClient]);
 
+    // Error fallback — show the raw diagram code in a styled box
+    if (error) {
+        return (
+            <div className="my-4 rounded-lg border border-red-500/30 bg-red-950/20 p-4 text-sm">
+                <p className="text-red-400 font-medium mb-2 flex items-center gap-2">
+                    <span>⚠️</span> Diagram could not be rendered
+                </p>
+                <p className="text-red-300 text-xs mb-3 font-mono bg-red-950/30 rounded p-2 border border-red-500/20">
+                    {error}
+                </p>
+                <details className="text-xs">
+                    <summary className="text-gray-400 cursor-pointer hover:text-gray-300 mb-2">
+                        Show diagram code
+                    </summary>
+                    <pre className="text-gray-400 text-xs whitespace-pre-wrap overflow-x-auto bg-black/30 rounded p-3 border border-white/5 mt-2">
+                        {chart.trim()}
+                    </pre>
+                </details>
+            </div>
+        );
+    }
+
+    // Loading state
+    if (!isClient || !svg) {
+        return (
+            <div className="my-4 flex justify-center items-center min-h-[200px] text-gray-400">
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Rendering diagram...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Success state - render the SVG
     return (
         <motion.div
             ref={containerRef}
@@ -245,8 +363,12 @@ export function BoardPanel({ content, highlights, className }: BoardPanelProps) 
 
                 // Mermaid diagrams
                 if (lang === "mermaid") {
+                    // Extract chart content more robustly - handle arrays, strings, etc.
+                    const chartContent = Array.isArray(children)
+                        ? children.join("")
+                        : String(children);
                     return (
-                        <MermaidDiagram chart={String(children).replace(/\n$/, "")} />
+                        <MermaidDiagram chart={chartContent.replace(/\n$/, "")} />
                     );
                 }
 
