@@ -6,19 +6,13 @@
 
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Matrix } from "@/components/ui/matrix";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
     const router = useRouter();
-    const [isJoining, setIsJoining] = useState(false);
 
-    const handleJoinClassroom = () => {
-        setIsJoining(true);
-        router.push("/classroom");
-    };
 
     return (
         <div className="min-h-screen bg-[var(--color-black)] text-[var(--color-white)] flex flex-col items-center justify-center relative overflow-hidden">

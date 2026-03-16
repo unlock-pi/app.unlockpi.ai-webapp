@@ -15,7 +15,7 @@ export function ConnectionScreen({ connect, isConnecting, error }: ConnectionScr
                 <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2">
                     {error}
                 </div>
-            )}
+            )} 
             <Button
                 onClick={connect}
                 disabled={isConnecting}

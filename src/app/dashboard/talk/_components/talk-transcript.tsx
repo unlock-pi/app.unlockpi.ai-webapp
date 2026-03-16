@@ -42,22 +42,24 @@ export function TalkTranscript({ transcriptLog, liveAgentText, liveUserText }: T
                     ) : (
                         <>
                             {/* Finalized transcript entries */}
-                            {transcriptLog.slice(-MAX_TRANSCRIPT_LINES).map((entry) => (
+                            {/* {transcriptLog.slice(-MAX_TRANSCRIPT_LINES).map((entry) => (
                                 <motion.div
                                     key={entry.id}
                                     initial={{ opacity: 0, y: 4 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.2 }}
                                     className={cn(
-                                        "max-w-[85%] px-3 py-2 rounded-lg leading-relaxed shadow-sm",
-                                        entry.sender === "agent"
-                                            ? "self-start text-left text-gray-200 bg-white/5 border border-white/5"
-                                            : "self-end text-right text-blue-100 bg-blue-500/20 border border-blue-500/20"
-                                    )}
+                                        "max-w-[85%] px-3 py-2 rounded-lg leading-relaxed shadow-sm", "self-start text-left text-gray-200 bg-white/5 border border-white/5"
+                                        // entry.sender === "agent"
+                                        //     ? "self-start text-left text-gray-200 bg-white/5 border border-white/5"
+                                        //     : "self-end text-right text-blue-100 bg-blue-500/20 border border-blue-500/20"
+                                    // FIX the above things, this is the one that's braking the ui
+                                        )}
                                 >
+
                                     {entry.text}
                                 </motion.div>
-                            ))}
+                            ))} */}
 
                             {/* Live streaming text — single combined indicator, no separate floating bubbles */}
                             {(liveAgentText || liveUserText) && (

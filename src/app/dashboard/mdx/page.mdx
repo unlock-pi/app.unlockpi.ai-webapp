@@ -1,0 +1,90 @@
+export const metadata = {
+  title: "MDX Playground",
+};
+
+<div className="max-w-4xl py-4 mx-auto">
+# MDX Playground
+
+This route is static content powered by **MDX** and the global styles from `mdx-components.tsx`.
+
+
+<MdxCallout>
+  Use this page like your `/dashboard/md` test page, but for MDX authoring.
+  Edit this file and refresh to experiment with markdown + JSX components together.
+</MdxCallout>
+
+## Quick Checks
+
+If these styles render correctly, your MDX pipeline is wired:
+
+- Heading styles from `useMDXComponents`
+- Paragraph/list/code styling from `useMDXComponents`
+- Custom JSX components like `<MdxCallout>`
+
+## Markdown Features
+<div className=" max-w-7xl mx-auto">
+
+<Mermaid
+  chart={`
+graph TD
+    A[Read Prompt] --> B[Generate Plan]
+    B --> C[Render Diagram]
+    C --> D[Review Output]
+`}
+/>
+</div>
+<Mermaid
+  chart={`
+sequenceDiagram
+    Alice->>John: Hello John, how are you?
+    John-->>Alice: Great!
+    Alice-)John: See you later!
+
+`}
+/>
+
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Tables | ✅ | Full support |
+| Task Lists | ✅ | Interactive |
+| Strikethrough | ✅ | ~~Like this~~ |
+
+Here is inline code: `const mode = "mdx";`
+
+```tsx
+type DemoProps = {
+  title: string;
+  level?: "basic" | "advanced";
+};
+
+export function DemoCard({ title, level = "basic" }: DemoProps) {
+  return <div>{title} - {level}</div>;
+}
+```
+
+### Table
+
+| Capability | Status | Notes |
+| --- | --- | --- |
+| MDX route | Ready | `/dashboard/mdx` |
+| Global MDX components | Ready | `mdx-components.tsx` |
+| Dynamic runtime MDX | Not enabled | Keep dynamic content on `react-markdown` for now |
+
+## JSX in MDX
+
+<MdxCallout>
+  You can mix JSX directly inside `.mdx` files.
+</MdxCallout>
+
+<MdxCallout>
+  Try changing this text, adding classes, or creating new custom components.
+</MdxCallout>
+
+## Suggested Experiments
+
+1. Add a new component in `mdx-components.tsx` and use it here.
+2. Import an existing UI component and render it in this file.
+3. Create a second MDX page under `src/app/dashboard/mdx/` and compare styles.
+4. Copy lesson content here and test readability before production use.
+
+</div>
