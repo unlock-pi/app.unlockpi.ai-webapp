@@ -21,6 +21,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@agents-ui": "https://livekit.io/ui/r/{name}.json"
+    "@agents-ui": "https://livekit.io/ui/r/{name}.json",
+    "@supabase": "https://supabase.com/ui/r/{name}.json"
   }
 }
