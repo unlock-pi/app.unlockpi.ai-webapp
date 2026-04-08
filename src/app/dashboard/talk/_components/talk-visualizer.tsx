@@ -98,6 +98,7 @@ export function TalkVisualizer({
         boardText={boardText}
         boardHighlights={boardHighlights}
         boardDocument={boardDocument}
+        isThinking={isThinking}
         visualPayload={visualPayload}
         transcriptSlot={transcriptSlot}
       />

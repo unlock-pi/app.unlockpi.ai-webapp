@@ -54,7 +54,13 @@ export function BoardPanel({ content, highlights, className }: BoardPanelProps) 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
-            className="prose prose-invert max-w-none prose-p:leading-relaxed prose-headings:text-gray-300 prose-strong:text-white"
+            className="prose prose-invert max-w-none
+              prose-p:max-w-none prose-p:leading-relaxed
+              prose-headings:max-w-none prose-headings:font-semibold
+              prose-strong:text-white
+              prose-code:before:content-none prose-code:after:content-none
+              prose-pre:bg-transparent prose-pre:p-0
+              prose-hr:border-0"
           >
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}

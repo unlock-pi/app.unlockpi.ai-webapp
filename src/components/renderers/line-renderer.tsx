@@ -22,29 +22,61 @@ export function LineRenderer({ line }: LineRendererProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          h1: ({ children, ...props }) => (
+            <h1 className={`mt-2 mb-5 border-b border-red-500/30 pb-3 text-4xl font-semibold tracking-[-0.03em] text-white ${props.className ?? ""}`.trim()}>{children}</h1>
+          ),
           p: ({ children, ...props }) => (
-            <p className={`my-1 leading-relaxed ${props.className ?? ""}`.trim()}>{children}</p>
+            <p className={`my-3 text-[1.02rem] leading-8 text-gray-100/95 ${props.className ?? ""}`.trim()}>{children}</p>
           ),
           h2: ({ children, ...props }) => (
-            <h2 className={`text-2xl font-semibold mt-3 mb-2 text-white ${props.className ?? ""}`.trim()}>{children}</h2>
+            <h2 className={`mt-8 mb-3 text-2xl font-semibold tracking-[-0.02em] text-red-100 ${props.className ?? ""}`.trim()}>{children}</h2>
           ),
           h3: ({ children, ...props }) => (
-            <h3 className={`text-xl font-semibold mt-2 mb-1 text-gray-100 ${props.className ?? ""}`.trim()}>{children}</h3>
+            <h3 className={`mt-6 mb-2 text-xl font-semibold uppercase tracking-[0.12em] text-gray-300 ${props.className ?? ""}`.trim()}>{children}</h3>
           ),
           ul: ({ children, ...props }) => (
-            <ul {...props} className={`list-disc pl-6 my-1 space-y-1 ${props.className ?? ""}`.trim()}>
+            <ul {...props} className={`my-4 list-disc space-y-1 pl-6 marker:text-red-300 ${props.className ?? ""}`.trim()}>
               {children}
             </ul>
           ),
           ol: ({ children, ...props }) => (
-            <ol {...props} className={`list-decimal pl-6 my-1 space-y-1 ${props.className ?? ""}`.trim()}>
+            <ol {...props} className={`my-4 list-decimal space-y-1 pl-6 marker:text-red-300 ${props.className ?? ""}`.trim()}>
               {children}
             </ol>
           ),
           li: ({ children, ...props }) => (
-            <li {...props} className={`leading-relaxed ${props.className ?? ""}`.trim()}>
+            <li {...props} className={`my-1.5 pl-1 text-[0.98rem] leading-7 text-gray-100/90 ${props.className ?? ""}`.trim()}>
               {children}
             </li>
+          ),
+          strong: ({ children, ...props }) => (
+            <strong {...props} className={`font-semibold text-white ${props.className ?? ""}`.trim()}>
+              {children}
+            </strong>
+          ),
+          em: ({ children, ...props }) => (
+            <em {...props} className={`font-medium text-red-100/95 ${props.className ?? ""}`.trim()}>
+              {children}
+            </em>
+          ),
+          blockquote: ({ children, ...props }) => (
+            <blockquote
+              {...props}
+              className={`my-5 rounded-r-2xl border-l-4 border-red-500/70 bg-white/[0.04] px-5 py-4 text-gray-100/90 ${props.className ?? ""}`.trim()}
+            >
+              {children}
+            </blockquote>
+          ),
+          hr: ({ ...props }) => (
+            <hr {...props} className={`my-8 h-px border-0 bg-gradient-to-r from-transparent via-red-500/70 to-transparent ${props.className ?? ""}`.trim()} />
+          ),
+          code: ({ className, children, ...props }) => (
+            <code
+              className={`rounded-md border border-red-500/25 bg-red-500/10 px-2 py-1 text-[0.92em] font-medium text-red-100 ${className ?? ""}`.trim()}
+              {...props}
+            >
+              {children}
+            </code>
           ),
         }}
       >

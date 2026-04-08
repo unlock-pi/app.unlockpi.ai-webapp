@@ -9,6 +9,7 @@ import { TalkVisualizer } from "./talk-visualizer";
 import { TalkTranscript } from "./talk-transcript";
 import { ConnectionScreen } from "./connection-screen";
 import { TalkBackground } from "./talk-background";
+import { useThinkingAmbience } from "@/hooks/use-thinking-ambience";
 
 interface TalkRoomContentProps {
   connect: () => void;
@@ -29,6 +30,7 @@ export function TalkRoomContent({ connect, isConnecting, isConnected, error }: T
     : undefined;
 
   const isLive = isConnected && state !== "disconnected" && state !== "connecting";
+  useThinkingAmbience(isLive && state === "thinking");
 
   return (
     <div

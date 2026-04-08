@@ -1,6 +1,7 @@
 import { HighlightWord, BoardPanel } from "@/components/board-panel";
 import { BoardDocumentPanel } from "@/components/board-document-panel";
 import type { BoardDocument } from "@/types/board";
+import { TalkThinkingOverlay } from "./talk-thinking-overlay";
 import type { VisualPayload } from "@/types/visual";
 import { TalkVisualStage } from "./talk-visual-stage";
 
@@ -8,6 +9,11 @@ interface TalkBoardStageProps {
   boardText: string;
   boardHighlights: HighlightWord[];
   boardDocument: BoardDocument;
+  isThinking: boolean;
+  transcriptSlot?: React.ReactNode;
+}
+
+export function TalkBoardStage({ boardText, boardHighlights, boardDocument, isThinking, transcriptSlot }: TalkBoardStageProps) {
   visualPayload: VisualPayload | null;
   transcriptSlot?: React.ReactNode;
 }

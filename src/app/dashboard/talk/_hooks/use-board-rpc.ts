@@ -68,6 +68,7 @@ export function useBoardRPC() {
     useRpcHandler("update_content", async (payload) => {
         if (DEBUG_RPC) console.log("[RPC] update_content");
         if (hasText(payload)) {
+            dispatch({ type: "setBoard", document: { id: "board-1", version: 0, blocks: [] } });
             setBoardText(payload.text);
             setBoardHighlights([]);
             setVisualPayload(null);
