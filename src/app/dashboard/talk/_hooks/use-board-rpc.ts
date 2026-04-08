@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRpcHandler } from "@/hooks/use-rpc-handler";
 import { useBoardState } from "./use-board-state";
 import type { BoardDocument, BoardOperation } from "@/types/board";
+import type { VisualPayload } from "@/types/visual";
+import { parseVisualPayload } from "@/types/visual";
 
 const DEBUG_RPC = process.env.NEXT_PUBLIC_DEBUG_RPC === "1";
 type LegacyHighlight = { word: string; type: string; positions: number[] };
@@ -35,6 +37,7 @@ export function useBoardRPC() {
     // ── Legacy Board State (markdown content + word-level highlights) ──
     const [boardText, setBoardText] = useState("");
     const [boardHighlights, setBoardHighlights] = useState<LegacyHighlight[]>([]);
+    const [visualPayload, setVisualPayload] = useState<VisualPayload | null>(null);
 
     // ── New Structured Board State ──
     const { boardDocument, dispatch } = useBoardState();
@@ -56,6 +59,7 @@ export function useBoardRPC() {
             // Clear legacy state when structured board is active
             setBoardText("");
             setBoardHighlights([]);
+            setVisualPayload(null);
         }
         return JSON.stringify({ success: true });
     });
@@ -66,6 +70,7 @@ export function useBoardRPC() {
         if (hasText(payload)) {
             setBoardText(payload.text);
             setBoardHighlights([]);
+            setVisualPayload(null);
         }
         return JSON.stringify({ success: true });
     });
@@ -84,7 +89,21 @@ export function useBoardRPC() {
         if (DEBUG_RPC) console.log("[RPC] clear_board");
         setBoardText("");
         setBoardHighlights([]);
+        setVisualPayload(null);
         dispatch({ type: "setBoard", document: { id: "board-1", version: 0, blocks: [] } });
+        return JSON.stringify({ success: true });
+    });
+
+    // RPC: render_visual — strict schema-driven visuals
+    useRpcHandler("render_visual", async (payload) => {
+        if (DEBUG_RPC) console.log("[RPC] render_visual");
+        const parsed = parseVisualPayload(payload);
+        if (parsed) {
+            setVisualPayload(parsed);
+            setBoardText("");
+            setBoardHighlights([]);
+            dispatch({ type: "setBoard", document: { id: "board-1", version: 0, blocks: [] } });
+        }
         return JSON.stringify({ success: true });
     });
 
@@ -94,5 +113,5 @@ export function useBoardRPC() {
         return JSON.stringify({ success: true });
     });
 
-    return { boardText, boardHighlights, boardDocument };
+    return { boardText, boardHighlights, boardDocument, visualPayload };
 }
