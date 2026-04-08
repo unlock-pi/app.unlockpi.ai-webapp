@@ -91,7 +91,13 @@ export function TalkVisualizer({
         audioTrack={audioTrack}
         onDisconnect={onDisconnect}
       />
-      <TalkBoardStage boardText={boardText} boardHighlights={boardHighlights} boardDocument={boardDocument} transcriptSlot={transcriptSlot} />
+      <TalkBoardStage
+        boardText={boardText}
+        boardHighlights={boardHighlights}
+        boardDocument={boardDocument}
+        isThinking={isThinking}
+        transcriptSlot={transcriptSlot}
+      />
     </div>
   );
 }

@@ -1,19 +1,23 @@
 import { HighlightWord, BoardPanel } from "@/components/board-panel";
 import { BoardDocumentPanel } from "@/components/board-document-panel";
 import type { BoardDocument } from "@/types/board";
+import { TalkThinkingOverlay } from "./talk-thinking-overlay";
 
 interface TalkBoardStageProps {
   boardText: string;
   boardHighlights: HighlightWord[];
   boardDocument: BoardDocument;
+  isThinking: boolean;
   transcriptSlot?: React.ReactNode;
 }
 
-export function TalkBoardStage({ boardText, boardHighlights, boardDocument, transcriptSlot }: TalkBoardStageProps) {
+export function TalkBoardStage({ boardText, boardHighlights, boardDocument, isThinking, transcriptSlot }: TalkBoardStageProps) {
   const hasStructuredBoard = boardDocument.blocks.length > 0;
 
   return (
     <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+      <TalkThinkingOverlay visible={isThinking} />
+
       {hasStructuredBoard ? (
         <BoardDocumentPanel
           document={boardDocument}

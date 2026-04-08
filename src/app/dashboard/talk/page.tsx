@@ -46,3 +46,24 @@ export default function TalkPage() {
         </div>
     );
 }
+
+/*
+2 parts
+- marketing site
+- dashboard (protected by auth, contains the /talk route)
+
+ANALOGY of the product: notebooklm for teachers but better with Voice:
+
+dashboard layout: teachers/trainers
+1. tools (aid teaching )
+    1. debate coach (for practicing debate skills)
+    2. 
+2. main: unlockpi ai agent (/talk route)
+    - optimizing for voice interaction (visual board)
+    - heavy on livekit 
+    - 
+
+
+- vector/graph dbs;
+
+*/ 
