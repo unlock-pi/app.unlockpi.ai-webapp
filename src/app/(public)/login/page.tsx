@@ -7,7 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Eye, EyeOff } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { account, ID } from "@/app/appwrite";
+import { createClient } from "@/lib/client";
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -351,8 +351,14 @@ export function AuthUI({ signInContent = {}, signUpContent = {} }: AuthUIProps) 
 
         const checkSession = async () => {
             try {
-                await account.get();
-                router.replace("/dashboard");
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+
+                if (session) {
+                    router.replace("/dashboard");
+                }
             } catch {
             } finally {
                 if (isMounted) {
@@ -383,10 +389,19 @@ export function AuthUI({ signInContent = {}, signUpContent = {} }: AuthUIProps) 
         const password = String(formData.get("password") || "");
 
         try {
-            await account.createEmailPasswordSession({ email, password });
+            const supabase = createClient();
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) {
+                throw error;
+            }
+
             router.replace("/dashboard");
-        } catch {
-            setError("Invalid email or password. Please try again.");
+        } catch (error: unknown) {
+            setError(error instanceof Error ? error.message : "Invalid email or password. Please try again.");
             setIsSubmitting(false);
         }
     };
@@ -402,16 +417,31 @@ export function AuthUI({ signInContent = {}, signUpContent = {} }: AuthUIProps) 
         const password = String(formData.get("password") || "");
 
         try {
-            await account.create({
-                userId: ID.unique(),
+            const supabase = createClient();
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
-                name,
+                options: {
+                    data: {
+                        name,
+                    },
+                },
             });
-            await account.createEmailPasswordSession({ email, password });
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data.session) {
+                setIsSignIn(true);
+                setError("Account created. Please check your email to verify your account, then sign in.");
+                setIsSubmitting(false);
+                return;
+            }
+
             router.replace("/dashboard");
-        } catch {
-            setError("Could not create account. Please verify details and try again.");
+        } catch (error: unknown) {
+            setError(error instanceof Error ? error.message : "Could not create account. Please verify details and try again.");
             setIsSubmitting(false);
         }
     };

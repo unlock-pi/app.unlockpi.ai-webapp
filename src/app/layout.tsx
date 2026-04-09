@@ -26,6 +26,14 @@ export const metadata: Metadata = {
   title: "UnlockPi — AI Classroom Tutor",
   description:
     "Your AI-powered classroom assistant. Making learning fun, interactive, and unforgettable.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+      { url: "/unlockpi-logo.png", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: "/favicon.ico" }],
+  },
 };
 
 export default function RootLayout({
@@ -35,13 +43,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
-      <head>
-        <link
-          href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="antialiased" suppressHydrationWarning> <TooltipProvider>{children}</TooltipProvider></body>
+      <body className="antialiased" suppressHydrationWarning>
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

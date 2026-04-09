@@ -1,338 +1,200 @@
 "use client"
 
-import * as React from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import {
+  CircleHelpIcon,
+  HomeIcon,
+  MessagesSquareIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PenLineIcon,
+  Settings2Icon,
+  SparklesIcon,
+  type LucideIcon,
+} from "lucide-react"
+
+import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarGroup,
-  SidebarGroupLabel,
-
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, DatabaseIcon, FileChartColumnIcon, FileIcon, CommandIcon, SquareTerminal, Bot, BookOpen, Settings2 } from "lucide-react"
-import { ChevronRight, type LucideIcon } from "lucide-react"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "#",
-      icon: (
-        <LayoutDashboardIcon
-        />
-      ),
-    },
-    {
-      title: "Lifecycle",
-      url: "#",
-      icon: (
-        <ListIcon
-        />
-      ),
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: (
-        <ChartBarIcon
-        />
-      ),
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: (
-        <FolderIcon
-        />
-      ),
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: (
-        <UsersIcon
-        />
-      ),
-    },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: (
-        <CameraIcon
-        />
-      ),
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: (
-        <Settings2Icon
-        />
-      ),
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: (
-        <CircleHelpIcon
-        />
-      ),
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: (
-        <SearchIcon
-        />
-      ),
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: (
-        <DatabaseIcon
-        />
-      ),
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: (
-        <FileChartColumnIcon
-        />
-      ),
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: (
-        <FileIcon
-        />
-      ),
-    },
-  ],
-  navMain2: [
-    {
-      title: "Teach AI",
-      url: "#",
-      icon: SquareTerminal,
-      isActive: true,
-      items: [
-        {
-          title: "History",
-          url: "#",
-        },
-        {
-          title: "Starred",
-          url: "#",
-        },
-        {
-          title: "Settings",
-          url: "#",
-        },
-      ],
-    },
-    // {
-    //   title: "Models",
-    //   url: "#",
-    //   icon: Bot,
-    //   items: [
-    //     {
-    //       title: "Genesis",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Explorer",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Quantum",
-    //       url: "#",
-    //     },
-    //   ],
-    // },
-    // {
-    //   title: "Documentation",
-    //   url: "#",
-    //   icon: BookOpen  ,
-    //   items: [
-    //     {
-    //       title: "Introduction",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Get Started",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Tutorials",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Changelog",
-    //       url: "#",
-    //     },
-    //   ],
-    // },
-    // {
-    //   title: "Settings",
-    //   url: "#",
-    //   icon: Settings2,
-    //   items: [
-    //     {
-    //       title: "General",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Team",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Billing",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Limits",
-    //       url: "#",
-    //     },
-    //   ],
-    // },
-  ],
+type MainItem = {
+  title: string
+  url: string
+  icon: LucideIcon
+  subtitle?: string
 }
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+
+const topItems: MainItem[] = [
+  {
+    title: "New session",
+    url: "/dashboard/talk",
+    icon: PenLineIcon,
+  },
+  {
+    title: "Discover",
+    url: "/dashboard/discover",
+    icon: SparklesIcon,
+  },
+  {
+    title: "Home chat",
+    url: "/dashboard",
+    icon: HomeIcon,
+    subtitle: "Hey, I'm Pi - your personal AI tutor",
+  },
+]
+
+const todayItems = [
+  {
+    title: "Chat Helper 😊",
+    preview: "Hey! 😊 What's on your mind today?",
+    active: true,
+  },
+]
+
+const footerItems = [
+  { title: "Help & feedback", icon: CircleHelpIcon, url: "#" },
+  { title: "Settings", icon: Settings2Icon, url: "#" },
+]
+
+function SidebarCollapseButton() {
+  const { state, toggleSidebar } = useSidebar()
+  const isCollapsed = state === "collapsed"
+
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="#" />}
-            >
-              <CommandIcon className="size-5!" />
-              <span className="text-base font-semibold">Acme Inc.</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+    >
+      {isCollapsed ? (
+        <PanelLeftOpenIcon className="size-4" />
+      ) : (
+        <PanelLeftCloseIcon className="size-4" />
+      )}
+    </button>
+  )
+}
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+
+  return (
+    <Sidebar
+      collapsible="icon"
+      className={cn(
+        "**:data-[slot=sidebar-menu-button]:rounded-xl",
+        "**:data-[slot=sidebar-menu-button]:text-sm **:data-[slot=sidebar-menu-button]:font-medium",
+        "[&_[data-slot=sidebar-menu-button][data-active=true]]:bg-accent [&_[data-slot=sidebar-menu-button][data-active=true]]:text-accent-foreground"
+      )}
+      {...props}
+    >
+      <SidebarHeader className="border-b border-border px-3 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+            <Image
+              src="/unlockpi-logo.png"
+              alt="Unlock PI logo"
+              width={30}
+              height={30}
+              className="size-7 rounded-md object-cover"
+              priority
+            />
+            <span className="truncate text-base font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
+              Unlock PI
+            </span>
+          </Link>
+          <SidebarCollapseButton />
+        </div>
       </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={data.navMain} />
-        {/* <NavDocuments items={data.documents} /> */}
-        {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
-          <SidebarMenu>
-            {data.navMain2.map((item) => (
-              <Collapsible
-                key={item.title}
-                asChild
-                defaultOpen={item.isActive}
-                className="group/collapsible"
-              >
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip={item.title}>
-                      {item.icon && <item.icon />}
-                      <span>{item.title}</span>
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {item.items?.map((subItem) => (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild>
-                            <a href={subItem.url}>
-                              <span>{subItem.title}</span>
-                            </a>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
+      <SidebarContent className="px-2">
+        <SidebarMenu className="gap-1">
+          {topItems.map((item) => {
+            const isActive =
+              pathname === item.url ||
+              (item.url !== "/dashboard" && pathname.startsWith(item.url))
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  render={<Link href={item.url} />}
+                  tooltip={item.title}
+                  isActive={isActive}
+                  className={cn(
+                    "h-auto min-h-10 items-start gap-2.5 py-2",
+                    item.subtitle ? "min-h-14" : ""
+                  )}
+                >
+                  <item.icon className="mt-0.5 size-4 shrink-0" />
+                  <div className="grid min-w-0 gap-0.5 group-data-[collapsible=icon]:hidden">
+                    <span className="truncate">{item.title}</span>
+                    {item.subtitle ? (
+                      <span className="truncate text-xs font-normal text-muted-foreground">
+                        {item.subtitle}
+                      </span>
+                    ) : null}
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+
+        <SidebarGroup className="pt-4">
+          <SidebarGroupLabel className="px-2 text-[13px] font-semibold text-muted-foreground">
+            Today
+          </SidebarGroupLabel>
+          <SidebarMenu className="mt-1 gap-1">
+            {todayItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  tooltip={item.title}
+                  isActive={item.active}
+                  className="h-auto min-h-12 items-start gap-2.5 py-2"
+                >
+                  <MessagesSquareIcon className="hidden size-4 shrink-0 group-data-[collapsible=icon]:inline" />
+                  <div className="grid min-w-0 gap-0.5 group-data-[collapsible=icon]:hidden">
+                    <span className="truncate">{item.title}</span>
+                    <span className="truncate text-xs font-normal text-muted-foreground">
+                      {item.preview}
+                    </span>
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
+
+      <SidebarFooter className="mt-auto border-t border-border px-2 py-3">
+        <SidebarMenu className="gap-1">
+          {footerItems.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                render={<a href={item.url} />}
+                tooltip={item.title}
+                className="h-10 gap-2.5"
+              >
+                <item.icon className="size-4 shrink-0" />
+                <span className="group-data-[collapsible=icon]:hidden">
+                  {item.title}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
