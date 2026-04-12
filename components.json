@@ -23,6 +23,8 @@
   "registries": {
     "@agents-ui": "https://livekit.io/ui/r/{name}.json",
     "@supabase": "https://supabase.com/ui/r/{name}.json",
-    "@magicui": "https://magicui.design/r/{name}"
+    "@magicui": "https://magicui.design/r/{name}",
+    "@coss": "https://coss.com/ui/r/{name}.json",
+    "@unlumen-ui": "https://ui.unlumen.com/r/{name}.json"
   }
 }

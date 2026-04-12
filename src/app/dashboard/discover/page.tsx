@@ -1,121 +1,136 @@
 import { BentoCard, BentoGrid } from "@/components/ui/bento-grid"
-import { CalendarIcon, FileTextIcon } from "@radix-ui/react-icons"
-import { BellIcon, Share2Icon } from "lucide-react"
+import {
+    BookOpenCheckIcon,
+    FileTextIcon,
+    FolderPlusIcon,
+    GraduationCapIcon,
+    MessageSquareMoreIcon,
+    TargetIcon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
-// import { Calendar } from "@/components/ui/calendar"
-// import AnimatedBeamMultipleOutputDemo from "@/registry/example/animated-beam-multiple-outputs"
-// import AnimatedListDemo from "@/registry/example/animated-list-demo"
-// import { BentoCard, BentoGrid } from "@/registry/magicui/bento-grid"
-// import { Marquee } from "@/registry/magicui/marquee"
 
-const files = [
-    {
-        name: "bitcoin.pdf",
-        body: "Bitcoin is a cryptocurrency invented in 2008 by an unknown person or group of people using the name Satoshi Nakamoto.",
-    },
-    {
-        name: "finances.xlsx",
-        body: "A spreadsheet or worksheet is a file made of rows and columns that help sort data, arrange data easily, and calculate numerical data.",
-    },
-    {
-        name: "logo.svg",
-        body: "Scalable Vector Graphics is an Extensible Markup Language-based vector image format for two-dimensional graphics with support for interactivity and animation.",
-    },
-    {
-        name: "keys.gpg",
-        body: "GPG keys are used to encrypt and decrypt email, files, directories, and whole disk partitions and to authenticate messages.",
-    },
-    {
-        name: "seed.txt",
-        body: "A seed phrase, seed recovery phrase or backup seed phrase is a list of words which store all the information needed to recover Bitcoin funds on-chain.",
-    },
-]
+type DiscoverCard = {
+    Icon: React.ElementType
+    name: string
+    description: string
+    href: string
+    cta: string
+    className: string
+    background: React.ReactNode
+}
 
-const features = [
+function cardBackground(labels: string[], tint: string) {
+    return (
+        <div className="absolute inset-0">
+            <div className={cn("absolute inset-0 bg-linear-to-br", tint)} />
+            <div className="absolute inset-x-3 top-3 flex flex-wrap gap-1.5">
+                {labels.map((label) => (
+                    <span
+                        key={label}
+                        className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur"
+                    >
+                        {label}
+                    </span>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+const features: DiscoverCard[] = [
     {
         Icon: FileTextIcon,
-        name: "Save your files",
-        description: "We automatically save your files as you type.",
-        href: "#",
-        cta: "Learn more",
-        className: "col-span-3 lg:col-span-1",
-        // background: (
-        //   <Marquee
-        //     pauseOnHover
-        //     className="absolute top-10 [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] [--duration:20s]"
-        //   >
-        //     {files.map((f, idx) => (
-        //       <figure
-        //         key={idx}
-        //         className={cn(
-        //           "relative w-32 cursor-pointer overflow-hidden rounded-xl border p-4",
-        //           "border-gray-950/[.1] bg-gray-950/[.01] hover:bg-gray-950/[.05]",
-        //           "dark:border-gray-50/[.1] dark:bg-gray-50/[.10] dark:hover:bg-gray-50/[.15]",
-        //           "transform-gpu blur-[1px] transition-all duration-300 ease-out hover:blur-none"
-        //         )}
-        //       >
-        //         <div className="flex flex-row items-center gap-2">
-        //           <div className="flex flex-col">
-        //             <figcaption className="text-sm font-medium dark:text-white">
-        //               {f.name}
-        //             </figcaption>
-        //           </div>
-        //         </div>
-        //         <blockquote className="mt-2 text-xs">{f.body}</blockquote>
-        //       </figure>
-        //     ))}
-        //   </Marquee>
-        // ),
+        name: "Start Guided Session",
+        description:
+            "Open intake instantly and scaffold a complete lesson with topic, goals, and agenda.",
+        href: "/session/new",
+        cta: "Create session",
+        className: "col-span-1 md:col-span-2 xl:col-span-2",
+        background: cardBackground(
+            ["Topic", "Goals", "Lesson flow"],
+            "from-accent/30 via-background to-background"
+        ),
     },
     {
-        Icon: BellIcon,
-        name: "Notifications",
-        description: "Get notified when something happens.",
-        href: "#",
-        cta: "Learn more",
-        className: "col-span-3 lg:col-span-2",
-        // background: (
-        //   <AnimatedListDemo className="absolute top-4 right-2 h-[300px] w-full scale-75 border-none [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] transition-all duration-300 ease-out group-hover:scale-90" />
-        // ),
+        Icon: FolderPlusIcon,
+        name: "Create Project Folder",
+        description: "Group sessions by class, unit, or term before you start teaching.",
+        href: "/dashboard/discover?quickAction=new-project",
+        cta: "Create project",
+        className: "col-span-1",
+        background: cardBackground(
+            ["Class", "Unit", "Term"],
+            "from-secondary/50 via-background to-background"
+        ),
     },
     {
-        Icon: Share2Icon,
-        name: "Integrations",
-        description: "Supports 100+ integrations and counting.",
-        href: "#",
-        cta: "Learn more",
-        className: "col-span-3 lg:col-span-2",
-        // background: (
-        //   <AnimatedBeamMultipleOutputDemo className="absolute top-4 right-2 h-[300px] border-none [mask-image:linear-gradient(to_top,transparent_10%,#000_100%)] transition-all duration-300 ease-out group-hover:scale-105" />
-        // ),
+        Icon: BookOpenCheckIcon,
+        name: "Revision Sprint",
+        description: "Set up a high-focus revision session for exam prep in one click.",
+        href: "/session/new?template=revision",
+        cta: "Start revision",
+        className: "col-span-1",
+        background: cardBackground(
+            ["Exam prep", "Recap", "Practice"],
+            "from-muted via-background to-background"
+        ),
     },
     {
-        Icon: CalendarIcon,
-        name: "Calendar",
-        description: "Use the calendar to filter your files by date.",
-        className: "col-span-3 lg:col-span-1",
-        href: "#",
-        cta: "Learn more",
-        // background: (
-        //   <Calendar
-        //     mode="single"
-        //     selected={new Date(2022, 4, 11, 0, 0, 0)}
-        //     className="absolute top-10 right-0 origin-top scale-75 rounded-md border [mask-image:linear-gradient(to_top,transparent_40%,#000_100%)] transition-all duration-300 ease-out group-hover:scale-90"
-        //   />
-        // ),
+        Icon: TargetIcon,
+        name: "Diagnostic Check",
+        description: "Create a diagnostic session to quickly identify student gaps.",
+        href: "/session/new?template=diagnostic",
+        cta: "Run diagnostic",
+        className: "col-span-1",
+        background: cardBackground(
+            ["Baseline", "Misconceptions", "Next steps"],
+            "from-accent/20 via-background to-background"
+        ),
+    },
+    {
+        Icon: GraduationCapIcon,
+        name: "Concept Masterclass",
+        description: "Build a deeper concept-first class with guided examples.",
+        href: "/session/new?template=masterclass",
+        cta: "Plan masterclass",
+        className: "col-span-1",
+        background: cardBackground(
+            ["Concept", "Examples", "Checks"],
+            "from-secondary/35 via-background to-background"
+        ),
+    },
+    {
+        Icon: MessageSquareMoreIcon,
+        name: "Discussion Session",
+        description: "Launch an oral discussion or viva-style teaching session quickly.",
+        href: "/session/new?template=discussion",
+        cta: "Start discussion",
+        className: "col-span-1",
+        background: cardBackground(
+            ["Oral", "Reasoning", "Reflection"],
+            "from-muted/80 via-background to-background"
+        ),
     },
 ]
 
 export default function BentoDemo() {
     return (
-        <div className="bg-">
+        <section className="mx-auto w-full max-w-6xl px-4 py-4 md:px-6 md:py-6">
+            <div className="mb-4 space-y-1">
+                <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+                    Discover Teaching Workflows
+                </h1>
+                <p className="max-w-3xl text-sm text-muted-foreground">
+                    Pick any card to jump straight into creating a new session or project.
+                </p>
+            </div>
 
-            <BentoGrid className="max-w-3xl mx-auto   bg- border-2 border-white">
-                {features.map((feature, idx) => (
-                    <BentoCard key={idx} {...feature} />
+            <BentoGrid className="mx-auto max-w-6xl">
+                {features.map((feature) => (
+                    <BentoCard key={feature.name} {...feature} />
                 ))}
             </BentoGrid>
-        </div>
+        </section>
     )
 }

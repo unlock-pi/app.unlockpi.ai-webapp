@@ -2,7 +2,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { createClient } from "@/lib/server";
 
@@ -20,14 +19,13 @@ export default async function DashboardLayout({
   const { data, error } = await supabase.auth.getClaims();
 
   if (error || !data?.claims) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   return (
     <SidebarProvider style={dashboardShellStyle}>
       <AppSidebar variant="inset" />
       <SidebarInset>
-        {/* <SiteHeader /> */}
         <main className="flex flex-1 flex-col">{children}</main>
       </SidebarInset>
     </SidebarProvider>

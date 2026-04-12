@@ -5,22 +5,17 @@
  */
 
 import type { Metadata } from "next";
-import { Manrope, JetBrains_Mono } from "next/font/google";
+import { Manrope, JetBrains_Mono, Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "streamdown/styles.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
+const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+
+const geistMono = Geist_Mono({subsets:['latin'],variable:'--font-mono'});
 
 export const metadata: Metadata = {
   title: "UnlockPi — AI Classroom Tutor",
@@ -42,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={cn("font-mono", inter.variable, interHeading.variable, geistMono.variable)}>
       <body className="antialiased" suppressHydrationWarning>
         <TooltipProvider>{children}</TooltipProvider>
       </body>
