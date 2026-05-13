@@ -86,12 +86,21 @@ type TeachingSession = {
   created_at: string
   updated_at: string
 }
+import { RiQuestionAnswerFill } from "react-icons/ri";
+import { VscCommentDiscussionSparkle } from "react-icons/vsc";
 
 const topItems: MainItem[] = [
+  // {
+  //   title: "Discover",
+  //   url: "/dashboard/discover",
+  //   icon: SparklesIcon,
+  // },
   {
-    title: "Discover",
-    url: "/dashboard/discover",
-    icon: SparklesIcon,
+    title: "Interviews",
+    url: "/dashboard/interview",
+    // icon: RiQuestionAnswerFill,
+    // @ts-ignore
+    icon: VscCommentDiscussionSparkle,
   },
   {
     title: "Home chat",

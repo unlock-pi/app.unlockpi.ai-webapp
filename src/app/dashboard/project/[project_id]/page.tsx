@@ -12,59 +12,21 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardPanel,
-  CardTitle,
-} from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+
 import { createClient } from "@/lib/server"
 import Image from "next/image"
 import { TiltCard } from "@/components/unlumen-ui/tilt-card"
+import { TeachingProject, TeachingSession } from "@/features/project/types/project-types"
+import { formatDate } from "@/features/project/lib/project-lib"
 
 type PageProps = {
   params: Promise<{ project_id: string }>
   searchParams: Promise<{ session?: string }>
 }
 
-type TeachingProject = {
-  id: string
-  owner_id: string
-  name: string
-  description: string | null
-  created_at: string
-  updated_at: string
-}
 
-type TeachingSession = {
-  id: string
-  owner_id: string
-  project_id: string
-  title: string
-  topic: string
-  learning_goals: string
-  lesson_structure: string
-  content_outline: string | null
-  status: string
-  is_live: boolean
-  created_at: string
-  updated_at: string
-}
 
-function formatDate(date: string) {
-  try {
-    return new Intl.DateTimeFormat("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(date))
-  } catch {
-    return date
-  }
-}
+
 
 export default async function ProjectDetailPage({
   params,

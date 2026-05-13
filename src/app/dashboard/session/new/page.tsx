@@ -22,57 +22,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import Image from "next/image"
+import { SessionDraft } from "@/features/session/types/session-types"
+import { TeachingProject } from "@/features/project/types/project-types"
+import { emptySessionDraft, templateDefaults } from "@/features/session/lib/session-lib"
 
-type TeachingProject = {
-  id: string
-  name: string
-  description: string | null
-}
 
-type SessionDraft = {
-  project_id: string
-  title: string
-  topic: string
-  learning_goals: string
-  lesson_structure: string
-  content_outline: string
-}
 
-const emptySessionDraft: SessionDraft = {
-  project_id: "",
-  title: "",
-  topic: "",
-  learning_goals: "",
-  lesson_structure: "",
-  content_outline: "",
-}
-
-const templateDefaults: Record<string, Partial<SessionDraft>> = {
-  revision: {
-    topic: "Revision Sprint",
-    title: "Exam Revision Session",
-    learning_goals: "Consolidate key concepts, identify weak spots, and complete focused practice.",
-    lesson_structure: "Quick recap -> Targeted examples -> Timed practice -> Error review",
-  },
-  diagnostic: {
-    topic: "Diagnostic Check",
-    title: "Baseline Diagnostic Session",
-    learning_goals: "Identify misconceptions, map skill gaps, and prioritize next teaching actions.",
-    lesson_structure: "Warm-up questions -> Diagnostic tasks -> Discussion -> Next-step plan",
-  },
-  masterclass: {
-    topic: "Concept Masterclass",
-    title: "Deep Concept Class",
-    learning_goals: "Build conceptual clarity and transfer learning to new problems.",
-    lesson_structure: "Core concept -> Visual explanation -> Guided examples -> Exit challenge",
-  },
-  discussion: {
-    topic: "Discussion Session",
-    title: "Reasoning and Discussion Class",
-    learning_goals: "Improve articulation, argument quality, and collaborative reasoning.",
-    lesson_structure: "Prompt -> Small-group reasoning -> Class synthesis -> Reflection",
-  },
-}
 
 export default function NewSessionPage() {
   const router = useRouter()
