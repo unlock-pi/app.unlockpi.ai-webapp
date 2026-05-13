@@ -10,19 +10,24 @@ interface TalkBoardStageProps {
   boardHighlights: HighlightWord[];
   boardDocument: BoardDocument;
   isThinking: boolean;
-  transcriptSlot?: React.ReactNode;
-}
-
-export function TalkBoardStage({ boardText, boardHighlights, boardDocument, isThinking, transcriptSlot }: TalkBoardStageProps) {
   visualPayload: VisualPayload | null;
   transcriptSlot?: React.ReactNode;
 }
 
-export function TalkBoardStage({ boardText, boardHighlights, boardDocument, visualPayload, transcriptSlot }: TalkBoardStageProps) {
+export function TalkBoardStage({
+  boardText,
+  boardHighlights,
+  boardDocument,
+  isThinking,
+  visualPayload,
+  transcriptSlot,
+}: TalkBoardStageProps) {
   const hasStructuredBoard = boardDocument.blocks.length > 0;
 
   return (
     <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+      <TalkThinkingOverlay visible={isThinking} />
+
       {visualPayload ? (
         <TalkVisualStage visual={visualPayload} className="rounded-none border-x-0 border-b-0" />
       ) : hasStructuredBoard ? (
