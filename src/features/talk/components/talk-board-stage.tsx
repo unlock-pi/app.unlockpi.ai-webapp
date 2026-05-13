@@ -2,6 +2,8 @@ import { HighlightWord, BoardPanel } from "@/features/talk/components/board-pane
 import { BoardDocumentPanel } from "@/features/talk/components/board-document-panel";
 import type { BoardDocument } from "@/features/talk/lib/board";
 import { TalkThinkingOverlay } from "./talk-thinking-overlay";
+import type { VisualPayload } from "@/types/visual";
+import { TalkVisualStage } from "./talk-visual-stage";
 
 interface TalkBoardStageProps {
   boardText: string;
@@ -12,13 +14,18 @@ interface TalkBoardStageProps {
 }
 
 export function TalkBoardStage({ boardText, boardHighlights, boardDocument, isThinking, transcriptSlot }: TalkBoardStageProps) {
+  visualPayload: VisualPayload | null;
+  transcriptSlot?: React.ReactNode;
+}
+
+export function TalkBoardStage({ boardText, boardHighlights, boardDocument, visualPayload, transcriptSlot }: TalkBoardStageProps) {
   const hasStructuredBoard = boardDocument.blocks.length > 0;
 
   return (
     <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-      <TalkThinkingOverlay visible={isThinking} />
-
-      {hasStructuredBoard ? (
+      {visualPayload ? (
+        <TalkVisualStage visual={visualPayload} className="rounded-none border-x-0 border-b-0" />
+      ) : hasStructuredBoard ? (
         <BoardDocumentPanel
           document={boardDocument}
           className="w-full h-full max-w-7xl mx-auto rounded-none border-x-0 border-b-0"

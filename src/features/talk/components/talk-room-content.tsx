@@ -22,7 +22,7 @@ export function TalkRoomContent({ connect, isConnecting, isConnected, error }: T
   const { state, audioTrack } = useVoiceAssistant();
   const { localParticipant, microphoneTrack } = useLocalParticipant();
 
-  const { boardText, boardHighlights, boardDocument } = useBoardRPC();
+  const { boardText, boardHighlights, boardDocument, visualPayload } = useBoardRPC();
   const { transcriptLog, liveAgentText, liveUserText } = useTranscript();
 
   const micTrackRef = microphoneTrack
@@ -50,6 +50,7 @@ export function TalkRoomContent({ connect, isConnecting, isConnected, error }: T
         boardText={boardText}
         boardHighlights={boardHighlights}
         boardDocument={boardDocument}
+        visualPayload={visualPayload}
         onDisconnect={() => window.location.reload()}
         transcriptSlot={
           isLive ? (

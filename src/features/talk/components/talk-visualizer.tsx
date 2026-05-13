@@ -4,10 +4,12 @@ import { AgentState, TrackReferenceOrPlaceholder } from "@livekit/components-rea
 import { useAudioAnalyzer } from "@/features/talk/hooks/use-audio-analyzer";
 import { HighlightWord } from "@/features/talk/components/board-panel";
 import type { BoardDocument } from "@/features/talk/lib/board";
-import { TalkHeaderBar } from "./talk-header-bar";
-import { TalkBoardStage } from "./talk-board-stage";
+
 import { TalkBrand } from "./talk-brand";
 import { TalkMatrix } from "./talk-matrix";
+import { VisualPayload } from "@/types/visual";
+import { TalkHeaderBar } from "./talk-header-bar";
+import { TalkBoardStage } from "./talk-board-stage";
 
 interface TalkVisualizerProps {
   state: AgentState;
@@ -18,6 +20,7 @@ interface TalkVisualizerProps {
   boardText: string;
   boardHighlights: HighlightWord[];
   boardDocument: BoardDocument;
+  visualPayload: VisualPayload | null;
   onDisconnect: () => void;
   transcriptSlot?: React.ReactNode;
 }
@@ -41,6 +44,7 @@ export function TalkVisualizer({
   boardText,
   boardHighlights,
   boardDocument,
+  visualPayload,
   onDisconnect,
   transcriptSlot,
 }: TalkVisualizerProps) {
@@ -96,6 +100,7 @@ export function TalkVisualizer({
         boardHighlights={boardHighlights}
         boardDocument={boardDocument}
         isThinking={isThinking}
+        visualPayload={visualPayload}
         transcriptSlot={transcriptSlot}
       />
     </div>
