@@ -1,4 +1,4 @@
-import { SessionDraft } from "../types/session-types"
+import { TeachingSession, SessionDraft } from "../types/session-types"
 
 export const emptySessionDraft: SessionDraft = {
   project_id: "",
@@ -34,4 +34,15 @@ export const templateDefaults: Record<string, Partial<SessionDraft>> = {
     learning_goals: "Improve articulation, argument quality, and collaborative reasoning.",
     lesson_structure: "Prompt -> Small-group reasoning -> Class synthesis -> Reflection",
   },
+}
+
+export function createSessionDraftFromSession(session: TeachingSession): SessionDraft {
+  return {
+    project_id: session.project_id,
+    title: session.title,
+    topic: session.topic,
+    learning_goals: session.learning_goals,
+    lesson_structure: session.lesson_structure,
+    content_outline: session.content_outline ?? "",
+  }
 }
