@@ -112,13 +112,6 @@ function useAnimation(
     }
   }, [frames, isPlaying, options.fps, options.loop, options.onFrame])
 
-  useEffect(() => {
-    setFrameIndex(0)
-    setIsPlaying(options.autoplay)
-    lastTimeRef.current = 0
-    accumulatorRef.current = 0
-  }, [frames, options.autoplay])
-
   return { frameIndex, isPlaying }
 }
 

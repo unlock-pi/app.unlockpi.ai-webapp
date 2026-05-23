@@ -1,111 +1,108 @@
 /**
  * Custom hook to extract real-time frequency data from a LiveKit audio track.
- * Accepts either a TrackReference (from useVoiceAssistant) or a TrackPublication
- * (from useLocalParticipant). Returns an array of normalized levels (0-1) suitable
- * for driving the Matrix component in "vu" mode.
+ * Returns normalized levels (0-1) suitable for driving the Matrix component in "vu" mode.
  */
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-/**
- * Accepts a generic object that has a way to get to a MediaStreamTrack.
- * Supports:
- *   - TrackReference  → trackRef.publication.track.mediaStreamTrack
- *   - TrackPublication → pub.track.mediaStreamTrack
- *   - undefined
- */
-export function useAudioAnalyzer(
-    trackSource: any | undefined,
-    fftSize: number = 64
-): number[] {
-    const binCount = fftSize / 2;
-    const [data, setData] = useState<number[]>(() => new Array(binCount).fill(0));
-    const rafRef = useRef<number | undefined>(undefined);
-    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const audioContextRef = useRef<AudioContext | null>(null);
+type TrackSource =
+  | MediaStreamTrack
+  | {
+      publication?: {
+        track?: {
+          mediaStreamTrack?: MediaStreamTrack;
+        };
+      };
+      track?: {
+        mediaStreamTrack?: MediaStreamTrack;
+      };
+    }
+  | undefined;
 
-    // Resolve a MediaStreamTrack from whichever shape we received
-    const mediaStreamTrack = useMemo(() => {
-        if (!trackSource) return undefined;
+type WindowWithWebkitAudio = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
 
-        // TrackReference shape: { publication: { track: { mediaStreamTrack } } }
-        if (trackSource?.publication?.track?.mediaStreamTrack) {
-            return trackSource.publication.track.mediaStreamTrack as MediaStreamTrack;
+function resolveMediaStreamTrack(trackSource: TrackSource): MediaStreamTrack | undefined {
+  if (!trackSource) {
+    return undefined;
+  }
+
+  if (trackSource instanceof MediaStreamTrack) {
+    return trackSource;
+  }
+
+  return (
+    trackSource.publication?.track?.mediaStreamTrack ?? trackSource.track?.mediaStreamTrack
+  );
+}
+
+export function useAudioAnalyzer(trackSource: TrackSource, fftSize = 64): number[] {
+  const binCount = fftSize / 2;
+  const emptyData = useMemo(() => new Array(binCount).fill(0), [binCount]);
+  const [data, setData] = useState<number[]>(emptyData);
+  const rafRef = useRef<number | undefined>(undefined);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const mediaStreamTrack = useMemo(() => resolveMediaStreamTrack(trackSource), [trackSource]);
+
+  useEffect(() => {
+    if (!mediaStreamTrack) {
+      return;
+    }
+
+    const { AudioContext: BrowserAudioContext, webkitAudioContext } =
+      window as WindowWithWebkitAudio;
+    const AudioContextClass = BrowserAudioContext ?? webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+
+    const audioContext = new AudioContextClass();
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
+
+    try {
+      const source = audioContext.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = fftSize;
+      analyser.smoothingTimeConstant = 0.75;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const update = () => {
+        const activeAnalyser = analyserRef.current;
+        if (!activeAnalyser) {
+          return;
         }
 
-        // TrackPublication shape: { track: { mediaStreamTrack } }
-        if (trackSource?.track?.mediaStreamTrack) {
-            return trackSource.track.mediaStreamTrack as MediaStreamTrack;
+        activeAnalyser.getByteFrequencyData(dataArray);
+        const normalized = Array.from(dataArray, (value) => value / 255);
+        setData(normalized);
+        rafRef.current = requestAnimationFrame(update);
+      };
+
+      update();
+
+      return () => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
         }
-
-        // Raw MediaStreamTrack
-        if (trackSource instanceof MediaStreamTrack) {
-            return trackSource;
+        source.disconnect();
+        analyserRef.current = null;
+        if (audioContext.state !== "closed") {
+          audioContext.close().catch(() => {});
         }
+      };
+    } catch (error) {
+      console.error("[useAudioAnalyzer] Setup failed:", error);
+    }
+  }, [fftSize, mediaStreamTrack]);
 
-        return undefined;
-    }, [trackSource]);
-
-    useEffect(() => {
-        if (!mediaStreamTrack) {
-            // Reset to zeros when no track
-            setData(new Array(binCount).fill(0));
-            return;
-        }
-
-        const AudioContextClass =
-            window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) return;
-
-        // Create AudioContext
-        const ctx = new AudioContextClass();
-        audioContextRef.current = ctx;
-
-        // Resume if suspended (browser autoplay policy)
-        if (ctx.state === "suspended") {
-            ctx.resume().catch(() => { });
-        }
-
-        try {
-            const source = ctx.createMediaStreamSource(
-                new MediaStream([mediaStreamTrack])
-            );
-            sourceRef.current = source;
-
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = fftSize;
-            analyser.smoothingTimeConstant = 0.75;
-            source.connect(analyser); // Don't connect to destination (avoids echo)
-            analyserRef.current = analyser;
-
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            const update = () => {
-                if (!analyserRef.current) return;
-                analyserRef.current.getByteFrequencyData(dataArray);
-                // Normalize each bin to 0–1
-                const normalized = Array.from(dataArray).map((val) => val / 255);
-                setData(normalized);
-                rafRef.current = requestAnimationFrame(update);
-            };
-
-            update();
-
-            return () => {
-                if (rafRef.current) cancelAnimationFrame(rafRef.current);
-                source.disconnect();
-                analyserRef.current = null;
-                sourceRef.current = null;
-                if (ctx.state !== "closed") ctx.close().catch(() => { });
-                audioContextRef.current = null;
-            };
-        } catch (err) {
-            console.error("[useAudioAnalyzer] Setup failed:", err);
-        }
-    }, [mediaStreamTrack, fftSize, binCount]);
-
-    return data;
+  return mediaStreamTrack ? data : emptyData;
 }

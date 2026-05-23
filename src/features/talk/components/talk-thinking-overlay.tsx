@@ -21,7 +21,6 @@ export function TalkThinkingOverlay({ visible }: TalkThinkingOverlayProps) {
 
   useEffect(() => {
     if (!visible) {
-      setLineIndex(0);
       return;
     }
 

@@ -1,9 +1,8 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { FormEvent, useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
-
+import Link from "next/link";
+import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarClockIcon,
   FolderIcon,
@@ -11,173 +10,52 @@ import {
   PenLineIcon,
   PresentationIcon,
   TargetIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { createClient } from "@/lib/client"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { SessionDraftForm } from "@/features/session/components/session-draft-form"
-import { createSessionDraftFromSession } from "@/features/session/lib/session-lib"
-import type { SessionDraft, TeachingProject, TeachingSession } from "@/features/session/types/session-types"
-import { formatDate } from "@/features/project/lib/project-lib"
-import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createClient } from "@/lib/client";
+import { SessionDraftForm } from "@/features/session/components/session-draft-form";
+import { createSessionDraftFromSession } from "@/features/session/lib/session-lib";
+import type { TeachingProject } from "@/features/project/types/project-types";
+import type { SessionDraft, TeachingSession } from "@/features/session/types/session-types";
+import { formatDate } from "@/features/project/lib/project-lib";
 
 type ProjectWorkspaceProps = {
-  project: TeachingProject
-  sessions: TeachingSession[]
-  initialSessionId?: string | null
-}
+  project: TeachingProject;
+  sessions: TeachingSession[];
+  initialSessionId?: string | null;
+};
+
+type SessionEditorProps = {
+  project: TeachingProject;
+  session: TeachingSession;
+  onSaved: (session: TeachingSession) => void;
+  onCancel: () => void;
+};
 
 export function ProjectWorkspace({
   project,
   sessions: initialSessions,
   initialSessionId,
 }: ProjectWorkspaceProps) {
-  const pathname = usePathname()
-  const { replace, refresh } = useRouter()
+  const [sessionOverrides, setSessionOverrides] = useState<Record<string, TeachingSession>>({});
+  const [isEditing, setIsEditing] = useState(false);
 
-  const [sessions, setSessions] = useState(initialSessions)
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    initialSessionId ?? initialSessions[0]?.id ?? null
-  )
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [draft, setDraft] = useState<SessionDraft | null>(null)
-
-  useEffect(() => {
-    setSessions(initialSessions)
-  }, [initialSessions])
-
-  useEffect(() => {
-    setSelectedSessionId(initialSessionId ?? initialSessions[0]?.id ?? null)
-  }, [initialSessionId, initialSessions])
+  const sessions = useMemo(
+    () =>
+      initialSessions.map((session) => {
+        return sessionOverrides[session.id] ?? session;
+      }),
+    [initialSessions, sessionOverrides]
+  );
 
   const selectedSession =
-    sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null
-
-  useEffect(() => {
-    if (!selectedSession) {
-      setDraft(null)
-      setIsEditing(false)
-      return
-    }
-
-    setDraft(createSessionDraftFromSession(selectedSession))
-  }, [selectedSession])
-
-  const selectSession = (sessionId: string) => {
-    setSelectedSessionId(sessionId)
-    setIsEditing(false)
-    setErrorMessage(null)
-    replace(`${pathname}?session=${sessionId}`, { scroll: false })
-  }
-
-  const handleSaveSession = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!selectedSession || !draft) {
-      return
-    }
-
-    const requiredFields: Array<[string, string]> = [
-      ["topic", draft.topic.trim()],
-      ["title", draft.title.trim()],
-      ["learning goals", draft.learning_goals.trim()],
-      ["lesson structure", draft.lesson_structure.trim()],
-    ]
-
-    const missingField = requiredFields.find(([, value]) => !value)
-    if (missingField) {
-      setErrorMessage(`Please provide ${missingField[0]} before saving the session.`)
-      return
-    }
-
-    setIsSaving(true)
-    setErrorMessage(null)
-
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from("teaching_sessions")
-      .update({
-        title: draft.title.trim(),
-        topic: draft.topic.trim(),
-        learning_goals: draft.learning_goals.trim(),
-        lesson_structure: draft.lesson_structure.trim(),
-        content_outline: draft.content_outline.trim() || null,
-      })
-      .eq("id", selectedSession.id)
-      .eq("project_id", project.id)
-      .select(
-        "id, owner_id, project_id, title, topic, learning_goals, lesson_structure, content_outline, status, is_live, created_at, updated_at"
-      )
-      .single()
-
-    if (error || !data) {
-      setErrorMessage(error?.message ?? "Unable to update session.")
-      setIsSaving(false)
-      return
-    }
-
-    const updatedSession = data as TeachingSession
-    setSessions((previous) =>
-      previous.map((session) => (session.id === updatedSession.id ? updatedSession : session))
-    )
-    setDraft(createSessionDraftFromSession(updatedSession))
-    setIsEditing(false)
-    setIsSaving(false)
-    refresh()
-  }
+    sessions.find((session) => session.id === initialSessionId) ?? sessions[0] ?? null;
 
   return (
-    <div className="gap-6 ">
-      {/* <Card className="border-border/70">
-        <CardHeader className="border-b">
-          <CardTitle>Sessions</CardTitle>
-          <CardDescription>
-            Open a session to review it, then edit from the main workspace.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-3 p-4">
-          {sessions.length === 0 ? (
-            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              No sessions yet. Create your first teaching session for this project.
-            </div>
-          ) : (
-            sessions.map((session) => {
-              const isActive = selectedSession?.id === session.id
-
-              return (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => selectSession(session.id)}
-                  className={cn(
-                    "w-full rounded-2xl border px-4 py-3 text-left transition-colors",
-                    isActive
-                      ? "border-primary/40 bg-primary/8"
-                      : "border-border bg-background hover:bg-muted/30"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="truncate text-sm font-medium">{session.title}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{session.topic}</p>
-                    </div>
-                    <Badge variant={isActive ? "default" : "outline"}>{session.status}</Badge>
-                  </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Updated {formatDate(session.updated_at)}
-                  </p>
-                </button>
-              )
-            })
-          )}
-        </CardContent>
-      </Card> */}
-
+    <div className="gap-6">
       <Card className="border-border/70">
         <CardHeader className="border-b">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -216,21 +94,19 @@ export function ProjectWorkspace({
             <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
               This project has no sessions yet. Create one to start building your teaching flow.
             </div>
-          ) : isEditing && draft ? (
-            <SessionDraftForm
-              draft={draft}
-              projects={[project]}
-              isSaving={isSaving}
-              submitLabel="Save changes"
-              errorMessage={errorMessage}
-              onSubmit={handleSaveSession}
-              onDraftChange={setDraft}
-              onCancel={() => {
-                setDraft(createSessionDraftFromSession(selectedSession))
-                setIsEditing(false)
-                setErrorMessage(null)
+          ) : isEditing ? (
+            <SessionEditor
+              key={selectedSession.id}
+              project={project}
+              session={selectedSession}
+              onSaved={(updatedSession) => {
+                setSessionOverrides((previous) => ({
+                  ...previous,
+                  [updatedSession.id]: updatedSession,
+                }));
+                setIsEditing(false);
               }}
-              showProjectSelect={false}
+              onCancel={() => setIsEditing(false)}
             />
           ) : (
             <>
@@ -243,7 +119,7 @@ export function ProjectWorkspace({
                 </Badge>
               </div>
 
-              <div className="gap-4 ">
+              <div className="gap-4">
                 <div className="space-y-2 rounded-2xl border border-border bg-muted/20 p-4">
                   <h3 className="flex items-center gap-2 text-sm font-medium">
                     <TargetIcon className="size-4" />
@@ -259,8 +135,9 @@ export function ProjectWorkspace({
                     <MessageSquareIcon className="size-4" />
                     Lesson structure
                   </h3>
-                  <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground truncate">
-                    {selectedSession.lesson_structure.slice(0, 200) || "No lesson structure provided yet."}
+                  <p className="truncate whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                    {selectedSession.lesson_structure.slice(0, 200) ||
+                      "No lesson structure provided yet."}
                   </p>
                 </div>
               </div>
@@ -279,5 +156,79 @@ export function ProjectWorkspace({
         </CardContent>
       </Card>
     </div>
-  )
+  );
+}
+
+function SessionEditor({ project, session, onSaved, onCancel }: SessionEditorProps) {
+  const { refresh } = useRouter();
+  const [draft, setDraft] = useState<SessionDraft>(() => createSessionDraftFromSession(session));
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const requiredFields: Array<[string, string]> = [
+      ["topic", draft.topic.trim()],
+      ["title", draft.title.trim()],
+      ["learning goals", draft.learning_goals.trim()],
+      ["lesson structure", draft.lesson_structure.trim()],
+    ];
+
+    const missingField = requiredFields.find(([, value]) => !value);
+    if (missingField) {
+      setErrorMessage(`Please provide ${missingField[0]} before saving the session.`);
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("teaching_sessions")
+      .update({
+        title: draft.title.trim(),
+        topic: draft.topic.trim(),
+        learning_goals: draft.learning_goals.trim(),
+        lesson_structure: draft.lesson_structure.trim(),
+        content_outline: draft.content_outline.trim() || null,
+      })
+      .eq("id", session.id)
+      .eq("project_id", project.id)
+      .select(
+        "id, owner_id, project_id, title, topic, learning_goals, lesson_structure, content_outline, status, is_live, created_at, updated_at"
+      )
+      .single();
+
+    if (error || !data) {
+      setErrorMessage(error?.message ?? "Unable to update session.");
+      setIsSaving(false);
+      return;
+    }
+
+    const updatedSession = data as TeachingSession;
+    setDraft(createSessionDraftFromSession(updatedSession));
+    setIsSaving(false);
+    refresh();
+    onSaved(updatedSession);
+  };
+
+  return (
+    <SessionDraftForm
+      draft={draft}
+      projects={[project]}
+      isSaving={isSaving}
+      submitLabel="Save changes"
+      errorMessage={errorMessage}
+      onSubmit={handleSubmit}
+      onDraftChange={setDraft}
+      onCancel={() => {
+        setDraft(createSessionDraftFromSession(session));
+        setErrorMessage(null);
+        onCancel();
+      }}
+      showProjectSelect={false}
+    />
+  );
 }

@@ -46,7 +46,7 @@ export const arraysCourse = {
       segment: "what-is-an-array",
       order: 1,
       title: "What is an array?",
-      shortTitle: "What is it?",
+      shortTitle: "",
       overview:
         "An array is a sequence of slots placed in order. Each slot stores one value, and the order makes the structure useful.",
       lessonGoal:
@@ -89,6 +89,17 @@ export const arraysCourse = {
         },
       ],
       activeIndex: 1,
+      checkpoint: {
+        prompt: "Which description best matches an array?",
+        options: [
+          { id: "line", label: "A line of values you can access by index" },
+          { id: "tree", label: "A branching structure with many levels" },
+          { id: "bag", label: "A random bag of unrelated values" },
+        ],
+        correctOptionId: "line",
+        explanation:
+          "An array is an ordered line of values, and the index tells you which slot to read or update.",
+      },
     },
     {
       segment: "indexing",
