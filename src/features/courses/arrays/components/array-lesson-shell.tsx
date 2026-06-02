@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Mic, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +24,7 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
   const [showCheckpoint, setShowCheckpoint] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
 
-  if (!lesson) {
-    return null;
-  }
+  if (!lesson) return null;
 
   const { previousLesson, nextLesson } = getAdjacentArrayLessons(lessonSegment);
   const progressPercent = (lesson.order / arraysCourse.lessons.length) * 100;
@@ -37,30 +35,27 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
     <TooltipProvider>
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+
+          {/* Progress rail */}
           <div className="rounded-[1.75rem] border border-border/70 bg-background/55 py-4 shadow-[0_16px_48px_rgba(0,0,0,0.14)]">
             <div className="flex items-center gap-4">
               <ProgressArrow lesson={previousLesson} direction="left" />
-
               <div className="flex-1 space-y-3">
-                {/* <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-foreground">{lesson.shortTitle}</div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                    {lesson.order} / {arraysCourse.lessons.length}
-                  </div>
-                </div> */}
                 <div className="relative h-4 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,rgba(59,130,246,0.75),rgba(56,189,248,0.85))] transition-[width] duration-500"
+                    className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,rgba(59,130,246,0.8),rgba(56,189,248,0.9))] transition-[width] duration-700 ease-out"
                     style={{ width: `${progressPercent}%` }}
-                  />
+                  >
+                    <div className="absolute inset-0 animate-pulse rounded-full opacity-40 bg-white/20" />
+                  </div>
                   <div className="absolute inset-0 flex items-center justify-between px-2">
                     {arraysCourse.lessons.map((courseLesson) => (
                       <span
                         key={courseLesson.segment}
                         className={cn(
-                          "size-2.5 rounded-full border border-background/70 transition-colors",
+                          "size-2.5 rounded-full border border-background/70 transition-all duration-500",
                           courseLesson.order <= lesson.order
-                            ? "bg-background/95"
+                            ? "bg-background/95 shadow-[0_0_4px_rgba(255,255,255,0.5)]"
                             : "bg-background/35"
                         )}
                       />
@@ -68,10 +63,11 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                   </div>
                 </div>
               </div>
-
               <ProgressArrow lesson={nextLesson} direction="right" />
             </div>
           </div>
+
+          {/* Lesson header */}
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-3">
               <Link
@@ -83,7 +79,7 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
               </Link>
               <div>
                 <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
-                  Arrays lesson {lesson.order}
+                  Arrays · Lesson {lesson.order} of {arraysCourse.lessons.length}
                 </p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">{lesson.title}</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -91,20 +87,9 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                 </p>
               </div>
             </div>
-
-            <div className="flex flex-col items-start gap-2 md:items-end">
-              {/* <Button variant="outline" disabled className="gap-2">
-                <Mic className="size-4" />
-                Talk through this lesson
-              </Button> */}
-              <p className="max-w-52 text-xs leading-5 text-muted-foreground md:text-right">
-                Voice hooks are ready here for your future Realtime guide.
-              </p>
-            </div>
           </div>
 
-
-          -
+          {/* Learning focus card */}
           <Card className="border-border/70 bg-card/70">
             <CardHeader className="space-y-3">
               <div className="flex items-center gap-2 text-primary">
@@ -118,9 +103,9 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                 {lesson.learningFocus.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-3 rounded-2xl border border-border/60 bg-background/40 px-4 py-3"
+                    className="flex gap-3 rounded-2xl border border-border/60 bg-background/40 px-4 py-3 transition-colors hover:border-primary/20 hover:bg-primary/5"
                   >
-                    <span className="mt-2 size-2 rounded-full bg-primary/80" />
+                    <span className="mt-2 size-2 rounded-full bg-primary/80 shrink-0" />
                     <span>{point}</span>
                   </li>
                 ))}
@@ -128,8 +113,10 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
             </CardContent>
           </Card>
 
+          {/* Visualizer */}
           <ArrayVisualizer lesson={lesson} />
 
+          {/* Checkpoint */}
           {lesson.checkpoint ? (
             <div className="rounded-[1.75rem] border border-border/70 bg-card/70 p-5 shadow-[0_16px_48px_rgba(0,0,0,0.12)]">
               {!showCheckpoint ? (
@@ -139,14 +126,20 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                       Check yourself
                     </p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Ready for a quick interaction? Reveal one question for this lesson only.
+                      Ready for a quick question? Reveal one checkpoint for this lesson.
                     </p>
                   </div>
-                  <Button onClick={() => setShowCheckpoint(true)}>Open checkpoint</Button>
+                  <Button
+                    onClick={() => setShowCheckpoint(true)}
+                    className="gap-2 shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_28px_rgba(59,130,246,0.35)]"
+                  >
+                    <Sparkles className="size-4" />
+                    Open checkpoint
+                  </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
+                <div className="space-y-5">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
                         Check yourself
@@ -157,6 +150,7 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                     </div>
                     <Button
                       variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setShowCheckpoint(false);
                         setSelectedOptionId(null);
@@ -166,46 +160,52 @@ export function ArrayLessonShell({ lessonSegment }: ArrayLessonShellProps) {
                     </Button>
                   </div>
 
-                  <div className="grid gap-3">
+                  <div className="grid gap-2.5">
                     {lesson.checkpoint.options.map((option) => {
                       const isSelected = selectedOptionId === option.id;
-                      const shouldReveal = Boolean(selectedOptionId);
+                      const answered = Boolean(selectedOptionId);
                       const isCorrect = option.id === lesson.checkpoint?.correctOptionId;
 
                       return (
                         <button
                           key={option.id}
                           type="button"
+                          disabled={answered}
                           onClick={() => setSelectedOptionId(option.id)}
                           className={cn(
-                            "rounded-2xl border px-4 py-3 text-left text-sm transition-colors",
+                            "rounded-2xl border px-4 py-3 text-left text-sm transition-all duration-200",
                             "hover:border-primary/40 hover:bg-primary/5",
-                            isSelected && "border-primary bg-primary/10",
-                            shouldReveal && isCorrect && "border-emerald-500/40 bg-emerald-500/10",
-                            shouldReveal &&
-                            isSelected &&
-                            !isCorrect &&
-                            "border-rose-500/40 bg-rose-500/10"
+                            isSelected && !answered && "border-primary bg-primary/10",
+                            answered && isCorrect &&
+                              "border-emerald-500/50 bg-emerald-500/10 text-emerald-200",
+                            answered && isSelected && !isCorrect &&
+                              "border-rose-500/40 bg-rose-500/8 text-rose-300"
                           )}
                         >
-                          {option.label}
+                          <span className="flex items-center gap-3">
+                            {answered && isCorrect && (
+                              <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
+                            )}
+                            {option.label}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
 
-                  {selectedOptionId ? (
+                  {selectedOptionId && (
                     <div
                       className={cn(
-                        "rounded-2xl border px-4 py-3 text-sm leading-6",
+                        "rounded-2xl border px-4 py-3 text-sm leading-6 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         isCheckpointCorrect
                           ? "border-emerald-500/30 bg-emerald-500/8 text-emerald-100"
                           : "border-amber-500/30 bg-amber-500/8 text-amber-100"
                       )}
                     >
+                      {isCheckpointCorrect ? "✓ Correct! " : "Not quite — "}
                       {lesson.checkpoint.explanation}
                     </div>
-                  ) : null}
+                  )}
                 </div>
               )}
             </div>

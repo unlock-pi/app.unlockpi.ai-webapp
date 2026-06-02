@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useRoomContext } from "@livekit/components-react";
+import { useMaybeRoomContext } from "@livekit/components-react";
 import { useEffect, useRef } from "react";
 import type { RpcInvocationData } from "livekit-client";
 
@@ -28,7 +28,7 @@ function debugRpc(method: string, message: string, payload?: unknown) {
 }
 
 export function useRpcHandler(method: string, handler: RpcHandler) {
-    const room = useRoomContext();
+    const room = useMaybeRoomContext();
     // Use a ref so we don't re-register every time handler identity changes
     const handlerRef = useRef(handler);
 

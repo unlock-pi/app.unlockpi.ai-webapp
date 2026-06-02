@@ -3,6 +3,7 @@ import { ArrowRight, Mic } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { arraysCourse } from "@/features/courses/arrays/lib/arrays-course";
+import { linkedListCourse } from "@/features/courses/linked-lists/lib/linked-list-course";
 
 export default function CoursesPage() {
   return (
@@ -49,6 +50,28 @@ export default function CoursesPage() {
                   Voice-ready seams are wired in, but kept quiet in the UI for now.
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.10),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-3">
+              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
+                Available now
+              </p>
+              <div>
+                <h2 className="text-3xl font-semibold tracking-tight">{linkedListCourse.title}</h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {linkedListCourse.description}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col items-start gap-3 lg:items-end">
+              <Button className="gap-2" render={<Link href={linkedListCourse.coursePath} />}>
+                Open Linked Lists
+                <ArrowRight className="size-4" />
+              </Button>
             </div>
           </div>
         </section>
