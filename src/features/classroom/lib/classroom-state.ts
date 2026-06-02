@@ -7,6 +7,14 @@ import type { BoardDocument, BoardOperation } from "@/features/talk/lib/board";
 
 export type ClassroomViewMode = "content" | "cognitive_test";
 
+export interface LessonControlPayload {
+  action: string;
+  target: string;
+  value: string;
+  course_context: Record<string, unknown>;
+  timestamp: number;
+}
+
 export interface ClassroomRealtimeState {
   boardText: string;
   boardHighlights: HighlightWord[];
@@ -17,6 +25,7 @@ export interface ClassroomRealtimeState {
   cognitiveQuestion: string;
   cognitiveAnswers: CognitiveAnswer[];
   teamScores: Record<string, number>;
+  lessonControl: LessonControlPayload | null;
 }
 
 export const DEFAULT_TEAM_SCORES: Record<string, number> = {
@@ -37,6 +46,7 @@ export function createInitialClassroomRealtimeState(): ClassroomRealtimeState {
     cognitiveQuestion: "",
     cognitiveAnswers: [],
     teamScores: { ...DEFAULT_TEAM_SCORES },
+    lessonControl: null,
   };
 }
 
@@ -52,6 +62,7 @@ export type ClassroomRealtimeAction =
   | { type: "startCognitiveTest"; question: string; answers: CognitiveAnswer[] }
   | { type: "revealCognitiveAnswer"; index: number }
   | { type: "setTeamScores"; scores: Record<string, number> }
+  | { type: "LESSON_CONTROL"; payload: LessonControlPayload }
   | { type: "reset" };
 
 export function classroomRealtimeReducer(
@@ -128,6 +139,8 @@ export function classroomRealtimeReducer(
         ...state,
         teamScores: action.scores,
       };
+    case "LESSON_CONTROL":
+      return { ...state, lessonControl: action.payload };
     case "reset":
       return createInitialClassroomRealtimeState();
     default:

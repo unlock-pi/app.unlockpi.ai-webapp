@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock3, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock3 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { arraysCourse } from "@/features/courses/arrays/lib/arrays-course";
+import { linkedListCourse } from "../lib/linked-list-course";
 
-export function ArrayCourseLanding() {
-  const firstLesson = arraysCourse.lessons[0];
+export function LinkedListCourseLanding() {
+  const firstLesson = linkedListCourse.lessons[0];
 
   return (
     <div className="flex flex-1 flex-col gap-8 px-4 py-6 lg:px-8">
@@ -17,9 +17,7 @@ export function ArrayCourseLanding() {
 
         {/* Hero */}
         <section className="relative overflow-hidden rounded-[2.25rem] border border-border/70 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.2)]">
-          {/* animated gradient backdrop */}
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.18),transparent_55%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]" />
-          {/* subtle grid pattern */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(220,38,38,0.18),transparent_55%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]" />
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.03]"
             style={{
@@ -32,33 +30,33 @@ export function ArrayCourseLanding() {
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-4">
               <div className="flex items-center gap-2">
-                <span className="inline-flex size-2 animate-pulse rounded-full bg-blue-400" />
+                <span className="inline-flex size-2 animate-pulse rounded-full bg-primary" />
                 <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
-                  Course · Arrays
+                  Course · Linked Lists
                 </p>
               </div>
               <div>
-                <h1 className="text-4xl font-semibold tracking-tight">{arraysCourse.title}</h1>
+                <h1 className="text-4xl font-semibold tracking-tight">{linkedListCourse.title}</h1>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                  {arraysCourse.description}
+                  {linkedListCourse.description}
                 </p>
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Clock3 className="size-3.5" />
-                  {arraysCourse.lessons.length} lessons
+                  {linkedListCourse.lessons.length} lessons
                 </span>
                 <span className="size-1 rounded-full bg-border" />
-                <span>Beginner friendly</span>
+                <span>Pointer-based thinking</span>
               </div>
             </div>
 
             <div className="flex flex-col items-start gap-3 lg:items-end">
               <Button
-                className="gap-2 shadow-[0_0_24px_rgba(59,130,246,0.25)] transition-shadow hover:shadow-[0_0_32px_rgba(59,130,246,0.4)]"
-                render={<Link href={`${arraysCourse.coursePath}/${firstLesson.segment}`} />}
+                className="gap-2 shadow-[0_0_24px_rgba(220,38,38,0.25)] transition-shadow hover:shadow-[0_0_32px_rgba(220,38,38,0.4)]"
+                render={<Link href={`${linkedListCourse.coursePath}/${firstLesson.segment}`} />}
               >
-                Start Arrays
+                Start Linked Lists
                 <ArrowRight className="size-4" />
               </Button>
             </div>
@@ -70,19 +68,19 @@ export function ArrayCourseLanding() {
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Lesson map</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              Follow the line one idea at a time
+              Follow the chain one idea at a time
             </h2>
           </div>
 
           <div className="rounded-[1.75rem] border border-border/70 bg-card/70 p-5">
             <div className="space-y-2">
-              {arraysCourse.lessons.map((lesson, index) => (
+              {linkedListCourse.lessons.map((lesson, index) => (
                 <LessonRow
                   key={lesson.segment}
                   lesson={lesson}
                   index={index}
-                  total={arraysCourse.lessons.length}
-                  href={`${arraysCourse.coursePath}/${lesson.segment}`}
+                  total={linkedListCourse.lessons.length}
+                  href={`${linkedListCourse.coursePath}/${lesson.segment}`}
                 />
               ))}
             </div>
@@ -109,13 +107,12 @@ function LessonRow({
 
   return (
     <div className="flex gap-4">
-      {/* step indicator column */}
       <div className="flex w-10 flex-col items-center">
         <div
           className={cn(
             "relative flex size-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-all duration-300",
             hovered
-              ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_rgba(59,130,246,0.5)]"
+              ? "border-primary bg-primary/20 text-primary-foreground shadow-[0_0_16px_rgba(220,38,38,0.5)]"
               : "border-primary/30 bg-primary/8 text-primary"
           )}
         >
@@ -134,7 +131,6 @@ function LessonRow({
         )}
       </div>
 
-      {/* content row */}
       <Link
         href={href}
         onMouseEnter={() => setHovered(true)}
@@ -143,7 +139,7 @@ function LessonRow({
           "mb-2 flex flex-1 flex-col gap-3 rounded-[1.5rem] border px-5 py-4 transition-all duration-200",
           "md:flex-row md:items-center md:justify-between",
           hovered
-            ? "border-primary/30 bg-primary/5 shadow-[0_4px_24px_rgba(59,130,246,0.08)]"
+            ? "border-primary/30 bg-primary/5 shadow-[0_4px_24px_rgba(220,38,38,0.08)]"
             : "border-border/60 bg-background/35"
         )}
       >

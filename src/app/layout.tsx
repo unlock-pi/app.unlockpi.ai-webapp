@@ -6,7 +6,9 @@
 
 import type { Metadata } from "next";
 import { Manrope, JetBrains_Mono, Inter, Geist_Mono } from "next/font/google";
+// @ts-expect-error CSS module declaration is handled by Next.js at build time.
 import "./globals.css";
+// @ts-expect-error CSS module declaration is handled by Next.js at build time.
 import "streamdown/styles.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";

@@ -93,6 +93,16 @@ function hasCognitiveTestPayload(
   );
 }
 
+function hasLessonControlPayload(
+  payload: unknown
+): payload is { action: string; target: string; value: string; course_context: Record<string, unknown> } {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    typeof (payload as { action?: unknown }).action === "string"
+  );
+}
+
 function hasRevealIndex(payload: unknown): payload is { index: number } {
   return (
     typeof payload === "object" &&
@@ -204,6 +214,21 @@ export function useClassroomRealtime() {
   useRpcHandler("update_transcript", async (payload) => {
     if (hasTranscriptLine(payload)) {
       dispatch({ type: "appendTranscript", line: payload.text });
+    }
+  });
+
+  useRpcHandler("lesson_control", async (payload) => {
+    if (hasLessonControlPayload(payload)) {
+      dispatch({
+        type: "LESSON_CONTROL",
+        payload: {
+          action: payload.action,
+          target: payload.target ?? "",
+          value: payload.value ?? "",
+          course_context: payload.course_context ?? {},
+          timestamp: Date.now(),
+        },
+      });
     }
   });
 
