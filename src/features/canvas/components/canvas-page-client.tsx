@@ -1,7 +1,7 @@
 "use client";
 
 import "@puckeditor/core/puck.css";
-import { FolderIcon } from "lucide-react";
+import { FolderIcon, SearchIcon } from "lucide-react";
 import {
   Card,
   CardFrame,
@@ -683,7 +683,9 @@ export function CanvasPageClient({
 
     setCanvasDocument(nextDocument);
     canvasDocumentRef.current = nextDocument;
-    setSaveStatus(`Last saved ${formatUpdatedAt(result.canvas.updated_at ?? new Date().toISOString())}`);
+    setSaveStatus(
+      `Last saved ${formatUpdatedAt(result.canvas.updated_at ?? new Date().toISOString())}`,
+    );
     updateCanvasSummary(mapCanvasSummary(result.canvas));
     appendLog("Saved the canvas draft.");
     toastManager.add({
@@ -732,8 +734,7 @@ export function CanvasPageClient({
           title: current.root?.props?.title ?? "Untitled canvas",
           subject: current.root?.props?.subject ?? "computer_science",
           theme: appearance.theme ?? activeCanvasTheme,
-          typographyScale:
-            appearance.typographyScale ?? activeTypographyScale,
+          typographyScale: appearance.typographyScale ?? activeTypographyScale,
         },
       },
     };
@@ -820,7 +821,9 @@ export function CanvasPageClient({
       return;
     }
 
-    const response = await fetch(`/api/canvas/${activeCanvasId}`, { method: "POST" });
+    const response = await fetch(`/api/canvas/${activeCanvasId}`, {
+      method: "POST",
+    });
     const result = (await response.json().catch(() => null)) as {
       canvas?: { is_public: boolean; share_slug: string };
       error?: string;
@@ -829,7 +832,11 @@ export function CanvasPageClient({
     if (!response.ok || !result?.canvas?.share_slug) {
       const message = result?.error ?? "Could not create a public link yet.";
       setShareError(message);
-      toastManager.add({ title: "Link not created", description: message, type: "error" });
+      toastManager.add({
+        title: "Link not created",
+        description: message,
+        type: "error",
+      });
       return;
     }
 
@@ -1170,10 +1177,10 @@ export function CanvasPageClient({
           open={isTemplateDialogOpen}
           onOpenChange={setIsTemplateDialogOpen}
         >
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <PiChalkboardDuotone  className="size-6" />
+                <PiChalkboardDuotone className="size-6" />
                 Create canvas
               </DialogTitle>
               <DialogDescription>
@@ -1185,12 +1192,18 @@ export function CanvasPageClient({
             <div className="grid gap-4 px-6 pb-2">
               <div className="grid gap-2">
                 <Label htmlFor="canvas-topic-search">Topic search</Label>
-                <Input
-                  id="canvas-topic-search"
-                  value={topicSearch}
-                  onChange={(event) => setTopicSearch(event.target.value)}
-                  placeholder="Search topic or subject"
-                />
+                <InputGroup>
+                  <InputGroupAddon>
+                    <SearchIcon aria-hidden="true" />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    aria-label="Search"
+                    placeholder="Search"
+                    type="search"
+                    value={topicSearch}
+                    onChange={(event) => setTopicSearch(event.target.value)}
+                  />
+                </InputGroup>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
@@ -1549,7 +1562,8 @@ export function CanvasPageClient({
                               Frame theme
                             </p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              One palette is applied to every frame, including presentation mode.
+                              One palette is applied to every frame, including
+                              presentation mode.
                             </p>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
@@ -1604,7 +1618,8 @@ export function CanvasPageClient({
                               Typography size
                             </p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              A fixed sans-serif system keeps every lesson consistent.
+                              A fixed sans-serif system keeps every lesson
+                              consistent.
                             </p>
                           </div>
                           <div className="grid gap-2">
