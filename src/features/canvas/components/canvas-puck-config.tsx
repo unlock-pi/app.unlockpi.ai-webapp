@@ -2,6 +2,8 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import type { Config, SlotComponent } from "@puckeditor/core";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   CopyIcon,
   MoreHorizontalIcon,
@@ -19,6 +21,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import Logo from "@/components/logo";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { ArrayStrip } from "@/features/courses/arrays/components/array-strip";
@@ -36,6 +39,7 @@ import type {
   MindMapBlockProps,
   SlideBlockProps,
   SubheadingTextBlockProps,
+  TableBlockProps,
 } from "@/features/canvas/types/canvas-types";
 import { cn } from "@/lib/utils";
 import {
@@ -216,7 +220,7 @@ function SlideBlock({
       <section
         aria-label={`${label}: ${title}`}
         title={notes}
-        className="grid min-h-[560px] min-w-0 w-full content-start gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
+        className="flex min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
       >
         <Content
           allow={[
@@ -228,10 +232,21 @@ function SlideBlock({
             "MindMapBlock",
             "CodeBlock",
             "MermaidBlock",
+            "TableBlock",
             "CheckpointBlock",
           ]}
-          className="grid min-h-[470px] min-w-0 content-start gap-4 rounded-lg border border-dashed border-border/70 bg-muted/10 p-3 sm:p-4"
+          className="grid min-h-[470px] min-w-0 flex-1 content-start gap-4 rounded-lg border border-dashed border-border/70 bg-muted/10 p-3 sm:p-4"
         />
+        <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+          <span>Made with</span>
+          <Logo
+            link={false}
+            width={18}
+            height={18}
+            className="rounded-full bg-background/70"
+          />
+          <span>UnlockPi</span>
+        </div>
       </section>
     </article>
   );
@@ -352,8 +367,6 @@ function MindMapBlock({ title, center, branches }: MindMapBlockProps) {
 }
 
 function CodeBlock({ title, language, code, explanation }: CodeBlockProps) {
-  const lines = code.split("\n");
-
   return blockShell(
     "grid gap-3",
     <>
@@ -366,38 +379,99 @@ function CodeBlock({ title, language, code, explanation }: CodeBlockProps) {
           <span>{codeLanguageLabels[language] ?? language}</span>
           <span>Preview</span>
         </div>
-        <pre className="overflow-x-auto px-0 py-4 text-sm leading-7">
-          <code className="grid min-w-full">
-            {lines.map((line, index) => (
-              <span
-                key={`${title}-${index}`}
-                className="grid grid-cols-[3rem_1fr] gap-3 px-4"
-              >
-                <span className="select-none text-right text-zinc-500">
-                  {index + 1}
-                </span>
-                <span className="whitespace-pre">{line || " "}</span>
-              </span>
-            ))}
-          </code>
-        </pre>
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          showLineNumbers
+          wrapLongLines
+          customStyle={{
+            background: "transparent",
+            margin: 0,
+            padding: "1rem 0",
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontSize: "0.875rem",
+              lineHeight: 1.7,
+            },
+          }}
+          lineNumberStyle={{
+            color: "#71717a",
+            minWidth: "2.5rem",
+            paddingRight: "0.75rem",
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
       </div>
     </>,
   );
 }
 
-function MermaidBlock({ title, chart, caption }: MermaidBlockProps) {
+function MermaidBlock({ chart, description }: MermaidBlockProps) {
+  return (
+    <section
+      aria-label={description || "Mermaid diagram"}
+      title={description}
+      className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/50 shadow-xs"
+    >
+      <MermaidDiagram chart={chart} />
+    </section>
+  );
+}
+
+function TableBlock({ title, columns, rows, caption }: TableBlockProps) {
+  const columnLabels = columns.length
+    ? columns.map((column) => column.label)
+    : ["Column 1", "Column 2"];
+
   return blockShell(
-    "grid gap-4",
-    <>
+    "overflow-hidden p-0",
+    <div className="grid gap-4 p-5">
       <div>
         <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
       </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-muted/25 p-3">
-        <MermaidDiagram chart={chart} />
+      <div className="overflow-x-auto rounded-xl border border-border bg-background">
+        <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+          <thead className="bg-muted/60 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <tr>
+              {columnLabels.map((column, index) => (
+                <th
+                  key={`${column}-${index}`}
+                  className="border-b border-border px-4 py-3 font-semibold"
+                >
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => {
+              const cells = row.cells.split("|").map((cell) => cell.trim());
+
+              return (
+                <tr
+                  key={`${row.cells}-${rowIndex}`}
+                  className="odd:bg-muted/20"
+                >
+                  {columnLabels.map((_, cellIndex) => (
+                    <td
+                      key={`${rowIndex}-${cellIndex}`}
+                      className="border-b border-border/70 px-4 py-3 text-foreground last:border-r-0"
+                    >
+                      {cells[cellIndex] || ""}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </>,
+    </div>,
   );
 }
 
@@ -471,6 +545,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "MindMapBlock",
         "CodeBlock",
         "MermaidBlock",
+        "TableBlock",
       ],
       defaultExpanded: true,
     },
@@ -503,6 +578,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "MindMapBlock",
             "CodeBlock",
             "MermaidBlock",
+            "TableBlock",
             "CheckpointBlock",
           ],
         },
@@ -657,17 +733,59 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     MermaidBlock: {
       label: "Mermaid",
       fields: {
+        chart: { type: "textarea", label: "Mermaid code" },
+        description: { type: "textarea", label: "Description" },
+      },
+      defaultProps: {
+        chart:
+          "flowchart TD\n  Start[Teacher prompt] --> Decide{Student question?}\n  Decide -->|Yes| Explain[Explain with example]\n  Decide -->|No| Practice[Move to practice]\n  Explain --> Practice",
+        description:
+          "Use Mermaid to sketch a diagram inside the frame for teaching flow.",
+      },
+      render: MermaidBlock,
+    },
+    TableBlock: {
+      label: "Table",
+      fields: {
         title: { type: "text", label: "Title" },
-        chart: { type: "textarea", label: "Chart" },
+        columns: {
+          type: "array",
+          label: "Columns",
+          arrayFields: {
+            label: { type: "text", label: "Column label" },
+          },
+          defaultItemProps: { label: "Column" },
+          getItemSummary: (item, index) =>
+            item.label || `Column ${(index ?? 0) + 1}`,
+        },
+        rows: {
+          type: "array",
+          label: "Rows",
+          arrayFields: {
+            cells: {
+              type: "textarea",
+              label: "Cells",
+            },
+          },
+          defaultItemProps: { cells: "Value | Detail | Note" },
+          getItemSummary: (_item, index) => `Row ${(index ?? 0) + 1}`,
+        },
         caption: { type: "textarea", label: "Caption" },
       },
       defaultProps: {
-        title: "Flowchart",
-        chart:
-          "flowchart TD\n  Start[Teacher prompt] --> Decide{Student question?}\n  Decide -->|Yes| Explain[Explain with example]\n  Decide -->|No| Practice[Move to practice]\n  Explain --> Practice",
-        caption: "Use Mermaid to sketch a diagram inside the frame.",
+        title: "Comparison table",
+        columns: [
+          { label: "Concept" },
+          { label: "What it means" },
+          { label: "Example" },
+        ],
+        rows: [
+          { cells: "Index | Position in the array | A[0]" },
+          { cells: "Element | Value stored at an index | 42" },
+        ],
+        caption: "Use this to compare ideas live in class.",
       },
-      render: MermaidBlock,
+      render: TableBlock,
     },
     CheckpointBlock: {
       label: "Checkpoint",

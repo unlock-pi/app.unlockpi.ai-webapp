@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { CanvasDocument, CanvasTemplateKey } from "@/features/canvas/types/canvas-types";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/server";
 
 type SaveCanvasRequest = {
@@ -46,7 +47,7 @@ export async function PATCH(
     .eq("id", canvasId)
     .eq("owner_id", user.id)
     .select(
-      "id, title, subject, template_key, updated_at, status, share_slug, is_public, topic",
+      "id, title, subject, template_key, updated_at, status, share_slug, is_public, topic, project_id",
     )
     .maybeSingle();
 
@@ -56,6 +57,23 @@ export async function PATCH(
   }
 
   if (!data) {
+    const admin = createAdminClient();
+    const { data: existingCanvas } = await admin
+      .from("teaching_canvases")
+      .select("id, owner_id, is_public")
+      .eq("id", canvasId)
+      .maybeSingle();
+
+    if (existingCanvas && existingCanvas.owner_id !== user.id) {
+      return NextResponse.json(
+        {
+          error:
+            "This canvas is read-only in this view. Open your own canvas to edit it.",
+        },
+        { status: 403 },
+      );
+    }
+
     return NextResponse.json(
       { error: "This canvas was not found or you no longer have access to it." },
       { status: 404 },
@@ -93,6 +111,23 @@ export async function POST(
   }
 
   if (!data?.share_slug) {
+    const admin = createAdminClient();
+    const { data: existingCanvas } = await admin
+      .from("teaching_canvases")
+      .select("id, owner_id")
+      .eq("id", canvasId)
+      .maybeSingle();
+
+    if (existingCanvas && existingCanvas.owner_id !== user.id) {
+      return NextResponse.json(
+        {
+          error:
+            "Only the owner of this canvas can create or refresh its public link.",
+        },
+        { status: 403 },
+      );
+    }
+
     return NextResponse.json(
       { error: "This canvas was not found or does not have a share link." },
       { status: 404 },

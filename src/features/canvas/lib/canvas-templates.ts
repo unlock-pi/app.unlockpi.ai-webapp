@@ -4,9 +4,23 @@ import type {
   CanvasTemplate,
   CanvasTemplateKey,
 } from "@/features/canvas/types/canvas-types";
+import { DEFAULT_CANVAS_THEME } from "@/features/canvas/lib/canvas-theme";
 
 type CanvasContent = CanvasDocument["content"];
 type CanvasContentItem = CanvasContent[number];
+
+const templateImageMap: Record<CanvasTemplateKey, string> = {
+  "array-intro": "/templates/image-Photoroom.png",
+  "array-operations": "/templates/image-Photoroom (3).png",
+  "linked-list-basics": "/templates/image-Photoroom (2).png",
+  "complexity-basics": "/templates/image-removebg-preview (8).png",
+  "recursion-basics": "/templates/image-Photoroom (4).png",
+  empty: "/templates/image-Photoroom (5).png",
+};
+
+export function getCanvasTemplateImage(templateKey: CanvasTemplateKey) {
+  return templateImageMap[templateKey];
+}
 
 export function createCanvasId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -22,7 +36,7 @@ function createDocument(title: string, content: CanvasContent): CanvasDocument {
       props: {
         title,
         subject: "computer_science",
-        theme: "studio",
+        theme: DEFAULT_CANVAS_THEME,
         typographyScale: "base",
       },
     },
@@ -118,14 +132,13 @@ function checkpointBlock(question: string, answer: string): CanvasContentItem {
   };
 }
 
-function mermaidBlock(title: string, chart: string, caption: string): CanvasContentItem {
+function mermaidBlock(description: string, chart: string): CanvasContentItem {
   return {
     type: "MermaidBlock",
     props: {
       id: createCanvasId("mermaid"),
-      title,
       chart,
-      caption,
+      description,
     },
   };
 }
@@ -136,6 +149,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
       key,
       title: "Empty CS canvas",
       description: "Start with one blank teaching frame and add blocks as you go.",
+      image: getCanvasTemplateImage(key),
       document: createDocument("Untitled CS canvas", [
         frame("Frame 1", "hook", "Set the context for the class."),
       ]),
@@ -147,6 +161,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
       key,
       title: "Linked list basics",
       description: "A ready-made frame set for nodes, pointers, and traversal.",
+      image: getCanvasTemplateImage(key),
       document: createDocument("Linked list basics", [
         frame("Hook: train carriages", "hook", "Compare each node to one connected carriage.", [
           headingBlock("A linked list is a chain of nodes"),
@@ -173,6 +188,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
       key,
       title: "Time complexity basics",
       description: "Frames for big-O intuition, tradeoffs, and examples.",
+      image: getCanvasTemplateImage(key),
       document: createDocument("Time complexity basics", [
         frame("Hook: which grows faster?", "hook", "Let the room compare small input growth first.", [
           headingBlock("Time complexity compares growth"),
@@ -194,9 +210,8 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
             },
           },
           mermaidBlock(
-            "Growth comparison",
+            "Use a quick diagram to compare how common growth rates relate.",
             "flowchart LR\n  O1[O(1)] --> On[O(n)] --> On2[O(n^2)]\n  O1 --> Olog[O(log n)]",
-            "Use a quick diagram to compare how common growth rates relate."
           ),
         ]),
       ]),
@@ -208,6 +223,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
       key,
       title: "Recursion basics",
       description: "Use frames for base case, recursive case, and call-stack thinking.",
+      image: getCanvasTemplateImage(key),
       document: createDocument("Recursion basics", [
         frame("Hook: mirrors inside mirrors", "hook", "Connect recursion to a repeated self-pattern.", [
           headingBlock("Recursion solves a problem with a smaller version of itself"),
@@ -238,6 +254,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
       key,
       title: "Array operations lab",
       description: "Explain indexing, update, insert, and delete with editable arrays.",
+      image: getCanvasTemplateImage(key),
       document: createDocument("Array operations lab", [
         frame("Warm up: arrays are indexed slots", "hook", "Ask students where the first item lives.", [
           headingBlock("Every slot has an address"),
@@ -269,6 +286,7 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
     key,
     title: "What is an array?",
     description: "A three-frame intro lesson for first-time array learners.",
+    image: getCanvasTemplateImage(key),
     document: createDocument("What is an array?", [
       frame(
         "Hook: a row of lockers",
@@ -298,35 +316,43 @@ export function createCanvasTemplate(key: CanvasTemplateKey): CanvasTemplate {
   };
 }
 
-export const canvasTemplateOptions: Array<Pick<CanvasTemplate, "key" | "title" | "description">> = [
+export const canvasTemplateOptions: Array<
+  Pick<CanvasTemplate, "description" | "image" | "key" | "title">
+> = [
   {
     key: "array-intro",
     title: "What is an array?",
     description: "Frames for hook, explanation, and first student check.",
+    image: getCanvasTemplateImage("array-intro"),
   },
   {
     key: "array-operations",
     title: "Array operations lab",
     description: "A more interactive template for updates and index changes.",
+    image: getCanvasTemplateImage("array-operations"),
   },
   {
     key: "linked-list-basics",
     title: "Linked list basics",
     description: "A structure-first lesson on head, nodes, and traversal.",
+    image: getCanvasTemplateImage("linked-list-basics"),
   },
   {
     key: "complexity-basics",
     title: "Time complexity basics",
     description: "A theory-first lesson for O(1), O(n), O(log n), and O(n^2).",
+    image: getCanvasTemplateImage("complexity-basics"),
   },
   {
     key: "recursion-basics",
     title: "Recursion basics",
     description: "A direct theory template for base case and recursive case thinking.",
+    image: getCanvasTemplateImage("recursion-basics"),
   },
   {
     key: "empty",
     title: "Start empty",
     description: "One blank CS frame with no prebuilt blocks.",
+    image: getCanvasTemplateImage("empty"),
   },
 ];

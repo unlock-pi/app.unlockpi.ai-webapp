@@ -40,11 +40,11 @@ export function Textarea({
         render={(defaultProps: React.ComponentProps<"textarea">) => (
           <textarea
             className={cn(
-              "field-sizing-content min-h-24 w-full rounded-[inherit] px-3 py-2 outline-none max-sm:min-h-24",
+              "field-sizing-content min-h-17.5 w-full rounded-[inherit] px-[calc(--spacing(3)-1px)] py-[calc(--spacing(1.5)-1px)] outline-none max-sm:min-h-20.5",
               size === "sm" &&
-                "min-h-20 px-2.5 py-1.5 max-sm:min-h-20",
+                "min-h-16.5 px-[calc(--spacing(2.5)-1px)] py-[calc(--spacing(1)-1px)] max-sm:min-h-19.5",
               size === "lg" &&
-                "min-h-28 px-4 py-2.5 max-sm:min-h-28",
+                "min-h-18.5 py-[calc(--spacing(2)-1px)] max-sm:min-h-21.5",
             )}
             data-slot="textarea"
             {...mergeProps(defaultProps, props)}

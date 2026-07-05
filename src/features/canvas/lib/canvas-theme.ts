@@ -5,8 +5,8 @@ import type {
   CanvasTypographyScale,
 } from "@/features/canvas/types/canvas-types";
 
-export const DEFAULT_CANVAS_THEME: CanvasThemeId = "studio";
-export const DEFAULT_CANVAS_TYPOGRAPHY_SCALE: CanvasTypographyScale = "base";
+export const DEFAULT_CANVAS_THEME: CanvasThemeId = "default";
+export const DEFAULT_CANVAS_TYPOGRAPHY_SCALE: CanvasTypographyScale = "medium";
 
 export const canvasThemeOptions: Array<{
   id: CanvasThemeId;
@@ -14,6 +14,12 @@ export const canvasThemeOptions: Array<{
   description: string;
   colors: [string, string, string];
 }> = [
+  {
+    id: "default",
+    name: "Default",
+    description: "Follows the app theme so dark mode stays dark and light mode stays light.",
+    colors: ["#050607", "#dc2626", "#f5f5f5"],
+  },
   {
     id: "studio",
     name: "Studio",
@@ -26,12 +32,12 @@ export const canvasThemeOptions: Array<{
     description: "Warm paper, ink-black type, and a lively orange accent.",
     colors: ["#fffaf0", "#d85d24", "#252017"],
   },
-  {
-    id: "chalkboard",
-    name: "Chalkboard",
-    description: "Deep green frames with soft chalk and mint details.",
-    colors: ["#153a32", "#7dd3a7", "#f2f4df"],
-  },
+  // {
+  //   id: "chalkboard",
+  //   name: "Chalkboard",
+  //   description: "Deep green frames with soft chalk and mint details.",
+  //   colors: ["#153a32", "#7dd3a7", "#f2f4df"],
+  // },
   {
     id: "blueprint",
     name: "Blueprint",
@@ -48,7 +54,7 @@ export const canvasTypographyOptions: Array<{
 }> = [
   {
     id: "base",
-    name: "Base",
+    name: "Large",
     description: "Best for normal classroom projection.",
     previewSize: "text-2xl",
   },
@@ -56,17 +62,30 @@ export const canvasTypographyOptions: Array<{
     id: "medium",
     name: "Medium",
     description: "Fits denser explanations without feeling cramped.",
-    previewSize: "text-xl",
+    previewSize: "text-lg",
   },
   {
     id: "small",
     name: "Small",
     description: "For code-heavy or information-dense frames.",
-    previewSize: "text-lg",
+    previewSize: "text-base",
   },
 ];
 
 const themeStyles: Record<CanvasThemeId, CSSProperties> = {
+  default: {
+    "--canvas-stage": "var(--canvas-app-stage)",
+    "--background": "var(--canvas-app-background)",
+    "--foreground": "var(--canvas-app-foreground)",
+    "--card": "var(--canvas-app-card)",
+    "--card-foreground": "var(--canvas-app-card-foreground)",
+    "--border": "var(--canvas-app-border)",
+    "--muted": "var(--canvas-app-muted)",
+    "--muted-foreground": "var(--canvas-app-muted-foreground)",
+    "--primary": "var(--canvas-app-primary)",
+    "--primary-foreground": "var(--canvas-app-primary-foreground)",
+    "--canvas-shadow-color": "var(--canvas-app-shadow-color)",
+  } as CSSProperties,
   studio: {
     "--canvas-stage": "#e7ebf0",
     "--background": "#ffffff",

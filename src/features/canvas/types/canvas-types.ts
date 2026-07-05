@@ -3,6 +3,7 @@ import type { Data, Slot } from "@puckeditor/core";
 export type CanvasSubject = "computer_science";
 
 export type CanvasThemeId =
+  | "default"
   | "studio"
   | "notebook"
   | "chalkboard"
@@ -81,8 +82,14 @@ export type CodeBlockProps = {
 };
 
 export type MermaidBlockProps = {
-  title: string;
   chart: string;
+  description?: string;
+};
+
+export type TableBlockProps = {
+  title: string;
+  columns: Array<{ label: string }>;
+  rows: Array<{ cells: string }>;
   caption: string;
 };
 
@@ -101,6 +108,7 @@ export type CanvasComponents = {
   MindMapBlock: MindMapBlockProps;
   CodeBlock: CodeBlockProps;
   MermaidBlock: MermaidBlockProps;
+  TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
 };
 
@@ -118,6 +126,7 @@ export type CanvasTemplate = {
   key: CanvasTemplateKey;
   title: string;
   description: string;
+  image: string;
   document: CanvasDocument;
 };
 

@@ -368,6 +368,7 @@ html ::-webkit-scrollbar-track {
   border-radius: 1rem;
   display: grid;
   gap: 0.6rem;
+  justify-items: start;
   min-height: 7.4rem;
   padding: 0.8rem;
 }
@@ -380,6 +381,13 @@ html ::-webkit-scrollbar-track {
   height: 2.5rem;
   place-items: center;
   width: 2.5rem;
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:not(:first-child)
+  .canvas-drawer-card--default
+  > p {
+  line-height: 1.15;
 }
 
 .canvas-component-palette [data-testid="drawer-item:TextBlock"] {

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { CanvasPageClient } from "@/features/canvas/components/canvas-page-client";
-import { mapCanvasRecord, mapCanvasSummary } from "@/features/canvas/lib/canvas-records";
+import { CanvasEditorScreen } from "@/features/canvas/components/canvas-editor-screen";
+import { loadCanvasEditorPage } from "@/features/canvas/lib/canvas-page-loaders";
 import { createClient } from "@/lib/server";
 
 export default async function CanvasEditorPage({
@@ -11,29 +11,15 @@ export default async function CanvasEditorPage({
 }) {
   const { canvasId } = await params;
   const supabase = await createClient();
+  const result = await loadCanvasEditorPage(supabase, canvasId);
 
-  const [{ data: summaries }, { data: canvas }] = await Promise.all([
-    supabase
-      .from("teaching_canvases")
-      .select("id, title, subject, template_key, updated_at, status, share_slug, is_public, topic")
-      .order("updated_at", { ascending: false }),
-    supabase
-      .from("teaching_canvases")
-      .select(
-        "id, title, subject, template_key, updated_at, status, share_slug, is_public, topic, document, active_frame_id"
-      )
-      .eq("id", canvasId)
-      .single(),
-  ]);
-
-  if (!canvas) {
+  if (result.status === "redirect") {
     notFound();
   }
 
-  return (
-    <CanvasPageClient
-      initialCanvas={mapCanvasRecord(canvas)}
-      initialCanvases={(summaries ?? []).map(mapCanvasSummary)}
-    />
-  );
+  if (result.status === "notFound") {
+    notFound();
+  }
+
+  return <CanvasEditorScreen model={result.model} />;
 }

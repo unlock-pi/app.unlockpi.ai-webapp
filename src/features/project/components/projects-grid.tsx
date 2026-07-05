@@ -57,17 +57,17 @@ import { createClient } from "@/lib/client"
 
 type ProjectsGridProps = {
   projects: TeachingProject[]
-  sessionCounts: Record<string, number>
+  canvasCounts: Record<string, number>
 }
 
-export function ProjectsGrid({ projects, sessionCounts }: ProjectsGridProps) {
+export function ProjectsGrid({ projects, canvasCounts }: ProjectsGridProps) {
   return (
     <div className="mt-4 grid gap-x-4 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
       {projects.map((project) => (
         <ProjectFolderCard
           key={project.id}
           project={project}
-          sessionCount={sessionCounts[project.id] ?? 0}
+          canvasCount={canvasCounts[project.id] ?? 0}
         />
       ))}
     </div>
@@ -76,10 +76,10 @@ export function ProjectsGrid({ projects, sessionCounts }: ProjectsGridProps) {
 
 type ProjectFolderCardProps = {
   project: TeachingProject
-  sessionCount: number
+  canvasCount: number
 }
 
-function ProjectFolderCard({ project, sessionCount }: ProjectFolderCardProps) {
+function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
   const router = useRouter()
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -172,12 +172,12 @@ function ProjectFolderCard({ project, sessionCount }: ProjectFolderCardProps) {
           <div className="absolute -top-3 h-5 w-10 rounded-tl-lg rounded-tr-lg bg-foreground" />
           <div className="absolute top-[2px] left-[24px] h-5 w-10 rotate-45 bg-foreground" />
 
-          <CardHeader className="gap-0">
+          <CardHeader className="gap-0 pb-0!">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-2">
                 <CardTitle className="text-xl">{project.name}</CardTitle>
-                <CardDescription className="line-clamp-3 max-w-[13rem] text-sm leading-5 text-white/65 dark:text-muted-foreground">
-                  {project.description || "Open this project to see and manage all of its sessions."}
+                <CardDescription className="line-clamp-2 max-w-[13rem] text-sm leading-5 text-white/65 dark:text-muted-foreground">
+                  {project.description || "Open this project to see and manage all of its teaching canvases."}
                 </CardDescription>
               </div>
 
@@ -235,7 +235,7 @@ function ProjectFolderCard({ project, sessionCount }: ProjectFolderCardProps) {
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary" className="px-1">
                 <Layers3Icon className="mr-1 size-3" />
-                {sessionCount} sessions
+                {canvasCount} canvases
               </Badge>
             </div>
 

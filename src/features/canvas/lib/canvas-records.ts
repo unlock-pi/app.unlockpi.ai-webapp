@@ -3,12 +3,14 @@ import type {
   CanvasSubject,
   CanvasTemplateKey,
 } from "@/features/canvas/types/canvas-types";
+import { DEFAULT_CANVAS_THEME } from "@/features/canvas/lib/canvas-theme";
 
 export type CanvasStatus = "draft" | "ready" | "presenting" | "archived";
 
 export type CanvasSummary = {
   id: string;
   isPublic: boolean;
+  projectId: string | null;
   shareSlug: string | null;
   status: CanvasStatus;
   subject: CanvasSubject;
@@ -28,6 +30,7 @@ type CanvasRow = {
   document?: CanvasDocument | null;
   id: string;
   is_public?: boolean | null;
+  project_id?: string | null;
   share_slug?: string | null;
   status?: string | null;
   subject?: string | null;
@@ -68,6 +71,7 @@ export function mapCanvasSummary(row: CanvasRow): CanvasSummary {
   return {
     id: row.id,
     isPublic: Boolean(row.is_public),
+    projectId: row.project_id ?? null,
     shareSlug: row.share_slug ?? null,
     status: normalizeStatus(row.status),
     subject: normalizeSubject(row.subject),
@@ -88,7 +92,7 @@ export function mapCanvasRecord(row: CanvasRow): CanvasRecord {
           props: {
             subject: "computer_science",
             title: row.title,
-            theme: "studio",
+            theme: DEFAULT_CANVAS_THEME,
             typographyScale: "base",
           },
         },

@@ -8,10 +8,10 @@ import { arraysCourse } from "@/features/courses/arrays/lib/arrays-course";
 export function CoursesPage() {
   return (
     <div className="flex flex-1 flex-col w-full mx-auto max-w-5xl gap-6 px-4 py-6 lg:px-8">
-      <div className="mx-auto flex w-full flex-col gap-6">
+      <div className="mx-auto flex w-full flex-col gap-6 pt-6">
         <section className="space-y-1">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Learning path</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Learning path</h1>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
               Step-by-step paths to mastery
             </p>

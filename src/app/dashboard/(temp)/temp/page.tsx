@@ -1,5 +1,7 @@
 // import dynamic from "next/dynamic"
 
+import { Textarea } from "@/components/ui/textarea";
+
 // import { SectionCards } from "@/components/temp-components/section-cards"
 
 // import data from "./data.json"
@@ -29,7 +31,7 @@ export default function Page() {
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
       
-      
+      <Textarea/>
       {/* <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         <SectionCards />
         <div className="px-4 lg:px-6">

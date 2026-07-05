@@ -7,10 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { CreateProjectDialog } from "@/features/project/components/create-project-dialog";
 import { ProjectsGrid } from "@/features/project/components/projects-grid";
-import type {
-  TeachingProject,
-  TeachingSession,
-} from "@/features/project/types/project-types";
+import type { TeachingProject } from "@/features/project/types/project-types";
 import { createClient } from "@/lib/server";
 
 export default async function ProjectsPage() {
@@ -24,27 +21,31 @@ export default async function ProjectsPage() {
     redirect("/auth/login");
   }
 
-  const [projectsRes, sessionsRes] = await Promise.all([
+  const [projectsRes, canvasesRes] = await Promise.all([
     supabase
       .from("teaching_projects")
       .select("id, owner_id, name, description, created_at, updated_at")
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false }),
     supabase
-      .from("teaching_sessions")
-      .select(
-        "id, owner_id, project_id, title, topic, learning_goals, lesson_structure, content_outline, status, is_live, created_at, updated_at",
-      )
+      .from("teaching_canvases")
+      .select("id, project_id")
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false }),
   ]);
 
   const projects = (projectsRes.data ?? []) as TeachingProject[];
-  const sessions = (sessionsRes.data ?? []) as TeachingSession[];
+  const canvases = (canvasesRes.data ?? []) as Array<{
+    id: string;
+    project_id: string | null;
+  }>;
 
-  const sessionCounts = sessions.reduce<Record<string, number>>(
-    (acc, session) => {
-      acc[session.project_id] = (acc[session.project_id] ?? 0) + 1;
+  const canvasCounts = canvases.reduce<Record<string, number>>((acc, canvas) => {
+      if (!canvas.project_id) {
+        return acc;
+      }
+
+      acc[canvas.project_id] = (acc[canvas.project_id] ?? 0) + 1;
       return acc;
     },
     {},
@@ -96,7 +97,7 @@ export default async function ProjectsPage() {
           </Empty>
         </>
       ) : (
-        <ProjectsGrid projects={projects} sessionCounts={sessionCounts} />
+        <ProjectsGrid projects={projects} canvasCounts={canvasCounts} />
       )}
     </section>
   );
