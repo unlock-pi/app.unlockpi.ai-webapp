@@ -7,6 +7,8 @@ type ArrayValue = string | number;
 type ArrayStripProps = {
   data: ArrayValue[];
   disabledElements?: number[];
+  visitedIndices?: number[];
+  traversalTarget?: number;
   name?: string;
   nameHint?: string;
   accessExpression?: string;
@@ -20,10 +22,13 @@ type ArrayStripProps = {
 };
 
 const EMPTY_DISABLED_ELEMENTS: number[] = [];
+const EMPTY_VISITED_INDICES: number[] = [];
 
 export function ArrayStrip({
   data,
   disabledElements = EMPTY_DISABLED_ELEMENTS,
+  visitedIndices = EMPTY_VISITED_INDICES,
+  traversalTarget,
   name,
   nameHint,
   accessExpression,
@@ -35,6 +40,7 @@ export function ArrayStrip({
   highlightIndices,
   className,
 }: ArrayStripProps) {
+  const isTraversing = traversalTarget !== undefined;
   return (
     <div
       className={cn("relative flex w-full max-w-5xl items-start justify-center pt-4", className)}
@@ -85,6 +91,10 @@ export function ArrayStrip({
             {data.map((item, index) => {
               const isDisabled = disabledElements.includes(index);
               const isActive = activeIndex === index;
+              const isVisited = visitedIndices.includes(index) || isActive;
+              const isTargetHit = isTraversing && isVisited && index === traversalTarget;
+              const isTraversalMiss = isTraversing && isVisited && !isTargetHit;
+              const isPlainActive = !isTraversing && isActive;
 
               return (
                 <div key={`${item}-${index}`} className="grid justify-items-center gap-2 ">
@@ -99,7 +109,10 @@ export function ArrayStrip({
                       "flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-lg font-semibold tracking-tight text-foreground shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition md:h-12 md:w-12 md:text-xl",
                       isDisabled && "opacity-30",
                       dimElements && "opacity-40",
-                      isActive && "border-primary/50 bg-primary text-primary-foreground"
+                      isTraversalMiss && "border-border bg-muted/50 opacity-40",
+                      isTargetHit &&
+                        "border-emerald-500/60 bg-emerald-500 text-white",
+                      isPlainActive && "border-primary/50 bg-primary text-primary-foreground"
                     )}
                   >
                     {item}

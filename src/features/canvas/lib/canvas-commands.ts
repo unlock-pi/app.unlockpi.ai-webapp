@@ -320,6 +320,34 @@ export function applyCanvasAction(
     }
   }
 
+  if (action.action === "add_stack_block") {
+    nextSlideId = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "StackBlock",
+      props: {
+        id: createCanvasId("stack"),
+        title: action.title?.trim() || "Stack A",
+        values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0"]),
+        highlightedIndex: undefined,
+        caption: "Push adds to the top; pop removes from the top.",
+      },
+    });
+    message = "Added a stack block to the active frame.";
+  }
+
+  if (action.action === "add_queue_block") {
+    nextSlideId = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "QueueBlock",
+      props: {
+        id: createCanvasId("queue"),
+        title: action.title?.trim() || "Queue A",
+        values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0"]),
+        highlightedIndex: undefined,
+        caption: "Enqueue adds to the back; dequeue removes from the front.",
+      },
+    });
+    message = "Added a queue block to the active frame.";
+  }
+
   if (action.action === "add_linked_list_block") {
     nextSlideId = pushIntoActiveSlide(nextDocument, nextSlideId, {
       type: "LinkedListBlock",

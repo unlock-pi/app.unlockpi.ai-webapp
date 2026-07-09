@@ -42,13 +42,36 @@ export type ArrayBlockProps = {
   title: string;
   values: Array<{ value: string }>;
   highlightedIndex?: number;
+  visitedIndices?: number[];
+  traversalTarget?: number;
   showIndices: boolean;
+  caption: string;
+};
+
+export type StackBlockProps = {
+  title: string;
+  values: Array<{ value: string }>;
+  highlightedIndex?: number;
+  visitedIndices?: number[];
+  traversalTarget?: number;
+  caption: string;
+};
+
+export type QueueBlockProps = {
+  title: string;
+  values: Array<{ value: string }>;
+  highlightedIndex?: number;
+  visitedIndices?: number[];
+  traversalTarget?: number;
   caption: string;
 };
 
 export type LinkedListBlockProps = {
   title: string;
   nodes: Array<{ value: string }>;
+  highlightedIndex?: number;
+  visitedIndices?: number[];
+  traversalTarget?: number;
   caption: string;
 };
 
@@ -104,6 +127,8 @@ export type CanvasComponents = {
   SubheadingTextBlock: SubheadingTextBlockProps;
   BodyTextBlock: BodyTextBlockProps;
   ArrayBlock: ArrayBlockProps;
+  StackBlock: StackBlockProps;
+  QueueBlock: QueueBlockProps;
   LinkedListBlock: LinkedListBlockProps;
   MindMapBlock: MindMapBlockProps;
   CodeBlock: CodeBlockProps;
@@ -150,6 +175,8 @@ export type CanvasAiAction =
   | { action: "set_array_values"; componentId?: string; values: string[] }
   | { action: "resize_array"; componentId?: string; length: number }
   | { action: "highlight_array_index"; componentId?: string; index?: number }
+  | { action: "add_stack_block"; title?: string; values?: string[] }
+  | { action: "add_queue_block"; title?: string; values?: string[] }
   | { action: "add_linked_list_block"; values?: string[] }
   | { action: "add_checkpoint"; question?: string; answer?: string };
 

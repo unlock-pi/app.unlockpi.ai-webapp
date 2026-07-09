@@ -16,7 +16,7 @@ import {
   Settings2Icon,
   Sun,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentProps, type ComponentType } from "react";
 import { PiChalkboardDuotone } from "react-icons/pi";
 import { useTheme } from "next-themes";
 
@@ -102,17 +102,25 @@ function SidebarCollapseButton() {
 export function AppSidebar({
   currentUser,
   ...props
-}: React.ComponentProps<typeof Sidebar> & {
+}: ComponentProps<typeof Sidebar> & {
   currentUser?: SidebarUser;
 }) {
   const pathname = usePathname();
   const { push, replace, refresh } = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const { state: sidebarState, toggleSidebar, isMobile } = useSidebar();
+  const [isMounted, setIsMounted] = useState(false);
   const isSidebarCollapsed = sidebarState === "collapsed";
-  const isLightTheme = resolvedTheme === "light";
+  const isLightTheme = isMounted && resolvedTheme === "light";
   const userInitial = currentUser?.name?.trim().charAt(0).toUpperCase() || "U";
   const isCanvasActive = pathname === quickAction.url;
+
+  useEffect(() => {
+    // next-themes reports `resolvedTheme` as undefined on the server, so this
+    // one-time mount flag is required to avoid a hydration mismatch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
+  }, []);
 
   const navigateTo = (href: string) => {
     push(href);
