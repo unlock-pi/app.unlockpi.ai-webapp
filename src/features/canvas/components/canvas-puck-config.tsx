@@ -25,6 +25,10 @@ import Logo from "@/components/logo";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { ArrayStrip } from "@/features/courses/arrays/components/array-strip";
+import { StackStrip } from "@/features/canvas/components/stack-strip";
+import { QueueStrip } from "@/features/canvas/components/queue-strip";
+import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
+import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import type {
   ArrayBlockProps,
   BodyTextBlockProps,
@@ -37,7 +41,9 @@ import type {
   LinkedListBlockProps,
   MermaidBlockProps,
   MindMapBlockProps,
+  QueueBlockProps,
   SlideBlockProps,
+  StackBlockProps,
   SubheadingTextBlockProps,
   TableBlockProps,
 } from "@/features/canvas/types/canvas-types";
@@ -228,6 +234,8 @@ function SlideBlock({
             "SubheadingTextBlock",
             "BodyTextBlock",
             "ArrayBlock",
+            "StackBlock",
+            "QueueBlock",
             "LinkedListBlock",
             "MindMapBlock",
             "CodeBlock",
@@ -289,10 +297,17 @@ function ArrayBlock({
   title,
   values,
   highlightedIndex,
+  visitedIndices,
+  traversalTarget,
   showIndices,
   caption,
-}: ArrayBlockProps) {
+}: ArrayBlockProps & { id: string }) {
   const arrayValues = values.map((item) => item.value);
+  const traversal = useTraversalState(
+    highlightedIndex,
+    visitedIndices,
+    traversalTarget,
+  );
 
   return blockShell(
     "overflow-x-auto",
@@ -302,17 +317,120 @@ function ArrayBlock({
         <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
       </div>
       <ArrayStrip
-        activeIndex={highlightedIndex}
+        activeIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        traversalTarget={traversalTarget}
         className="max-w-none justify-start"
         data={arrayValues}
         name="A"
         showIndex={showIndices}
       />
+      <TraversalTrigger
+        length={arrayValues.length}
+        traversalTarget={traversalTarget}
+        highlightedIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        onUpdate={traversal.setTraversal}
+      />
     </div>,
   );
 }
 
-function LinkedListBlock({ title, nodes, caption }: LinkedListBlockProps) {
+function StackBlock({
+  title,
+  values,
+  highlightedIndex,
+  visitedIndices,
+  traversalTarget,
+  caption,
+}: StackBlockProps & { id: string }) {
+  const stackValues = values.map((item) => item.value);
+  const traversal = useTraversalState(
+    highlightedIndex,
+    visitedIndices,
+    traversalTarget,
+  );
+
+  return blockShell(
+    undefined,
+    <div className="grid gap-4">
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
+      </div>
+      <StackStrip
+        activeIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        traversalTarget={traversalTarget}
+        data={stackValues}
+        name="S"
+      />
+      <TraversalTrigger
+        length={stackValues.length}
+        traversalTarget={traversalTarget}
+        highlightedIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        onUpdate={traversal.setTraversal}
+      />
+    </div>,
+  );
+}
+
+function QueueBlock({
+  title,
+  values,
+  highlightedIndex,
+  visitedIndices,
+  traversalTarget,
+  caption,
+}: QueueBlockProps & { id: string }) {
+  const queueValues = values.map((item) => item.value);
+  const traversal = useTraversalState(
+    highlightedIndex,
+    visitedIndices,
+    traversalTarget,
+  );
+
+  return blockShell(
+    "overflow-x-auto",
+    <div className="grid gap-4">
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
+      </div>
+      <QueueStrip
+        activeIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        traversalTarget={traversalTarget}
+        data={queueValues}
+        name="Q"
+      />
+      <TraversalTrigger
+        length={queueValues.length}
+        traversalTarget={traversalTarget}
+        highlightedIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        onUpdate={traversal.setTraversal}
+      />
+    </div>,
+  );
+}
+
+function LinkedListBlock({
+  title,
+  nodes,
+  highlightedIndex,
+  visitedIndices,
+  traversalTarget,
+  caption,
+}: LinkedListBlockProps & { id: string }) {
+  const isTraversing = traversalTarget !== undefined;
+  const traversal = useTraversalState(
+    highlightedIndex,
+    visitedIndices,
+    traversalTarget,
+  );
+
   return blockShell(
     "overflow-x-auto",
     <div className="grid gap-4">
@@ -321,20 +439,44 @@ function LinkedListBlock({ title, nodes, caption }: LinkedListBlockProps) {
         <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
       </div>
       <div className="flex min-w-max items-center gap-3">
-        {nodes.map((node, index) => (
-          <div
-            key={`${node.value}-${index}`}
-            className="flex items-center gap-3"
-          >
-            <div className="grid h-16 min-w-24 place-items-center rounded-lg border border-border bg-muted/30 px-4 text-lg font-semibold">
-              {node.value}
+        {nodes.map((node, index) => {
+          const isActive = traversal.highlightedIndex === index;
+          const isVisited = traversal.visitedIndices.includes(index) || isActive;
+          const isTargetHit = isTraversing && isVisited && index === traversalTarget;
+          const isTraversalMiss = isTraversing && isVisited && !isTargetHit;
+          const isPlainActive = !isTraversing && isActive;
+
+          return (
+            <div
+              key={`${node.value}-${index}`}
+              className="flex items-center gap-3"
+            >
+              <div
+                className={cn(
+                  "grid h-16 min-w-24 place-items-center rounded-lg border border-border bg-muted/30 px-4 text-lg font-semibold transition",
+                  isTraversalMiss && "opacity-40",
+                  isTargetHit &&
+                    "border-emerald-500/60 bg-emerald-500 text-white",
+                  isPlainActive &&
+                    "border-primary/50 bg-primary text-primary-foreground",
+                )}
+              >
+                {node.value}
+              </div>
+              {index < nodes.length - 1 ? (
+                <span className="text-muted-foreground">{"->"}</span>
+              ) : null}
             </div>
-            {index < nodes.length - 1 ? (
-              <span className="text-muted-foreground">{"->"}</span>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <TraversalTrigger
+        length={nodes.length}
+        traversalTarget={traversalTarget}
+        highlightedIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        onUpdate={traversal.setTraversal}
+      />
     </div>,
   );
 }
@@ -541,6 +683,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "SlideBlock",
         "CheckpointBlock",
         "ArrayBlock",
+        "StackBlock",
+        "QueueBlock",
         "LinkedListBlock",
         "MindMapBlock",
         "CodeBlock",
@@ -574,6 +718,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "SubheadingTextBlock",
             "BodyTextBlock",
             "ArrayBlock",
+            "StackBlock",
+            "QueueBlock",
             "LinkedListBlock",
             "MindMapBlock",
             "CodeBlock",
@@ -643,6 +789,12 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           min: 0,
           max: 11,
         },
+        traversalTarget: {
+          type: "number",
+          label: "Traversal target index",
+          min: 0,
+          max: 11,
+        },
         showIndices: {
           type: "radio",
           label: "Show indices",
@@ -662,6 +814,76 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       },
       render: ArrayBlock,
     },
+    StackBlock: {
+      label: "Stack",
+      fields: {
+        title: { type: "text", label: "Title" },
+        values: {
+          type: "array",
+          label: "Stack values (bottom to top)",
+          arrayFields: {
+            value: { type: "text", label: "Value" },
+          },
+          defaultItemProps: { value: "0" },
+          getItemSummary: (item, index) => `Position ${index}: ${item.value}`,
+        },
+        highlightedIndex: {
+          type: "number",
+          label: "Highlighted index",
+          min: 0,
+          max: 11,
+        },
+        traversalTarget: {
+          type: "number",
+          label: "Traversal target index",
+          min: 0,
+          max: 11,
+        },
+        caption: { type: "textarea", label: "Caption" },
+      },
+      defaultProps: {
+        title: "Stack A",
+        values: [{ value: "8" }, { value: "5" }, { value: "0" }],
+        highlightedIndex: 2,
+        caption: "Push adds to the top; pop removes from the top.",
+      },
+      render: StackBlock,
+    },
+    QueueBlock: {
+      label: "Queue",
+      fields: {
+        title: { type: "text", label: "Title" },
+        values: {
+          type: "array",
+          label: "Queue values (front to back)",
+          arrayFields: {
+            value: { type: "text", label: "Value" },
+          },
+          defaultItemProps: { value: "0" },
+          getItemSummary: (item, index) => `Position ${index}: ${item.value}`,
+        },
+        highlightedIndex: {
+          type: "number",
+          label: "Highlighted index",
+          min: 0,
+          max: 11,
+        },
+        traversalTarget: {
+          type: "number",
+          label: "Traversal target index",
+          min: 0,
+          max: 11,
+        },
+        caption: { type: "textarea", label: "Caption" },
+      },
+      defaultProps: {
+        title: "Queue A",
+        values: [{ value: "8" }, { value: "5" }, { value: "0" }],
+        highlightedIndex: 0,
+        caption: "Enqueue adds to the back; dequeue removes from the front.",
+      },
+      render: QueueBlock,
+    },
     LinkedListBlock: {
       label: "Linked list",
       fields: {
@@ -675,11 +897,24 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           defaultItemProps: { value: "node" },
           getItemSummary: (item, index) => `Node ${index}: ${item.value}`,
         },
+        highlightedIndex: {
+          type: "number",
+          label: "Highlighted index",
+          min: 0,
+          max: 11,
+        },
+        traversalTarget: {
+          type: "number",
+          label: "Traversal target index",
+          min: 0,
+          max: 11,
+        },
         caption: { type: "textarea", label: "Caption" },
       },
       defaultProps: {
         title: "Linked list",
         nodes: [{ value: "head" }, { value: "node" }, { value: "tail" }],
+        highlightedIndex: 0,
         caption: "Each node points to the next node.",
       },
       render: LinkedListBlock,
