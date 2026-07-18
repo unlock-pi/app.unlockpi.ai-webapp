@@ -17,6 +17,7 @@ export function useLiveKitRoomConnection({
   const [token, setToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentWarning, setAgentWarning] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
     const searchParams = new URLSearchParams({ room, username });
@@ -29,13 +30,26 @@ export function useLiveKitRoomConnection({
   const connect = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
+    setAgentWarning(null);
     try {
       const response = await fetch(`/api/token?${queryString}`);
-      const data = (await response.json()) as { accessToken?: string; error?: string };
+      const data = (await response.json()) as {
+        accessToken?: string;
+        error?: string;
+        agentDispatched?: boolean;
+        agentDispatchError?: string;
+      };
       if (data.error) {
         setError(data.error);
         setIsConnecting(false);
         return;
+      }
+
+      if (data.agentDispatched === false) {
+        setAgentWarning(
+          data.agentDispatchError ??
+            "The AI tutor could not join this room. Try reconnecting.",
+        );
       }
 
       setToken(data.accessToken ?? "");
@@ -50,7 +64,8 @@ export function useLiveKitRoomConnection({
     setToken("");
     setIsConnecting(false);
     setError(null);
+    setAgentWarning(null);
   }, []);
 
-  return { token, isConnecting, error, connect, disconnect };
+  return { token, isConnecting, error, agentWarning, connect, disconnect };
 }

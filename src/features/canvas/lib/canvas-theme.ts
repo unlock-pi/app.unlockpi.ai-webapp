@@ -17,7 +17,7 @@ export const canvasThemeOptions: Array<{
   {
     id: "default",
     name: "Default",
-    description: "Follows the app theme so dark mode stays dark and light mode stays light.",
+    description: "Dark classroom canvas with UnlockPi red highlights.",
     colors: ["#050607", "#dc2626", "#f5f5f5"],
   },
   {
@@ -74,17 +74,17 @@ export const canvasTypographyOptions: Array<{
 
 const themeStyles: Record<CanvasThemeId, CSSProperties> = {
   default: {
-    "--canvas-stage": "var(--canvas-app-stage)",
-    "--background": "var(--canvas-app-background)",
-    "--foreground": "var(--canvas-app-foreground)",
-    "--card": "var(--canvas-app-card)",
-    "--card-foreground": "var(--canvas-app-card-foreground)",
-    "--border": "var(--canvas-app-border)",
-    "--muted": "var(--canvas-app-muted)",
-    "--muted-foreground": "var(--canvas-app-muted-foreground)",
-    "--primary": "var(--canvas-app-primary)",
-    "--primary-foreground": "var(--canvas-app-primary-foreground)",
-    "--canvas-shadow-color": "var(--canvas-app-shadow-color)",
+    "--canvas-stage": "#050607",
+    "--background": "#101112",
+    "--foreground": "#f5f5f5",
+    "--card": "#171717",
+    "--card-foreground": "#f5f5f5",
+    "--border": "#2a2a2a",
+    "--muted": "#1f2022",
+    "--muted-foreground": "#9a9a9a",
+    "--primary": "#dc2626",
+    "--primary-foreground": "#ffffff",
+    "--canvas-shadow-color": "rgba(0,0,0,0.48)",
   } as CSSProperties,
   studio: {
     "--canvas-stage": "#e7ebf0",

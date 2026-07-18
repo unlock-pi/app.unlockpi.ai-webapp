@@ -37,13 +37,16 @@ export async function POST(req: NextRequest) {
   const voice = process.env.OPENAI_REALTIME_VOICE ?? DEFAULT_REALTIME_VOICE;
   const outputModalities = getOutputModalities(body.responseMode);
 
-  const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
       expires_after: {
         anchor: "created_at",
         seconds: 600,
@@ -115,9 +118,16 @@ export async function POST(req: NextRequest) {
           },
         ],
         tool_choice: "auto",
-      },
-    }),
-  });
+        },
+      }),
+    });
+  } catch (err) {
+    console.error("[Realtime arrays] Failed to reach OpenAI:", err);
+    return NextResponse.json(
+      { error: "Unable to reach OpenAI's Realtime API. Please try again." },
+      { status: 502 },
+    );
+  }
 
   const data = await response.json().catch(() => null);
 

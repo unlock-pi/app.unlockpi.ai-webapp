@@ -19,6 +19,7 @@ import type {
   FrameSummary,
   LeftPanelCopy,
   LeftPanelItem,
+  LeftPanelView,
 } from "@/features/canvas/types/canvas-other-types";
 import {
   DEFAULT_CANVAS_THEME,
@@ -32,6 +33,12 @@ export const leftPanelItems: LeftPanelItem[] = [
   { id: "commands", label: "Command JSON", icon: BracesIcon as LucideIcon },
   { id: "voice", label: "Quick voice", icon: MicIcon as LucideIcon },
   { id: "theme", label: "Theme", icon: PaletteIcon as LucideIcon },
+];
+
+export const easyModeHiddenLeftPanelViews: LeftPanelView[] = [
+  "changes",
+  "commands",
+  "voice",
 ];
 
 export const leftPanelCopy: LeftPanelCopy = {

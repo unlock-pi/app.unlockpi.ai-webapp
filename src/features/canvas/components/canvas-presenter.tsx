@@ -212,7 +212,7 @@ export function CanvasPresenter({
 
   if (!activeFrame) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#07090d] text-white">
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
         This canvas has no frames yet.
       </div>
     );
@@ -222,20 +222,20 @@ export function CanvasPresenter({
     <div
       ref={presenterRef}
       className={cn(
-        "canvas-presenter relative flex min-h-screen w-full flex-col overflow-hidden bg-[#07090d] text-white",
+        "canvas-presenter relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground",
         !publicView && "fixed inset-0 z-[100]",
       )}
     >
-      <header className="relative z-20 flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/45 px-4 py-2 backdrop-blur-xl sm:px-6">
+      <header className="relative z-20 flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-background/90 px-4 py-2 backdrop-blur-xl sm:px-6">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
-          <p className="text-xs text-white/55">
+          <p className="text-xs text-muted-foreground">
             Frame {activeIndex + 1} of {frames.length} / {activeFrame.title}
           </p>
         </div>
 
         {!publicView ? (
-          <div className="order-3 flex w-full items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 md:order-none md:w-auto">
+          <div className="order-3 flex w-full items-center justify-center gap-0.5 rounded-lg bg-muted p-0.5 md:order-none md:w-auto">
             <ModeButton
               active={selectedMode === "manual"}
               label="Manual"
@@ -264,7 +264,7 @@ export function CanvasPresenter({
             <Button
               size="icon"
               variant="ghost"
-              className="text-amber-200 hover:bg-amber-300/10 hover:text-amber-100"
+              className="text-muted-foreground"
               aria-label="Reset temporary class changes"
               title="Reset temporary class changes"
               onClick={resetLiveChanges}
@@ -275,7 +275,6 @@ export function CanvasPresenter({
           <Button
             size="icon"
             variant="ghost"
-            className="text-white hover:bg-white/10 hover:text-white"
             aria-label="Open frame overview"
             onClick={() => setOverviewOpen((open) => !open)}
           >
@@ -284,7 +283,6 @@ export function CanvasPresenter({
           <Button
             size="icon"
             variant="ghost"
-            className="text-white hover:bg-white/10 hover:text-white"
             aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             onClick={() => void toggleFullscreen()}
           >
@@ -298,7 +296,7 @@ export function CanvasPresenter({
             <Button
               size="sm"
               variant="ghost"
-              className="gap-2 text-red-200 hover:bg-red-400/12 hover:text-red-100"
+              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
               aria-label="End class"
               onClick={endClass}
             >
@@ -310,7 +308,8 @@ export function CanvasPresenter({
       </header>
 
       {hasLiveChanges ? (
-        <div className="absolute left-1/2 top-[4.75rem] z-30 -translate-x-1/2 rounded-full border border-amber-300/20 bg-amber-200/10 px-3 py-1 text-[11px] font-semibold text-amber-100 backdrop-blur-xl">
+        <div className="absolute left-1/2 top-[4.75rem] z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-xl">
+          <span className="size-1.5 rounded-full bg-amber-400" aria-hidden="true" />
           Live-only changes · not saved to canvas
         </div>
       ) : null}
@@ -328,7 +327,6 @@ export function CanvasPresenter({
           goTo(activeIndex + (distance < 0 ? 1 : -1));
         }}
       >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(41,121,255,0.14),transparent_42%)]" />
         <div
           key={activeFrame.id}
           className={cn(
@@ -353,7 +351,7 @@ export function CanvasPresenter({
         />
       </main>
 
-      <footer className="relative z-20 flex h-12 shrink-0 items-center justify-center gap-1 bg-black/35 px-4 backdrop-blur-xl">
+      <footer className="relative z-20 flex h-12 shrink-0 items-center justify-center gap-1 border-t bg-background/80 px-4 backdrop-blur-xl">
         {frames.map((frame) => (
           <button
             key={frame.id}
@@ -363,15 +361,15 @@ export function CanvasPresenter({
             className={cn(
               "h-1.5 rounded-full transition-all",
               frame.index === activeIndex
-                ? "w-8 bg-white"
-                : "w-2 bg-white/25 hover:bg-white/50",
+                ? "w-8 bg-primary"
+                : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/60",
             )}
           />
         ))}
       </footer>
 
       {realtimeSession.error ? (
-        <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-red-400/30 bg-red-950/90 px-4 py-2 text-xs text-red-100 shadow-xl">
+        <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-xl">
           {realtimeSession.error}
         </div>
       ) : null}
@@ -402,12 +400,13 @@ function ModeButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-[color,background-color,box-shadow]",
         active
-          ? "bg-white text-black"
-          : "text-white/55 hover:bg-white/8 hover:text-white",
+          ? "bg-background text-foreground shadow-sm/5"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
       {icon}
@@ -422,23 +421,22 @@ function RealtimeControls({
   session: ReturnType<typeof useCanvasRealtimeSession>;
 }) {
   return (
-    <div className="mr-1 flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1">
+    <div className="mr-1 flex items-center gap-1">
       {!session.isConnected ? (
-        <button
-          type="button"
+        <Button
+          size="sm"
           disabled={session.status === "connecting"}
           onClick={() => void session.connect()}
-          className="inline-flex h-8 items-center gap-2 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-70"
         >
-          <PowerIcon className="size-3.5" />
+          <PowerIcon aria-hidden="true" />
           {session.status === "connecting" ? "Connecting" : "Connect AI"}
-        </button>
+        </Button>
       ) : (
         <>
-          <button
-            type="button"
+          <Button
+            size="icon-sm"
+            variant="ghost"
             onClick={session.togglePause}
-            className="grid size-8 place-items-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white"
             aria-label={
               session.isPaused ? "Resume listening" : "Pause listening"
             }
@@ -448,26 +446,28 @@ function RealtimeControls({
             ) : (
               <PauseIcon className="size-3.5" />
             )}
-          </button>
-          <span className="hidden items-center gap-1.5 px-1 text-[11px] font-semibold text-emerald-200 lg:flex">
+          </Button>
+          <span className="hidden items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground lg:flex">
             <span
               className={cn(
                 "size-1.5 rounded-full",
                 session.isPaused
-                  ? "bg-amber-300"
-                  : "animate-pulse bg-emerald-300",
+                  ? "bg-muted-foreground"
+                  : "animate-pulse bg-primary",
               )}
+              aria-hidden="true"
             />
             {session.isPaused ? "Paused" : "Live"}
           </span>
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={session.disconnect}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-red-200 transition hover:bg-red-400/12"
           >
             <MicOffIcon className="size-3.5" />
             <span className="hidden xl:inline">Disconnect</span>
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -491,7 +491,7 @@ function FrameArrow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "absolute z-20 grid size-11 place-items-center rounded-full border border-white/10 bg-black/35 text-white shadow-xl backdrop-blur-xl transition hover:bg-black/60 disabled:pointer-events-none disabled:opacity-20",
+        "absolute z-20 grid size-11 place-items-center rounded-full border bg-card/80 text-foreground shadow-lg backdrop-blur-xl transition hover:bg-accent disabled:pointer-events-none disabled:opacity-20",
         direction === "next" ? "right-2 sm:right-5" : "left-2 sm:left-5",
       )}
     >
@@ -512,11 +512,11 @@ function FrameOverview({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div className="absolute inset-0 z-40 overflow-y-auto bg-[#07090d]/96 p-5 backdrop-blur-xl sm:p-8">
+    <div className="absolute inset-0 z-40 overflow-y-auto bg-background/95 p-5 backdrop-blur-xl sm:p-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/45">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Overview
             </p>
             <h2 className="mt-1 text-2xl font-semibold">Choose a frame</h2>
@@ -524,7 +524,6 @@ function FrameOverview({
           <Button
             size="icon"
             variant="ghost"
-            className="text-white hover:bg-white/10 hover:text-white"
             aria-label="Close frame overview"
             onClick={onClose}
           >
@@ -538,18 +537,16 @@ function FrameOverview({
               type="button"
               onClick={() => onSelect(frame.index)}
               className={cn(
-                "group rounded-2xl border bg-white/[0.04] p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]",
-                frame.index === activeIndex
-                  ? "border-blue-400"
-                  : "border-white/10",
+                "rounded-2xl border bg-card p-4 text-left outline-none transition hover:-translate-y-0.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                frame.index === activeIndex && "border-primary",
               )}
             >
-              <div className="mb-8 aspect-video rounded-xl bg-gradient-to-br from-white/12 to-white/[0.03] p-4">
-                <span className="text-4xl font-semibold text-white/15">
+              <div className="mb-8 aspect-video rounded-xl bg-muted/40 p-4">
+                <span className="text-4xl font-semibold text-muted-foreground/40">
                   {String(frame.index + 1).padStart(2, "0")}
                 </span>
               </div>
-              <p className="text-xs text-white/45">Frame {frame.index + 1}</p>
+              <p className="text-xs text-muted-foreground">Frame {frame.index + 1}</p>
               <p className="mt-1 truncate font-semibold">{frame.title}</p>
             </button>
           ))}

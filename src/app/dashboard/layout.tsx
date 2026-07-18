@@ -31,11 +31,14 @@ export default async function DashboardLayout({
     (typeof user.user_metadata?.name === "string" && user.user_metadata.name) ||
     user.email ||
     "User";
+  const avatarUrl =
+    typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
 
   return (
     <DashboardShell
       shellStyle={dashboardShellStyle}
       currentUser={{
+        avatarUrl,
         email: user.email ?? "",
         name: displayName,
       }}

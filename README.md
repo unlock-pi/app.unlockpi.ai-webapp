@@ -6,6 +6,8 @@ for MITsdafasd f
 
 UI nomenclature
 
+![Canvas editor anatomy](docs/canvas-editor-anatomy.png)
+
 | Area | Name |
 |---|---|
 | Entire authoring UI | **Canvas Editor** |

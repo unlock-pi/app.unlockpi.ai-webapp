@@ -36,8 +36,13 @@ export async function GET(req: NextRequest) {
         const at = new AccessToken(apiKey, apiSecret, { identity: username });
         at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true });
 
-        // 2. Dispatch the AI agent to this room
+        // 2. Dispatch the AI agent to this room.
+        // The user still gets a working room token even if this fails, but we
+        // report the failure so the client can tell them the tutor never joined
+        // instead of leaving them silently talking to an empty room.
         const httpUrl = wsUrl.replace("wss://", "https://").replace("ws://", "http://");
+        let agentDispatched = true;
+        let agentDispatchError: string | undefined;
         try {
             const agentClient = new AgentDispatchClient(httpUrl, apiKey, apiSecret);
             await agentClient.createDispatch(room, "UnlockPi", {
@@ -45,12 +50,17 @@ export async function GET(req: NextRequest) {
             });
             console.log(`[Token API] Dispatched agent "UnlockPi" to room "${room}"`);
         } catch (err) {
-            // Log but continue — agent dispatch may not be critical
-            console.warn("[Token API] Agent dispatch warning:", err);
+            agentDispatched = false;
+            agentDispatchError = "The AI tutor could not be dispatched to this room.";
+            console.error("[Token API] Agent dispatch failed:", err);
         }
 
         const jwt = await at.toJwt();
-        return NextResponse.json({ accessToken: jwt });
+        return NextResponse.json({
+            accessToken: jwt,
+            agentDispatched,
+            ...(agentDispatchError ? { agentDispatchError } : {}),
+        });
     } catch (err) {
         console.error("[Token API] Unexpected error:", err);
         return NextResponse.json({ error: String(err ?? "unknown") }, { status: 500 });

@@ -16,6 +16,7 @@ import {
   saveCanvasDraft,
 } from "@/features/canvas/lib/canvas-editor-actions";
 import {
+  easyModeHiddenLeftPanelViews,
   formatUpdatedAt,
   getCanvasTitle,
   getFrameSummaries,
@@ -63,6 +64,7 @@ export function useCanvasEditorController(
   const [presentationMode, setPresentationMode] = useState<
     "voice" | "companion" | "manual" | null
   >(null);
+  const [easyMode, setEasyMode] = useState(true);
   const [toolPanelOpen, setToolPanelOpen] = useState(true);
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>("home");
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
@@ -119,6 +121,16 @@ export function useCanvasEditorController(
       ?.scrollIntoView({ block: "start", behavior: "smooth" });
   }, [activeSlideId, puckRevision]);
 
+  useEffect(() => {
+    if (!easyMode) {
+      return;
+    }
+
+    if (easyModeHiddenLeftPanelViews.includes(leftPanelView)) {
+      setLeftPanelView("home");
+    }
+  }, [easyMode, leftPanelView]);
+
   const rootTheme = canvasDocument.root?.props?.theme;
   const rootTypographyScale = canvasDocument.root?.props?.typographyScale;
   const activeCanvasTheme = isCanvasThemeId(rootTheme)
@@ -132,12 +144,10 @@ export function useCanvasEditorController(
   const showAiPanel = isDesktop && aiPanelOpen;
   const gridTemplateColumns = [
     "72px",
-    showToolPanel ? "clamp(240px, 22vw, 304px)" : "",
+    showToolPanel ? "clamp(240px, 22vw, 304px)" : "0px",
     "minmax(0, 1fr)",
-    showAiPanel ? "clamp(280px, 24vw, 352px)" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    showAiPanel ? "clamp(280px, 24vw, 352px)" : "0px",
+  ].join(" ");
   const frames = getFrameSummaries(canvasDocument);
   const screenContext = summarizeCanvas(canvasDocument, activeSlideId);
   const canvasTitle = getCanvasTitle(canvasDocument);
@@ -381,6 +391,7 @@ export function useCanvasEditorController(
     commandDraft,
     commandError,
     copySuccess,
+    easyMode,
     frames,
     gridTemplateColumns,
     isDesktop,
@@ -414,6 +425,7 @@ export function useCanvasEditorController(
       runJsonCommand,
       setAiPanelOpen,
       setCommandDraft,
+      setEasyMode,
       setIsShareDialogOpen,
       setIsStartClassOpen,
       setIsTitleEditing,

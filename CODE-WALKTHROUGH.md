@@ -1,6 +1,6 @@
 # UnlockPi Webapp — Deep Code Walkthrough
 
-This document explains how the **Next.js webapp** works end to end: routing, auth/session flow, dashboard data flow, LiveKit real-time pages, and the most important functions/components.
+This document explains how the **app.unlockpi.ai webapp** works end to end: routing, auth/session flow, dashboard data flow, voice real-time pages, and the most important functions/components.
 
 ---
 
@@ -9,8 +9,10 @@ This document explains how the **Next.js webapp** works end to end: routing, aut
 - Framework: **Next.js App Router** (`next@16`, React 19)
 - UI system: custom components built on **@base-ui/react** + utility styling
 - Auth/data: **Supabase SSR** (`@supabase/ssr`)
-- Realtime voice/classroom: **LiveKit**
+- Realtime voice/classroom: **LiveKit/OpenAI realtime**
 - Table UX: **TanStack Table** + `@dnd-kit` for drag sorting
+- Mastra AI
+- Puck Editor
 
 ### Core layers
 

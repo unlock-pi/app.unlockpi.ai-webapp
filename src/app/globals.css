@@ -360,6 +360,17 @@ html ::-webkit-scrollbar-track {
   padding-block: 0.65rem;
 }
 
+.canvas-drawer-card--compact {
+  aspect-ratio: 1 / 1;
+  align-items: center;
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+  min-height: 0;
+  padding: 0.9rem 0.7rem;
+  text-align: center;
+}
+
 .canvas-component-palette
   > [class*="ComponentList"]:not(:first-child)
   .canvas-drawer-card--default {
@@ -412,7 +423,15 @@ html ::-webkit-scrollbar-track {
   display: none;
 }
 
+.canvas-shared-frame article > div:first-child {
+  display: none;
+}
+
 .canvas-presenter-frame article {
+  max-width: none;
+}
+
+.canvas-shared-frame article {
   max-width: none;
 }
 

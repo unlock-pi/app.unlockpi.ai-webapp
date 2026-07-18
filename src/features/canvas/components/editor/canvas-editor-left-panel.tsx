@@ -1,12 +1,13 @@
 "use client";
 
-import { Puck } from "@puckeditor/core";
 import { BracesIcon, CheckIcon, ChevronLeftIcon, PlusIcon } from "lucide-react";
+import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { CanvasComponentPalette } from "@/features/canvas/components/editor/canvas-component-palette";
 import {
   leftPanelCopy,
   quickCommands,
@@ -19,29 +20,53 @@ import type { CanvasEditorController } from "@/features/canvas/types/canvas-othe
 import { cn } from "@/lib/utils";
 
 type CanvasEditorLeftPanelProps = {
-  controller: CanvasEditorController;
+  activeCanvasTheme: CanvasEditorController["activeCanvasTheme"];
+  activeSlideId: CanvasEditorController["activeSlideId"];
+  activeTypographyScale: CanvasEditorController["activeTypographyScale"];
+  actionLog: CanvasEditorController["actionLog"];
+  commandDraft: CanvasEditorController["commandDraft"];
+  commandError: CanvasEditorController["commandError"];
+  frames: CanvasEditorController["frames"];
+  leftPanelView: CanvasEditorController["leftPanelView"];
+  show: boolean;
+  actions: Pick<
+    CanvasEditorController["actions"],
+    | "applyAction"
+    | "runJsonCommand"
+    | "setCommandDraft"
+    | "updateCanvasAppearance"
+  >;
 };
 
 export function CanvasEditorLeftPanel({
-  controller,
+  actionLog,
+  actions,
+  activeCanvasTheme,
+  activeSlideId,
+  activeTypographyScale,
+  commandDraft,
+  commandError,
+  frames,
+  leftPanelView,
+  show,
 }: CanvasEditorLeftPanelProps) {
-  if (!controller.showToolPanel) {
-    return null;
-  }
-
   return (
-    <aside
-      aria-label={`${leftPanelCopy[controller.leftPanelView].title} tool panel`}
-      className="min-h-0 border-r border-border bg-background lg:flex lg:flex-col"
+    <motion.aside
+      aria-hidden={!show}
+      aria-label={`${leftPanelCopy[leftPanelView].title} tool panel`}
+      className="min-h-0 overflow-hidden border-r border-border bg-background lg:flex lg:flex-col"
+      style={{ pointerEvents: show ? "auto" : "none" }}
+      animate={{ opacity: show ? 1 : 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
     >
-      <div className="border-b border-border p-4">
+      {/* <section className="border-b border-border p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">
-              {leftPanelCopy[controller.leftPanelView].title}
+              {leftPanelCopy[leftPanelView].title}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {leftPanelCopy[controller.leftPanelView].description}
+              {leftPanelCopy[leftPanelView].description}
             </p>
           </div>
           <Button
@@ -53,42 +78,39 @@ export function CanvasEditorLeftPanel({
             <ChevronLeftIcon className="size-4" />
           </Button>
         </div>
-      </div>
+      </section> */}
 
-      <ScrollArea className="min-h-0 flex-1" scrollFade scrollbarGutter>
+      <ScrollArea className="min-h-0 mt-4 flex-1" scrollFade scrollbarGutter>
         <div className="p-3">
-          {controller.leftPanelView === "home" ? (
+          {leftPanelView === "home" ? (
             <div className="grid gap-5">
-              <div className="canvas-component-palette">
-                <Puck.Components />
-              </div>
+              <CanvasComponentPalette />
             </div>
           ) : null}
 
-          {controller.leftPanelView === "frames" ? (
+          {leftPanelView === "frames" ? (
             <div className="grid gap-2">
-              <button
-                type="button"
-                onClick={() => controller.actions.applyAction({ action: "add_frame" })}
+              <Button
+                onClick={() => actions.applyAction({ action: "add_frame" })}
                 className="flex min-h-11 items-center justify-between rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-left text-xs transition hover:border-primary hover:bg-primary/8"
               >
                 <span className="font-semibold">Add frame</span>
                 <PlusIcon className="size-4 text-muted-foreground" />
-              </button>
+              </Button>
 
-              {controller.frames.map((frame, index) => (
+              {frames.map((frame, index) => (
                 <button
                   key={frame.id}
                   type="button"
                   onClick={() =>
-                    controller.actions.applyAction({
+                    actions.applyAction({
                       action: "go_to_frame",
                       frameIndex: index,
                     })
                   }
                   className={cn(
                     "rounded-lg border p-2 text-left text-xs transition hover:bg-accent",
-                    controller.activeSlideId === frame.id
+                    activeSlideId === frame.id
                       ? "border-primary bg-primary/8"
                       : "border-border bg-background",
                   )}
@@ -102,9 +124,9 @@ export function CanvasEditorLeftPanel({
             </div>
           ) : null}
 
-          {controller.leftPanelView === "changes" ? (
+          {leftPanelView === "changes" ? (
             <div className="grid gap-2">
-              {controller.actionLog.map((item) => (
+              {actionLog.map((item) => (
                 <p
                   key={item.id}
                   className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
@@ -115,37 +137,37 @@ export function CanvasEditorLeftPanel({
             </div>
           ) : null}
 
-          {controller.leftPanelView === "commands" ? (
+          {leftPanelView === "commands" ? (
             <div className="grid gap-3">
               <Label htmlFor="canvas-command-left">Command JSON</Label>
               <Textarea
                 id="canvas-command-left"
-                value={controller.commandDraft}
+                value={commandDraft}
                 onChange={(event) =>
-                  controller.actions.setCommandDraft(event.target.value)
+                  actions.setCommandDraft(event.target.value)
                 }
                 className="min-h-36 font-mono text-xs"
               />
-              {controller.commandError ? (
+              {commandError ? (
                 <p className="text-xs text-destructive">
-                  {controller.commandError}
+                  {commandError}
                 </p>
               ) : null}
-              <Button onClick={controller.actions.runJsonCommand}>
+              <Button onClick={actions.runJsonCommand}>
                 <BracesIcon className="size-4" />
                 Run command
               </Button>
             </div>
           ) : null}
 
-          {controller.leftPanelView === "voice" ? (
+          {leftPanelView === "voice" ? (
             <div className="grid gap-2">
               {quickCommands.map((command) => (
                 <Button
                   key={command.label}
                   variant="outline"
                   className="justify-start"
-                  onClick={() => controller.actions.applyAction(command.action)}
+                  onClick={() => actions.applyAction(command.action)}
                 >
                   {command.label}
                 </Button>
@@ -153,7 +175,7 @@ export function CanvasEditorLeftPanel({
             </div>
           ) : null}
 
-          {controller.leftPanelView === "theme" ? (
+          {leftPanelView === "theme" ? (
             <div className="grid gap-6">
               <section>
                 {/* <div className="mb-3">
@@ -167,14 +189,14 @@ export function CanvasEditorLeftPanel({
                 </div> */}
                 <div className="grid grid-cols-2 gap-2">
                   {canvasThemeOptions.map((theme) => {
-                    const isActive = controller.activeCanvasTheme === theme.id;
+                    const isActive = activeCanvasTheme === theme.id;
                     return (
                       <button
                         key={theme.id}
                         type="button"
                         aria-pressed={isActive}
                         onClick={() =>
-                          controller.actions.updateCanvasAppearance({
+                          actions.updateCanvasAppearance({
                             theme: theme.id,
                           })
                         }
@@ -225,14 +247,14 @@ export function CanvasEditorLeftPanel({
                 <div className="grid grid-cols-3 gap-2">
                   {canvasTypographyOptions.map((scale) => {
                     const isActive =
-                      controller.activeTypographyScale === scale.id;
+                      activeTypographyScale === scale.id;
                     return (
                       <button
                         key={scale.id}
                         type="button"
                         aria-pressed={isActive}
                         onClick={() =>
-                          controller.actions.updateCanvasAppearance({
+                          actions.updateCanvasAppearance({
                             typographyScale: scale.id,
                           })
                         }
@@ -276,6 +298,6 @@ export function CanvasEditorLeftPanel({
           ) : null}
         </div>
       </ScrollArea>
-    </aside>
+    </motion.aside>
   );
 }

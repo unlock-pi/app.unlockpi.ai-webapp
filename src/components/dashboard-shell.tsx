@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 type DashboardUser = {
+  avatarUrl: string | null;
   email: string;
   name: string;
 };

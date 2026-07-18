@@ -101,7 +101,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <Logo link={false} width={30} height={30} />
+            <Logo isLink={false} width={30} height={30} />
             <div className="h-5 w-px bg-border" />
             <div>
               <p className="text-sm font-semibold tracking-tight">UnlockPi Admin</p>

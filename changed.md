@@ -1,5 +1,15 @@
 # Changed
 
+- Date: 2026-07-15
+- Version: v0.1.0
+- Summary: Cleared the last production build blocker and kept the temp MDX playground shipping as a plain TSX page.
+
+## What changed
+
+- Converted the `/dashboard/mdx` temp route from MDX to TSX so Next.js production builds no longer fail during page data collection.
+- Kept the temp playground content available with the same sample heading, callout, Mermaid, and table content.
+- Verified the full app now passes `bunx tsc --noEmit` and `bun run build` locally.
+
 - Date: 2026-06-23
 - Version: v0.1.0
 - Summary: Added the canvas and admin surfaces, tightened realtime usage tracking, and cleaned up save/share flows plus the main dashboard UI.

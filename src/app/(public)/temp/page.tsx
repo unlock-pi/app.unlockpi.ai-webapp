@@ -1,4 +1,4 @@
-import { ArrayStrip } from "@/features/courses/arrays/components/array-strip";
+import { ArrayStrip } from "@/components/data-structure/array-strip";
 
 export default function Page() {
   const data = ["a", "b", "c", "d", "e"];

@@ -14,7 +14,7 @@ import {
 import { LinePath } from "@visx/shape";
 import { useEffect, useMemo, useState } from "react";
 
-import { ArrayStrip } from "@/features/courses/arrays/components/array-strip";
+import { ArrayStrip } from "@/components/data-structure/array-strip";
 import {
   type ArrayRealtimeUiAction,
   useArrayRealtimeTutor,

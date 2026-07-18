@@ -1,10 +1,13 @@
 "use client";
 
 import { CanvasLibraryBrowser } from "@/features/canvas/components/canvas-library-browser";
-import type { CanvasLibraryPageModel } from "@/features/canvas/types/canvas-other-types";
+import type {
+  CanvasLibraryPageModel,
+  ProjectCanvasLibraryPageModel,
+} from "@/features/canvas/types/canvas-other-types";
 
 type CanvasLibraryScreenProps = {
-  model: CanvasLibraryPageModel;
+  model: CanvasLibraryPageModel | ProjectCanvasLibraryPageModel;
 };
 
 export function CanvasLibraryScreen({ model }: CanvasLibraryScreenProps) {
@@ -12,7 +15,8 @@ export function CanvasLibraryScreen({ model }: CanvasLibraryScreenProps) {
     <CanvasLibraryBrowser
       availableProjects={model.availableProjects}
       initialCanvases={model.canvases}
-      showTemplateSpotlights
+      projectContext={model.mode === "project_library" ? model.project : undefined}
+      showTemplateSpotlights={model.mode === "library"}
     />
   );
 }

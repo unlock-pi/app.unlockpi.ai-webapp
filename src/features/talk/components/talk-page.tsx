@@ -19,7 +19,7 @@ export function TalkPage() {
 function TalkPageContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session") ?? searchParams.get("sessionId");
-  const { token, isConnecting, error, connect, disconnect } = useLiveKitRoomConnection({
+  const { token, isConnecting, error, agentWarning, connect, disconnect } = useLiveKitRoomConnection({
     room: "classroom-101",
     username: "teacher-interface",
     sessionId,
@@ -41,6 +41,7 @@ function TalkPageContent() {
           isConnecting={isConnecting}
           isConnected={Boolean(token)}
           error={error}
+          agentWarning={agentWarning}
         />
         <RoomAudioRenderer />
         <StartAudio label="Click to allow audio" />

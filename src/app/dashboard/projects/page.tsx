@@ -71,19 +71,19 @@ export default async function ProjectsPage() {
 
         <div className="flex flex-wrap gap-2">
           <CreateProjectDialog />
-          <Button
+          {/* <Button
             variant="secondary"
             render={<Link href="/dashboard/session/new" />}
           >
             <PenLineIcon className="size-4" />
             New session
-          </Button>
+          </Button> */}
         </div>
       </div>
 
       {projects.length === 0 ? (
         <>
-          <Empty>
+          <Empty className="md:mt-16">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FolderIcon />

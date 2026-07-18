@@ -22,11 +22,13 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import Logo from "@/components/logo";
+import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
+import { MindMapBoard } from "@/components/data-structure/mind-map-board";
+import { QueueStrip } from "@/components/data-structure/queue-strip";
+import { StackStrip } from "@/components/data-structure/stack-strip";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
-import { ArrayStrip } from "@/features/courses/arrays/components/array-strip";
-import { StackStrip } from "@/features/canvas/components/stack-strip";
-import { QueueStrip } from "@/features/canvas/components/queue-strip";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import type {
@@ -248,7 +250,7 @@ function SlideBlock({
         <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
           <span>Made with</span>
           <Logo
-            link={false}
+            isLink={false}
             width={18}
             height={18}
             className="rounded-full bg-background/70"
@@ -424,7 +426,6 @@ function LinkedListBlock({
   traversalTarget,
   caption,
 }: LinkedListBlockProps & { id: string }) {
-  const isTraversing = traversalTarget !== undefined;
   const traversal = useTraversalState(
     highlightedIndex,
     visitedIndices,
@@ -438,38 +439,12 @@ function LinkedListBlock({
         <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{caption}</p>
       </div>
-      <div className="flex min-w-max items-center gap-3">
-        {nodes.map((node, index) => {
-          const isActive = traversal.highlightedIndex === index;
-          const isVisited = traversal.visitedIndices.includes(index) || isActive;
-          const isTargetHit = isTraversing && isVisited && index === traversalTarget;
-          const isTraversalMiss = isTraversing && isVisited && !isTargetHit;
-          const isPlainActive = !isTraversing && isActive;
-
-          return (
-            <div
-              key={`${node.value}-${index}`}
-              className="flex items-center gap-3"
-            >
-              <div
-                className={cn(
-                  "grid h-16 min-w-24 place-items-center rounded-lg border border-border bg-muted/30 px-4 text-lg font-semibold transition",
-                  isTraversalMiss && "opacity-40",
-                  isTargetHit &&
-                    "border-emerald-500/60 bg-emerald-500 text-white",
-                  isPlainActive &&
-                    "border-primary/50 bg-primary text-primary-foreground",
-                )}
-              >
-                {node.value}
-              </div>
-              {index < nodes.length - 1 ? (
-                <span className="text-muted-foreground">{"->"}</span>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+      <LinkedListStrip
+        nodes={nodes}
+        activeIndex={traversal.highlightedIndex}
+        visitedIndices={traversal.visitedIndices}
+        traversalTarget={traversalTarget}
+      />
       <TraversalTrigger
         length={nodes.length}
         traversalTarget={traversalTarget}
@@ -486,24 +461,7 @@ function MindMapBlock({ title, center, branches }: MindMapBlockProps) {
     undefined,
     <div className="grid gap-4">
       <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <div className="grid gap-3 md:grid-cols-[180px_1fr] md:items-center">
-        <div className="rounded-lg border border-primary/30 bg-primary/10 p-4 text-center font-semibold">
-          {center}
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {branches.map((branch, index) => (
-            <div
-              key={`${branch.label}-${index}`}
-              className="rounded-lg border border-border p-3"
-            >
-              <p className="font-medium">{branch.label}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {branch.detail}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <MindMapBoard center={center} branches={branches} />
     </div>,
   );
 }

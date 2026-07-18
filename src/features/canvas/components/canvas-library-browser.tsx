@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { motion, type Variants } from "motion/react";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -25,6 +26,19 @@ import {
   CardPanel,
 } from "@/components/ui/card";
 import {
+  Drawer,
+  DrawerClose,
+  DrawerMenu,
+  DrawerMenuGroup,
+  DrawerMenuGroupLabel,
+  DrawerMenuItem,
+  DrawerMenuSeparator,
+  DrawerMenuTrigger,
+  DrawerPanel,
+  DrawerPopup,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -33,6 +47,8 @@ import {
 } from "@/components/ui/empty";
 import {
   Menu,
+  MenuGroup,
+  MenuGroupLabel,
   MenuItem,
   MenuPopup,
   MenuSeparator,
@@ -63,6 +79,7 @@ import type {
   CanvasProjectOption,
 } from "@/features/canvas/types/canvas-other-types";
 import type { CanvasTemplateKey } from "@/features/canvas/types/canvas-types";
+import { useMediaQuery } from "@/features/talk/hooks/use-media-query";
 import { createClient as createSupabaseClient } from "@/lib/client";
 
 type CanvasLibraryBrowserProps = {
@@ -71,6 +88,186 @@ type CanvasLibraryBrowserProps = {
   projectContext?: CanvasProjectContext | null;
   showTemplateSpotlights: boolean;
 };
+
+type CanvasCardActionsProps = {
+  availableProjects: CanvasProjectOption[];
+  canvas: CanvasSummary;
+  isMoving: boolean;
+  onDelete: () => void | Promise<void>;
+  onMove: (projectId: string | null) => void | Promise<void>;
+  onRename: () => void | Promise<void>;
+};
+
+const cardListVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+} satisfies Variants;
+
+const cardItemVariants = {
+  hidden: { opacity: 0, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.2, ease: "easeOut" },
+  },
+} satisfies Variants;
+
+function CanvasCardActions({
+  availableProjects,
+  canvas,
+  isMoving,
+  onDelete,
+  onMove,
+  onRename,
+}: CanvasCardActionsProps) {
+  const isMobile = useMediaQuery("max-md");
+
+  const trigger = (
+    <Button
+      aria-label={`${canvas.title} actions`}
+      size="icon-sm"
+      variant="outline"
+      className="rounded-lg border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer>
+        <DrawerTrigger render={trigger}>
+          <MoreHorizontalIcon className="size-4" />
+        </DrawerTrigger>
+        <DrawerPopup showBar>
+          <DrawerPanel>
+            <DrawerMenu>
+              <DrawerMenuGroup>
+                <DrawerMenuGroupLabel>Actions</DrawerMenuGroupLabel>
+                <DrawerClose
+                  render={
+                    <DrawerMenuItem onClick={() => void onRename()} />
+                  }
+                >
+                  <PenLineIcon className="size-4" />
+                  Rename
+                </DrawerClose>
+                <Drawer>
+                  <DrawerMenuTrigger>
+                    <BriefcaseBusinessIcon className="size-4" />
+                    Move to project
+                  </DrawerMenuTrigger>
+                  <DrawerPopup showBar>
+                    <DrawerPanel>
+                      <DrawerMenu>
+                        <DrawerMenuGroup>
+                          <DrawerMenuGroupLabel>
+                            {isMoving ? "Moving..." : "Move to project"}
+                          </DrawerMenuGroupLabel>
+                          <DrawerClose
+                            render={
+                              <DrawerMenuItem
+                                disabled={isMoving || canvas.projectId === null}
+                                onClick={() => void onMove(null)}
+                              />
+                            }
+                          >
+                            No project
+                          </DrawerClose>
+                          {availableProjects.length ? (
+                            <DrawerMenuSeparator />
+                          ) : null}
+                          {availableProjects.map((project) => (
+                            <DrawerClose
+                              key={project.id}
+                              render={
+                                <DrawerMenuItem
+                                  disabled={isMoving || canvas.projectId === project.id}
+                                  onClick={() => void onMove(project.id)}
+                                />
+                              }
+                            >
+                              {project.name}
+                            </DrawerClose>
+                          ))}
+                        </DrawerMenuGroup>
+                      </DrawerMenu>
+                    </DrawerPanel>
+                  </DrawerPopup>
+                </Drawer>
+              </DrawerMenuGroup>
+              <DrawerMenuSeparator />
+              <DrawerMenuGroup>
+                <DrawerMenuGroupLabel>Danger zone</DrawerMenuGroupLabel>
+                <DrawerClose
+                  render={
+                    <DrawerMenuItem
+                      variant="destructive"
+                      onClick={() => void onDelete()}
+                    />
+                  }
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </DrawerClose>
+              </DrawerMenuGroup>
+            </DrawerMenu>
+          </DrawerPanel>
+        </DrawerPopup>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Menu>
+      <MenuTrigger render={trigger}>
+        <MoreHorizontalIcon className="size-4" />
+      </MenuTrigger>
+      <MenuPopup align="end" side="bottom" className="min-w-44">
+        <MenuGroup>
+          <MenuGroupLabel>Actions</MenuGroupLabel>
+          <MenuItem onClick={() => void onRename()}>
+            <PenLineIcon className="size-4" />
+            Rename
+          </MenuItem>
+          <MenuSub>
+            <MenuSubTrigger>
+              <BriefcaseBusinessIcon className="size-4" />
+              Move to project
+            </MenuSubTrigger>
+            <MenuSubPopup className="min-w-52">
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                {isMoving ? "Moving..." : "Choose destination"}
+              </div>
+              <MenuItem
+                disabled={isMoving || canvas.projectId === null}
+                onClick={() => void onMove(null)}
+              >
+                No project
+              </MenuItem>
+              {availableProjects.length ? <MenuSeparator /> : null}
+              {availableProjects.map((project) => (
+                <MenuItem
+                  key={project.id}
+                  disabled={isMoving || canvas.projectId === project.id}
+                  onClick={() => void onMove(project.id)}
+                >
+                  {project.name}
+                </MenuItem>
+              ))}
+            </MenuSubPopup>
+          </MenuSub>
+        </MenuGroup>
+        <MenuSeparator />
+        <MenuGroup>
+          <MenuGroupLabel>Danger zone</MenuGroupLabel>
+          <MenuItem variant="destructive" onClick={() => void onDelete()}>
+            <Trash2Icon className="size-4" />
+            Delete
+          </MenuItem>
+        </MenuGroup>
+      </MenuPopup>
+    </Menu>
+  );
+}
 
 export function CanvasLibraryBrowser({
   availableProjects,
@@ -330,11 +527,17 @@ export function CanvasLibraryBrowser({
       </div>
 
       {showTemplateSpotlights ? (
-        <section className="flex gap-2">
+        <motion.section
+          className="flex gap-2"
+          initial="hidden"
+          animate="visible"
+          variants={cardListVariants}
+        >
           {canvasTemplateOptions.slice(0, 3).map((template) => (
-            <button
+            <motion.button
               key={template.key}
               type="button"
+              variants={cardItemVariants}
               onClick={() => {
                 setSelectedTemplateKey(template.key);
                 setTopicSearch(createCanvasTemplate(template.key).title);
@@ -355,12 +558,12 @@ export function CanvasLibraryBrowser({
                 height={68}
                 className="rounded-lg"
               />
-            </button>
+            </motion.button>
           ))}
-        </section>
+        </motion.section>
       ) : null}
 
-      <CardFrame className="mt-4 w-full">
+      <CardFrame className="mt-4 w-full max-w-3xl">
         <CardFrameHeader>
           <CardFrameTitle>Existing canvases</CardFrameTitle>
           <CardFrameAction>
@@ -372,11 +575,17 @@ export function CanvasLibraryBrowser({
         </CardFrameHeader>
         <Card>
           <CardPanel>
-            <div className="grid gap-2">
+            <motion.div
+              className="grid gap-2"
+              initial="hidden"
+              animate="visible"
+              variants={cardListVariants}
+            >
               {canvasRecords.length ? (
                 canvasRecords.map((canvas) => (
-                  <div
+                  <motion.div
                     key={canvas.id}
+                    variants={cardItemVariants}
                     className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 transition hover:border-primary/50 hover:bg-accent/40"
                   >
                     <button
@@ -401,72 +610,24 @@ export function CanvasLibraryBrowser({
                         </p>
                       </div>
                     </button>
-
-                    <Menu>
-                      <MenuTrigger
-                        render={
-                          <button
-                            type="button"
-                            aria-label={`${canvas.title} actions`}
-                            className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                          />
-                        }
-                      >
-                        <MoreHorizontalIcon className="size-4" />
-                      </MenuTrigger>
-                      <MenuPopup align="end" side="bottom" className="min-w-40">
-                        <MenuItem onClick={() => void renameCanvasRecord(canvas)}>
-                          <PenLineIcon className="size-4" />
-                          Rename
-                        </MenuItem>
-                        <MenuSub>
-                          <MenuSubTrigger>
-                            <BriefcaseBusinessIcon className="size-4" />
-                            Move to project
-                          </MenuSubTrigger>
-                          <MenuSubPopup className="min-w-52">
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              {movingCanvasIds[canvas.id]
-                                ? "Moving..."
-                                : "Choose destination"}
-                            </div>
-                            <MenuItem
-                              disabled={Boolean(movingCanvasIds[canvas.id])}
-                              onClick={() =>
-                                void moveCanvasToProject(canvas, null)
-                              }
-                            >
-                              No project
-                            </MenuItem>
-                            {availableProjects.length ? <MenuSeparator /> : null}
-                            {availableProjects.map((project) => (
-                              <MenuItem
-                                key={project.id}
-                                disabled={
-                                  Boolean(movingCanvasIds[canvas.id]) ||
-                                  canvas.projectId === project.id
-                                }
-                                onClick={() =>
-                                  void moveCanvasToProject(canvas, project.id)
-                                }
-                              >
-                                {project.name}
-                              </MenuItem>
-                            ))}
-                          </MenuSubPopup>
-                        </MenuSub>
-                        <MenuItem
-                          variant="destructive"
-                          onClick={() => void deleteCanvasRecord(canvas)}
-                        >
-                          <Trash2Icon className="size-4" />
-                          Delete
-                        </MenuItem>
-                      </MenuPopup>
-                    </Menu>
-                  </div>
+                    <CanvasCardActions
+                      availableProjects={availableProjects}
+                      canvas={canvas}
+                      isMoving={Boolean(movingCanvasIds[canvas.id])}
+                      onDelete={() => deleteCanvasRecord(canvas)}
+                      onMove={(nextProjectId) =>
+                        moveCanvasToProject(canvas, nextProjectId)
+                      }
+                      onRename={() => renameCanvasRecord(canvas)}
+                    />
+                  </motion.div>
                 ))
               ) : (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                >
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
@@ -484,8 +645,9 @@ export function CanvasLibraryBrowser({
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
           </CardPanel>
         </Card>
       </CardFrame>

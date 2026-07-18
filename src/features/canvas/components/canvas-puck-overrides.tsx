@@ -12,7 +12,7 @@ import {
   Share2Icon,
   TableIcon,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ElementType, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-confi
 import type { DrawerItemMeta } from "@/features/canvas/types/canvas-other-types";
 import { cn } from "@/lib/utils";
 
-const drawerItemMeta: Record<string, DrawerItemMeta> = {
+export const drawerItemMeta: Record<string, DrawerItemMeta> = {
   SlideBlock: {
     label: "Frame",
     description: "A blank teaching canvas frame",
@@ -137,7 +137,13 @@ const drawerItemMeta: Record<string, DrawerItemMeta> = {
   },
 };
 
-function CanvasDrawerItem({ name }: { name: string }) {
+export function CanvasDrawerItem({
+  compact = false,
+  name,
+}: {
+  compact?: boolean;
+  name: string;
+}) {
   const meta = drawerItemMeta[name] ?? {
     label: name,
     description: "Drag into a frame",
@@ -145,9 +151,10 @@ function CanvasDrawerItem({ name }: { name: string }) {
   };
   const Icon = meta.icon ?? BoxesIcon;
 
+  // for text blocks
   if (meta.variant) {
     return (
-      <div className="canvas-drawer-card canvas-drawer-card--text">
+      <div className="canvas-drawer-card canvas-drawer-card--text ">
         <span
           className={cn(
             "block truncate",
@@ -172,21 +179,35 @@ function CanvasDrawerItem({ name }: { name: string }) {
     );
   }
 
+  // for other blocks
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <div
-            className="canvas-drawer-card canvas-drawer-card--default"
+            className={cn(
+              " canvas-drawer-card py-0! gap-0! size-20 canvas-drawer-card--default",
+              compact && "canvas-drawer-card--compact",
+            )}
             title={meta.description}
           />
         }
       >
         <>
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted/45 text-foreground">
-            <Icon className="size-4" />
+          <div
+            className={cn(
+              "grid shrink-0 place-items-center rounded-xl border border-border bg-muted/45- text-foreground",
+              compact ? "size-8" : "size-8",
+            )}
+          >
+            <Icon className={compact ? "size-5" : "size-4"} />
           </div>
-          <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+          <p
+            className={cn(
+              "min-w-0 text-sm font-medium text-foreground -mt-1",
+              compact ? "text-center text-xs" : "truncate",
+            )}
+          >
             {meta.label}
           </p>
         </>
@@ -356,20 +377,65 @@ function InspectorRadioField(props: FieldProps) {
   );
 }
 
-export const canvasPuckOverrides: Partial<Overrides<typeof canvasPuckConfig>> = {
-  drawerItem: ({ name }) => <CanvasDrawerItem name={name} />,
-  fieldTypes: {
-    number: InspectorNumberField,
-    radio: InspectorRadioField,
-    select: InspectorSelectField,
-    text: InspectorTextField,
-    textarea: InspectorTextareaField,
-  },
-};
+function CanvasInspectorFields({
+  children,
+  isLoading,
+}: {
+  children: ReactNode;
+  isLoading: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-4",
+        isLoading && "pointer-events-none opacity-60",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
-export function getCanvasAppThemeVars(
-  isLightTheme: boolean,
-): CSSProperties {
+function CanvasInspectorFieldLabel({
+  children,
+  className,
+  el = "label",
+  label,
+  readOnly,
+}: {
+  children?: ReactNode;
+  className?: string;
+  el?: "div" | "label";
+  label: string;
+  readOnly?: boolean;
+}) {
+  const Component = el as ElementType;
+
+  return (
+    <Component
+      className={cn("grid gap-1.5", readOnly && "opacity-70", className)}
+    >
+      <span className="text-xs font-semibold text-foreground">{label}</span>
+      {children}
+    </Component>
+  );
+}
+
+export const canvasPuckOverrides: Partial<Overrides<typeof canvasPuckConfig>> =
+  {
+    drawerItem: ({ name }) => <CanvasDrawerItem name={name} />,
+    fieldLabel: CanvasInspectorFieldLabel,
+    fields: CanvasInspectorFields,
+    fieldTypes: {
+      number: InspectorNumberField,
+      radio: InspectorRadioField,
+      select: InspectorSelectField,
+      text: InspectorTextField,
+      textarea: InspectorTextareaField,
+    },
+  };
+
+export function getCanvasAppThemeVars(isLightTheme: boolean): CSSProperties {
   return {
     "--canvas-app-stage": "var(--background)",
     "--canvas-app-background": "var(--card)",

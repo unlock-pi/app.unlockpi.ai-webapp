@@ -22,6 +22,7 @@ import { useTheme } from "next-themes";
 
 import { createClient } from "@/lib/client";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Menu,
   MenuGroup,
@@ -51,6 +52,7 @@ type MainItem = {
 };
 
 type SidebarUser = {
+  avatarUrl?: string | null;
   name: string;
   email: string;
 };
@@ -250,9 +252,15 @@ export function AppSidebar({
                     />
                   }
                 >
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/12 text-sm font-semibold text-primary">
-                    {userInitial}
-                  </div>
+                  <Avatar className="size-10 shrink-0 text-sm">
+                    <AvatarImage
+                      src={currentUser.avatarUrl ?? undefined}
+                      alt={currentUser.name}
+                    />
+                    <AvatarFallback className="bg-primary/12 font-semibold text-primary">
+                      {userInitial}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                     <span className="truncate text-sm font-medium text-foreground">
                       {currentUser.name}
@@ -272,9 +280,15 @@ export function AppSidebar({
                   <MenuGroup>
                     <MenuGroupLabel>
                       <div className="flex items-center gap-3 px-1 py-1.5 text-left">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-sm font-semibold text-primary">
-                          {userInitial}
-                        </div>
+                        <Avatar className="size-9 shrink-0 text-sm">
+                          <AvatarImage
+                            src={currentUser.avatarUrl ?? undefined}
+                            alt={currentUser.name}
+                          />
+                          <AvatarFallback className="bg-primary/12 font-semibold text-primary">
+                            {userInitial}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="grid min-w-0 flex-1 leading-tight">
                           <span className="truncate text-sm font-medium text-foreground">
                             {currentUser.name}

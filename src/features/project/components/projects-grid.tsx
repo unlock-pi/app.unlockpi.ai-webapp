@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useState } from "react"
 import { useRouter } from "next/navigation"
+import { motion, type Variants } from "motion/react"
 
 import {
   AlertTriangleIcon,
@@ -14,7 +15,6 @@ import {
   ArchiveIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -44,15 +44,31 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerMenu,
+  DrawerMenuGroup,
+  DrawerMenuGroupLabel,
+  DrawerMenuItem,
+  DrawerMenuSeparator,
+  DrawerPanel,
+  DrawerPopup,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import {
   Menu,
+  MenuGroup,
+  MenuGroupLabel,
   MenuItem,
   MenuPopup,
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu"
 import type { TeachingProject } from "@/features/project/types/project-types"
+import { useMediaQuery } from "@/features/talk/hooks/use-media-query"
+import { toastManager } from "@/components/ui/toast"
 import { createClient } from "@/lib/client"
 
 type ProjectsGridProps = {
@@ -60,9 +76,28 @@ type ProjectsGridProps = {
   canvasCounts: Record<string, number>
 }
 
+const cardListVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+} satisfies Variants
+
+const cardItemVariants = {
+  hidden: { opacity: 0, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.2, ease: "easeOut" },
+  },
+} satisfies Variants
+
 export function ProjectsGrid({ projects, canvasCounts }: ProjectsGridProps) {
   return (
-    <div className="mt-4 grid gap-x-4 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
+    <motion.div
+      className="mt-4 grid gap-x-4 gap-y-8 md:grid-cols-2 xl:grid-cols-3"
+      initial="hidden"
+      animate="visible"
+      variants={cardListVariants}
+    >
       {projects.map((project) => (
         <ProjectFolderCard
           key={project.id}
@@ -70,7 +105,7 @@ export function ProjectsGrid({ projects, canvasCounts }: ProjectsGridProps) {
           canvasCount={canvasCounts[project.id] ?? 0}
         />
       ))}
-    </div>
+    </motion.div>
   )
 }
 
@@ -81,6 +116,7 @@ type ProjectFolderCardProps = {
 
 function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
   const router = useRouter()
+  const isMobile = useMediaQuery("max-md")
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [name, setName] = useState(project.name)
@@ -111,7 +147,11 @@ function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
     const trimmedName = name.trim()
 
     if (!trimmedName) {
-      toast.error("Project name is required.")
+      toastManager.add({
+        title: "Project name required",
+        description: "Add a project name before saving.",
+        type: "error",
+      })
       return
     }
 
@@ -125,12 +165,20 @@ function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
       .eq("owner_id", project.owner_id)
 
     if (error) {
-      toast.error(error.message || "Unable to rename project.")
+      toastManager.add({
+        title: "Project not renamed",
+        description: error.message || "Unable to rename project.",
+        type: "error",
+      })
       setIsRenaming(false)
       return
     }
 
-    toast.success("Project renamed.")
+    toastManager.add({
+      title: "Project renamed",
+      description: `${project.name} is now ${trimmedName}.`,
+      type: "success",
+    })
     setIsRenaming(false)
     setIsRenameOpen(false)
     router.refresh()
@@ -147,26 +195,43 @@ function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
       .eq("owner_id", project.owner_id)
 
     if (error) {
-      toast.error(error.message || "Unable to delete project.")
+      toastManager.add({
+        title: "Project not deleted",
+        description: error.message || "Unable to delete project.",
+        type: "error",
+      })
       setIsDeleting(false)
       return
     }
 
-    toast.success("Project deleted.")
+    toastManager.add({
+      title: "Project deleted",
+      description: `${project.name} was removed.`,
+      type: "success",
+    })
     setIsDeleting(false)
     setIsDeleteOpen(false)
     router.refresh()
   }
 
+  const actionTrigger = (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="rounded-lg border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
+    />
+  )
+
   return (
     <>
-      <div
+      <motion.div
         role="link"
         tabIndex={0}
         aria-label={`Open project ${project.name}`}
         className="group cursor-pointer outline-none"
         onClick={openProject}
         onKeyDown={handleCardKeyDown}
+        variants={cardItemVariants}
       >
         <Card className="relative h-40 w-80 rounded-none rounded-b-lg! rounded-r-lg! border-border/70 bg-foreground text-white transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:text-muted">
           <div className="absolute -top-3 h-5 w-10 rounded-tl-lg rounded-tr-lg bg-foreground" />
@@ -187,46 +252,97 @@ function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
                 onPointerDown={stopCardNavigation}
                 onKeyDown={stopCardNavigation}
               >
-                <Menu>
-                  <MenuTrigger
-                    render={
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="rounded-lg border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-white"
-                      />
-                    }
-                  >
-                    <EllipsisVertical className="size-4" />
-                  </MenuTrigger>
-                  <MenuPopup align="end" className="w-44">
-                    <MenuItem
-                      onClick={() => {
-                        setName(project.name)
-                        setIsRenameOpen(true)
-                      }}
-                    >
-                      <PencilLineIcon className="size-4" />
-                      Rename
-                    </MenuItem>
-                    <MenuItem disabled>
-                      <ArchiveIcon className="size-4" />
-                      Archive
-                    </MenuItem>
-                    <MenuItem disabled>
-                      <Share2Icon className="size-4" />
-                      Share
-                    </MenuItem>
-                    <MenuSeparator />
-                    <MenuItem
-                      variant="destructive"
-                      onClick={() => setIsDeleteOpen(true)}
-                    >
-                      <Trash2Icon className="size-4" />
-                      Delete
-                    </MenuItem>
-                  </MenuPopup>
-                </Menu>
+                {isMobile ? (
+                  <Drawer>
+                    <DrawerTrigger render={actionTrigger}>
+                      <EllipsisVertical className="size-4" />
+                    </DrawerTrigger>
+                    <DrawerPopup showBar>
+                      <DrawerPanel>
+                        <DrawerMenu>
+                          <DrawerMenuGroup>
+                            <DrawerMenuGroupLabel>Actions</DrawerMenuGroupLabel>
+                            <DrawerClose
+                              render={
+                                <DrawerMenuItem
+                                  onClick={() => {
+                                    setName(project.name)
+                                    setIsRenameOpen(true)
+                                  }}
+                                />
+                              }
+                            >
+                              <PencilLineIcon className="size-4" />
+                              Rename
+                            </DrawerClose>
+                            <DrawerMenuItem disabled>
+                              <ArchiveIcon className="size-4" />
+                              Archive
+                            </DrawerMenuItem>
+                            <DrawerMenuItem disabled>
+                              <Share2Icon className="size-4" />
+                              Share
+                            </DrawerMenuItem>
+                          </DrawerMenuGroup>
+                          <DrawerMenuSeparator />
+                          <DrawerMenuGroup>
+                            <DrawerMenuGroupLabel>Danger zone</DrawerMenuGroupLabel>
+                            <DrawerClose
+                              render={
+                                <DrawerMenuItem
+                                  variant="destructive"
+                                  onClick={() => setIsDeleteOpen(true)}
+                                />
+                              }
+                            >
+                              <Trash2Icon className="size-4" />
+                              Delete
+                            </DrawerClose>
+                          </DrawerMenuGroup>
+                        </DrawerMenu>
+                      </DrawerPanel>
+                    </DrawerPopup>
+                  </Drawer>
+                ) : (
+                  <Menu>
+                    <MenuTrigger render={actionTrigger}>
+                      <EllipsisVertical className="size-4" />
+                    </MenuTrigger>
+                    <MenuPopup align="end" className="w-44">
+                      <MenuGroup>
+                        <MenuGroupLabel>Actions</MenuGroupLabel>
+                        <MenuItem
+                          onClick={() => {
+                            setName(project.name)
+                            setIsRenameOpen(true)
+                          }}
+                        >
+                          <PencilLineIcon className="size-4" />
+                          Rename
+                        </MenuItem>
+                        <MenuItem disabled>
+                          <ArchiveIcon className="size-4" />
+                          Archive
+                        </MenuItem>
+                        <MenuItem disabled>
+                          <Share2Icon className="size-4" />
+                          Share
+                        </MenuItem>
+                      </MenuGroup>
+                      <MenuSeparator />
+                      <MenuGroup>
+                        <MenuGroupLabel>Danger zone</MenuGroupLabel>
+                        <MenuItem
+                          variant="destructive"
+                          onClick={() => setIsDeleteOpen(true)}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Delete
+                        </MenuItem>
+                      </MenuGroup>
+                    </MenuPopup>
+                  </Menu>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -246,7 +362,7 @@ function ProjectFolderCard({ project, canvasCount }: ProjectFolderCardProps) {
             </div>
           </CardPanel>
         </Card>
-      </div>
+      </motion.div>
 
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
         <DialogPopup className="max-w-md">

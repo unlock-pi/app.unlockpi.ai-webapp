@@ -41,13 +41,6 @@ export type CanvasEditorPageModel = {
   siblingCanvases: CanvasSummary[];
 };
 
-export type CanvasCompatibilityPageProps = {
-  availableProjects?: CanvasProjectOption[];
-  initialCanvas?: CanvasRecord | null;
-  initialCanvases?: CanvasSummary[];
-  projectContext?: CanvasProjectContext | null;
-};
-
 export type ActionLogItem = {
   id: string;
   message: string;
@@ -104,6 +97,7 @@ export type CanvasEditorController = {
   commandDraft: string;
   commandError: string | null;
   copySuccess: boolean;
+  easyMode: boolean;
   frames: FrameSummary[];
   gridTemplateColumns: string;
   isDesktop: boolean;
@@ -137,6 +131,7 @@ export type CanvasEditorController = {
     runJsonCommand: () => void;
     setAiPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setCommandDraft: React.Dispatch<React.SetStateAction<string>>;
+    setEasyMode: React.Dispatch<React.SetStateAction<boolean>>;
     setIsShareDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setIsStartClassOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setIsTitleEditing: React.Dispatch<React.SetStateAction<boolean>>;

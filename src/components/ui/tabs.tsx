@@ -79,7 +79,10 @@ export function TabsPanel({
 }: TabsPrimitive.Panel.Props): React.ReactElement {
   return (
     <TabsPrimitive.Panel
-      className={cn("flex-1 outline-none", className)}
+      className={cn(
+        "flex-1 outline-none transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        className,
+      )}
       data-slot="tabs-content"
       {...props}
     />

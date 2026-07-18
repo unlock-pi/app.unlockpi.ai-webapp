@@ -19,21 +19,46 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Popover, PopoverPopup, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CanvasEditorController } from "@/features/canvas/types/canvas-other-types";
 import { cn } from "@/lib/utils";
 
 type CanvasShareDialogProps = {
-  controller: CanvasEditorController;
+  copySuccess: boolean;
+  isDownloadingPdf: boolean;
+  isPublic: boolean;
+  isShareDialogOpen: boolean;
+  publicLink: string;
+  shareError: string | null;
+  shareSlug: string | null;
+  actions: Pick<
+    CanvasEditorController["actions"],
+    | "copyPublicLink"
+    | "downloadAsPdf"
+    | "handleCreatePublicLink"
+    | "setIsShareDialogOpen"
+  >;
 };
 
-export function CanvasShareDialog({ controller }: CanvasShareDialogProps) {
+export function CanvasShareDialog({
+  actions,
+  copySuccess,
+  isDownloadingPdf,
+  isPublic,
+  isShareDialogOpen,
+  publicLink,
+  shareError,
+  shareSlug,
+}: CanvasShareDialogProps) {
   return (
     <Dialog
-      open={controller.isShareDialogOpen}
-      onOpenChange={controller.actions.setIsShareDialogOpen}
+      open={isShareDialogOpen}
+      onOpenChange={actions.setIsShareDialogOpen}
     >
       <DialogPopup>
         <DialogHeader>
@@ -69,9 +94,9 @@ export function CanvasShareDialog({ controller }: CanvasShareDialogProps) {
               </Popover>
             </div>
             <div className="flex flex-row-reverse">
-              {controller.shareError ? (
+              {shareError ? (
                 <p className="mt-2 text-xs text-destructive">
-                  {controller.shareError}
+                  {shareError}
                 </p>
               ) : null}
               <InputGroup
@@ -88,35 +113,38 @@ export function CanvasShareDialog({ controller }: CanvasShareDialogProps) {
                   placeholder="Public link"
                   type="text"
                   readOnly
-                  value={controller.publicLink}
+                  value={publicLink}
                   className={cn(
                     "[&_[data-slot=input]]:h-11 [&_[data-slot=input]]:pe-1 [&_[data-slot=input]]:font-variant-numeric-tabular",
                   )}
                 />
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        aria-label="Copy public link"
-                        size="icon-sm"
-                        variant="ghost"
-                        className="mr-1 shrink-0 rounded-xl hover:bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0"
-                        onClick={() => void controller.actions.copyPublicLink()}
-                      />
-                    }
+                <InputGroupAddon align="inline-end">
+                  <Button
+                    aria-label="Copy public link"
+                    size="sm"
+                    variant="ghost"
+                    disabled={!shareSlug}
+                    className="mr-1 shrink-0 rounded-xl px-2.5 hover:bg-muted/50 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    onClick={() => void actions.copyPublicLink()}
                   >
-                    {controller.shareSlug ? (
-                      controller.copySuccess ? (
+                    {copySuccess ? (
+                      <>
                         <CheckIcon className="size-4 text-green-500" />
-                      ) : (
-                        <CopyIcon className="size-4" />
-                      )
+                        Copied
+                      </>
                     ) : (
-                      <CopyIcon className="size-4 opacity-40" />
+                      <>
+                        <CopyIcon
+                          className={cn(
+                            "size-4",
+                            !shareSlug && "opacity-40",
+                          )}
+                        />
+                        Copy
+                      </>
                     )}
-                  </TooltipTrigger>
-                  <TooltipPopup>Copy link</TooltipPopup>
-                </Tooltip>
+                  </Button>
+                </InputGroupAddon>
               </InputGroup>
             </div>
           </div>
@@ -126,31 +154,31 @@ export function CanvasShareDialog({ controller }: CanvasShareDialogProps) {
             <Button
               className="mt-3  size-20! flex flex-col! rounded-2xl "
               variant="ghost"
-              disabled={controller.isDownloadingPdf}
-              onClick={() => void controller.actions.downloadAsPdf()}
+              disabled={isDownloadingPdf}
+              onClick={() => void actions.downloadAsPdf()}
             >
               <span className="flex size-10 items-center justify-center rounded-full bg-primary p-2">
-                {controller.isDownloadingPdf ? (
+                {isDownloadingPdf ? (
                   <LoaderCircleIcon className="size-5 animate-spin text-white dark:text-black" />
                 ) : (
-                  <SaveIcon className="size-5 text-white dark:text-black" />
+                  <SaveIcon className="size-5 text-white " />
                 )}
               </span>
               <span className="text-xs">
-                {controller.isDownloadingPdf ? "Preparing" : "Download"}
+                {isDownloadingPdf ? "Preparing" : "Download"}
               </span>
             </Button>
 
             <Button
               className="mt-3  size-20! flex flex-col! rounded-2xl "
               variant="ghost"
-              onClick={() => void controller.actions.handleCreatePublicLink()}
+              onClick={() => void actions.handleCreatePublicLink()}
             >
               <span className="flex size-10 items-center justify-center rounded-full bg-primary p-2">
-                <Share2Icon className="size-5 text-white dark:text-black" />
+                <Share2Icon className="size-5 text-white " />
               </span>
               <span className="text-xs w-20 whitespace-pre-wrap">
-                {controller.isPublic ? "Refresh public link" : "Create public link"}
+                {isPublic ? "Refresh public link" : "Create public link"}
               </span>
             </Button>
           </div>

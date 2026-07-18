@@ -1,10 +1,4 @@
 
-
-
-
-
----
-
 Hey, you can use tooltips in some places by giving the tooltip icon. You can use cards to gather the right things. I would highly suggest you use collapsibles for some places where you want some things not to be shown, because you don't want to confuse the user suddenly the first time. There should not be too many inputs.
 
 If you feel like some places need a drawer, for example, some questions need to be asked if the user wants to reset his dock or something like that. You can also put frames to gather the right things. You can use the fieldset in some places where you are taking input so that it is all organized. You can use the number field input for the places where you are taking numbers, and the UI of the switch is a little broken with respect to the color, so see if you can fix that thing by taking the inspiration from there.

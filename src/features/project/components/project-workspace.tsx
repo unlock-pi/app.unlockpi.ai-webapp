@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 
 import { FolderIcon } from "lucide-react"
+import { motion, type Variants } from "motion/react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +18,20 @@ type ProjectWorkspaceProps = {
   sessions: TeachingSession[]
   initialSessionId?: string | null
 }
+
+const cardListVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.04 } },
+} satisfies Variants
+
+const cardItemVariants = {
+  hidden: { opacity: 0, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.2, ease: "easeOut" },
+  },
+} satisfies Variants
 
 export function ProjectWorkspace({
   project,
@@ -79,25 +94,37 @@ export function ProjectWorkspace({
         </Card>
 
         {displayedSessions.length === 0 ? (
-          <Card className="border-border/70 border-dashed">
-            <CardContent className="p-6">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                This project has no sessions yet. Create one to start building your teaching flow.
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <Card className="border-border/70 border-dashed">
+              <CardContent className="p-6">
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                  This project has no sessions yet. Create one to start building your teaching flow.
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <motion.div
+            className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+            initial="hidden"
+            animate="visible"
+            variants={cardListVariants}
+          >
             {displayedSessions.map((session) => (
-              <ProjectSessionCard
-                key={session.id}
-                projectId={project.id}
-                session={session}
-                isHighlighted={session.id === initialSessionId}
-                onEdit={setEditingSessionId}
-              />
+              <motion.div key={session.id} variants={cardItemVariants}>
+                <ProjectSessionCard
+                  projectId={project.id}
+                  session={session}
+                  isHighlighted={session.id === initialSessionId}
+                  onEdit={setEditingSessionId}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 

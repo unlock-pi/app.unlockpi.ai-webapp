@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { ProjectCanvasLibraryScreen } from "@/features/canvas/components/project-canvas-library-screen";
+import { CanvasLibraryScreen } from "@/features/canvas/components/canvas-library-screen";
 import { loadProjectCanvasLibraryPage } from "@/features/canvas/lib/canvas-page-loaders";
 import { createClient } from "@/lib/server";
 
@@ -20,5 +20,5 @@ export default async function ProjectDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  return <ProjectCanvasLibraryScreen model={result.model} />;
+  return <CanvasLibraryScreen model={result.model} />;
 }

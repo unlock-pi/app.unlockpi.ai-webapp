@@ -7,23 +7,25 @@ const Logo = ({
   full = false,
   width = 100,
   height = 100,
-  link = true,
+  isLink = true,
+  href = "/dashboard",
   className,
   textClassName,
   isBeta = false,
 }: {
   full?: boolean;
-  link?: boolean;
+  isLink?: boolean;
+  href?: string;
   isBeta?: boolean;
   width?: number;
   height?: number;
   className?: string;
   textClassName?: string;
 }) => {
-  if (link)
+  if (isLink)
     return (
       <Link
-        href={"/"}
+        href={href}
         className={cn("flex flex-col items-center justify-center", className)}
       >
         <Image
