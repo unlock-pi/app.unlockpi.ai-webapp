@@ -2,10 +2,12 @@
 
 import {
   ActivityIcon,
+  ArrowUpDownIcon,
   AudioWaveformIcon,
   BotIcon,
   Clock3Icon,
   CoinsIcon,
+  DownloadIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   SearchIcon,
@@ -55,6 +57,17 @@ import type {
   AdminRealtimeSession,
   AdminUser,
 } from "@/features/admin/types/admin-types";
+import { SessionDetailModal } from "./session-detail-modal";
+import { TutorProfileDrawer } from "./tutor-profile-drawer";
+import {
+  exportSessionsToCSV,
+  exportUsersToCSV,
+  exportDashboardSnapshot,
+} from "@/features/admin/lib/export-utils";
+
+type SortField = "name" | "email" | "sessions" | "spend" | "joined" | "active";
+type SortDirection = "asc" | "desc";
+type StatusFilter = "all" | "active" | "inactive";
 
 const rangeOptions = [
   { value: "1", label: "Today" },
@@ -70,6 +83,18 @@ const chartConfig = {
 export function AdminDashboard({ data }: { data: AdminDashboardData }) {
   const [rangeDays, setRangeDays] = useState("30");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [userSort, setUserSort] = useState<{ field: SortField; direction: SortDirection }>({
+    field: "name",
+    direction: "asc",
+  });
+  const [sessionSort, setSessionSort] = useState<{ field: "date" | "cost" | "duration"; direction: SortDirection }>({
+    field: "date",
+    direction: "desc",
+  });
+  const [selectedSession, setSelectedSession] = useState<AdminRealtimeSession | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const startDate = getRangeStart(Number(rangeDays));
   const filteredSessions = data.realtimeSessions.filter(
@@ -86,15 +111,43 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
       )
       .map((user) => user.id),
   );
-  const visibleUsers = data.users.filter((user) =>
-    `${user.name} ${user.email}`.toLowerCase().includes(deferredSearch),
-  );
+
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
   const monthSessions = data.realtimeSessions.filter(
     (session) => new Date(session.startedAt) >= monthStart,
   );
+
+  // Users table sorting and filtering - use filtered sessions for accurate stats
+  const userStats = new Map<string, { sessions: number; duration: number; cost: number }>();
+  for (const session of filteredSessions) {
+    const current = userStats.get(session.ownerId) ?? { sessions: 0, duration: 0, cost: 0 };
+    current.sessions += 1;
+    current.duration += session.durationSeconds;
+    if (session.estimatedCostUsd !== null) {
+      current.cost += session.estimatedCostUsd;
+    }
+    userStats.set(session.ownerId, current);
+  }
+
+  let visibleUsers = data.users.filter((user) =>
+    `${user.name} ${user.email}`.toLowerCase().includes(deferredSearch),
+  );
+
+  if (statusFilter !== "all") {
+    visibleUsers = visibleUsers.filter((user) => {
+      const isActive = activeUserIds.has(user.id);
+      return statusFilter === "active" ? isActive : !isActive;
+    });
+  }
+
+  visibleUsers = sortUsers(visibleUsers, userStats, userSort.field, userSort.direction);
+
+  // Sessions table sorting
+  const sortedSessions = sortSessions([...filteredSessions], sessionSort.field, sessionSort.direction);
+
+  const selectedSessionUser = selectedSession ? data.users.find(u => u.id === selectedSession.ownerId) : undefined;
 
   return (
     <div className="min-h-svh bg-background text-foreground max-w-7xl mx-auto">
@@ -162,22 +215,69 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
               <UsagePulse sessions={filteredSessions} users={data.users} />
             </section>
 
-            <SessionTable sessions={filteredSessions.slice(0, 8)} users={data.users} compact />
+            <SessionTable sessions={sortedSessions.slice(0, 8)} users={data.users} compact onSelectSession={setSelectedSession} />
           </TabsContent>
 
           <TabsContent value="users" className="space-y-4">
-            <div className="relative max-w-sm">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutors" className="pl-9" />
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutors" className="pl-9" />
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tutors</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportUsersToCSV(visibleUsers, filteredSessions)}
+              >
+                <DownloadIcon className="size-4" /> Export CSV
+              </Button>
             </div>
-            <UsersTable users={visibleUsers} sessions={data.realtimeSessions} activeUserIds={activeUserIds} />
+            <UsersTable users={visibleUsers} sessions={filteredSessions} activeUserIds={activeUserIds} userSort={userSort} onSort={setUserSort} onSelectUser={setSelectedUser} />
           </TabsContent>
 
-          <TabsContent value="sessions">
-            <SessionTable sessions={filteredSessions} users={data.users} />
+          <TabsContent value="sessions" className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportSessionsToCSV(sortedSessions, new Map(data.users.map(u => [u.id, u])))}
+              >
+                <DownloadIcon className="size-4" /> Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportDashboardSnapshot(data.users, sortedSessions, rangeOptions.find(o => o.value === rangeDays)?.label ?? "Custom", activeUserIds.size)}
+              >
+                <DownloadIcon className="size-4" /> Snapshot
+              </Button>
+            </div>
+            <SessionTable sessions={sortedSessions} users={data.users} sessionSort={sessionSort} onSort={setSessionSort} onSelectSession={setSelectedSession} />
           </TabsContent>
         </Tabs>
       </main>
+
+      <SessionDetailModal
+        session={selectedSession}
+        user={selectedSessionUser}
+        onClose={() => setSelectedSession(null)}
+      />
+      <TutorProfileDrawer
+        user={selectedUser}
+        sessions={data.realtimeSessions}
+        activeUserIds={activeUserIds}
+        onClose={() => setSelectedUser(null)}
+      />
     </div>
   );
 }
@@ -257,44 +357,273 @@ function PulseRow({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between border-b py-3 last:border-0"><span className="text-sm text-muted-foreground">{label}</span><span className="max-w-[55%] truncate text-sm font-semibold tabular-nums">{value}</span></div>;
 }
 
-function UsersTable({ users, sessions, activeUserIds }: { users: AdminUser[]; sessions: AdminRealtimeSession[]; activeUserIds: Set<string> }) {
+function UsersTable({
+  users,
+  sessions,
+  activeUserIds,
+  userSort,
+  onSort,
+  onSelectUser,
+}: {
+  users: AdminUser[];
+  sessions: AdminRealtimeSession[];
+  activeUserIds: Set<string>;
+  userSort?: { field: SortField; direction: SortDirection };
+  onSort?: (sort: { field: SortField; direction: SortDirection }) => void;
+  onSelectUser?: (user: AdminUser) => void;
+}) {
   const usageByUser = groupUsageByUser(sessions);
+
+  const handleSort = (field: SortField) => {
+    if (!onSort || !userSort) return;
+    const newDirection =
+      userSort.field === field && userSort.direction === "asc" ? "desc" : "asc";
+    onSort({ field, direction: newDirection });
+  };
+
+  const renderSortableHeader = (field: SortField, label: string) => {
+    const isActive = userSort?.field === field;
+    return (
+      <TableHead
+        key={field}
+        className="cursor-pointer hover:bg-muted/50"
+        onClick={() => handleSort(field)}
+      >
+        <div className="flex items-center gap-2">
+          {label}
+          {isActive && (
+            <ArrowUpDownIcon
+              className={`size-4 transition-transform ${userSort?.direction === "desc" ? "rotate-180" : ""}`}
+            />
+          )}
+        </div>
+      </TableHead>
+    );
+  };
+
   return (
     <Card className="overflow-hidden">
       <Table>
-        <TableHeader><TableRow><TableHead>Tutor</TableHead><TableHead>Status</TableHead><TableHead>Joined</TableHead><TableHead>AI sessions</TableHead><TableHead>Classroom time</TableHead><TableHead className="text-right">Spend</TableHead></TableRow></TableHeader>
+        <TableHeader>
+          <TableRow>
+            {renderSortableHeader("name", "Tutor")}
+            <TableHead>Status</TableHead>
+            {renderSortableHeader("joined", "Joined")}
+            {renderSortableHeader("sessions", "AI sessions")}
+            {renderSortableHeader("active", "Classroom time")}
+            <TableHead
+              className="text-right cursor-pointer hover:bg-muted/50"
+              onClick={() => handleSort("spend")}
+            >
+              <div className="flex items-center justify-end gap-2">
+                Spend
+                {userSort?.field === "spend" && (
+                  <ArrowUpDownIcon
+                    className={`size-4 transition-transform ${
+                      userSort?.direction === "desc" ? "rotate-180" : ""
+                    }`}
+                  />
+                )}
+              </div>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
         <TableBody>
           {users.map((user) => {
             const usage = usageByUser.get(user.id);
-            return <TableRow key={user.id}>
-              <TableCell><div className="flex items-center gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">{initials(user.name)}</div><div><p className="font-medium">{user.name}</p><p className="mt-1 text-xs text-muted-foreground">{user.email}</p></div></div></TableCell>
-              <TableCell><Badge variant={activeUserIds.has(user.id) ? "secondary" : "outline"}>{activeUserIds.has(user.id) ? "Active" : "Quiet"}</Badge>{user.isAdmin ? <Badge variant="outline" className="ml-1.5">Admin</Badge> : null}</TableCell>
-              <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
-              <TableCell className="tabular-nums">{usage?.count ?? 0}</TableCell>
-              <TableCell className="tabular-nums">{formatDuration(usage?.duration ?? 0)}</TableCell>
-              <TableCell className="text-right font-medium tabular-nums">{formatCost(usage?.cost ?? null)}</TableCell>
-            </TableRow>;
+            return (
+              <TableRow
+                key={user.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSelectUser?.(user)}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">
+                      {initials(user.name)}
+                    </div>
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={activeUserIds.has(user.id) ? "secondary" : "outline"}>
+                    {activeUserIds.has(user.id) ? "Active" : "Quiet"}
+                  </Badge>
+                  {user.isAdmin ? (
+                    <Badge variant="outline" className="ml-1.5">
+                      Admin
+                    </Badge>
+                  ) : null}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatDate(user.createdAt)}
+                </TableCell>
+                <TableCell className="tabular-nums">{usage?.count ?? 0}</TableCell>
+                <TableCell className="tabular-nums">
+                  {formatDuration(usage?.duration ?? 0)}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {formatCost(usage?.cost ?? null)}
+                </TableCell>
+              </TableRow>
+            );
           })}
         </TableBody>
       </Table>
-      {users.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">No tutors match this search.</div> : null}
+      {users.length === 0 ? (
+        <div className="p-10 text-center text-sm text-muted-foreground">
+          No tutors match this search.
+        </div>
+      ) : null}
     </Card>
   );
 }
 
-function SessionTable({ sessions, users, compact = false }: { sessions: AdminRealtimeSession[]; users: AdminUser[]; compact?: boolean }) {
+function SessionTable({
+  sessions,
+  users,
+  compact = false,
+  sessionSort,
+  onSort,
+  onSelectSession,
+}: {
+  sessions: AdminRealtimeSession[];
+  users: AdminUser[];
+  compact?: boolean;
+  sessionSort?: { field: "date" | "cost" | "duration"; direction: SortDirection };
+  onSort?: (sort: { field: "date" | "cost" | "duration"; direction: SortDirection }) => void;
+  onSelectSession?: (session: AdminRealtimeSession) => void;
+}) {
   const userById = new Map(users.map((user) => [user.id, user]));
+
+  const handleSort = (field: "date" | "cost" | "duration") => {
+    if (!onSort || !sessionSort) return;
+    const newDirection =
+      sessionSort.field === field && sessionSort.direction === "asc" ? "desc" : "asc";
+    onSort({ field, direction: newDirection });
+  };
+
+  const renderSessionSortableHeader = (field: "date" | "cost" | "duration", label: string) => {
+    const isActive = sessionSort?.field === field;
+    return (
+      <TableHead
+        key={field}
+        className="cursor-pointer hover:bg-muted/50"
+        onClick={() => handleSort(field)}
+      >
+        <div className="flex items-center gap-2">
+          {label}
+          {isActive && (
+            <ArrowUpDownIcon
+              className={`size-4 transition-transform ${
+                sessionSort?.direction === "desc" ? "rotate-180" : ""
+              }`}
+            />
+          )}
+        </div>
+      </TableHead>
+    );
+  };
+
   return (
     <Card className="overflow-hidden">
-      <CardHeader><CardTitle>{compact ? "Recent AI sessions" : "AI session ledger"}</CardTitle><CardDescription>{compact ? "Latest classroom connections in the selected range." : "Per-session duration, token volume, and estimated spend."}</CardDescription>{compact ? <CardAction><Badge variant="outline">{sessions.length} shown</Badge></CardAction> : null}</CardHeader>
+      <CardHeader>
+        <CardTitle>{compact ? "Recent AI sessions" : "AI session ledger"}</CardTitle>
+        <CardDescription>
+          {compact
+            ? "Latest classroom connections in the selected range."
+            : "Per-session duration, token volume, and estimated spend."}
+        </CardDescription>
+        {compact ? (
+          <CardAction>
+            <Badge variant="outline">{sessions.length} shown</Badge>
+          </CardAction>
+        ) : null}
+      </CardHeader>
       <Table>
-        <TableHeader><TableRow><TableHead>Lesson</TableHead><TableHead>Tutor</TableHead><TableHead>Mode</TableHead><TableHead>Started</TableHead><TableHead>Duration</TableHead><TableHead>Tokens</TableHead><TableHead className="text-right">Cost</TableHead></TableRow></TableHeader>
-        <TableBody>{sessions.map((session) => {
-          const user = userById.get(session.ownerId);
-          return <TableRow key={session.id}><TableCell><div className="flex items-center gap-2.5"><span className="grid size-8 place-items-center rounded-lg bg-muted text-muted-foreground"><BotIcon className="size-4" /></span><div><p className="max-w-64 truncate font-medium">{session.lessonTitle}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{session.source} · {session.model}</p></div></div></TableCell><TableCell>{user?.name ?? "Unknown tutor"}</TableCell><TableCell><Badge variant="secondary" className="capitalize">{session.mode.replaceAll("_", " ")}</Badge></TableCell><TableCell className="text-muted-foreground">{formatDateTime(session.startedAt)}</TableCell><TableCell className="tabular-nums">{formatDuration(session.durationSeconds)}</TableCell><TableCell className="tabular-nums">{formatNumber(session.inputTokens + session.outputTokens)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCost(session.estimatedCostUsd)}</TableCell></TableRow>;
-        })}</TableBody>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Lesson</TableHead>
+            <TableHead>Tutor</TableHead>
+            <TableHead>Mode</TableHead>
+            {renderSessionSortableHeader("date", "Started")}
+            {renderSessionSortableHeader("duration", "Duration")}
+            <TableHead>Tokens</TableHead>
+            <TableHead className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                Cost
+                {sessionSort?.field === "cost" && (
+                  <ArrowUpDownIcon
+                    className={`size-4 transition-transform ${
+                      sessionSort?.direction === "desc" ? "rotate-180" : ""
+                    }`}
+                  />
+                )}
+              </div>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sessions.map((session) => {
+            const user = userById.get(session.ownerId);
+            return (
+              <TableRow
+                key={session.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSelectSession?.(session)}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid size-8 place-items-center rounded-lg bg-muted text-muted-foreground">
+                      <BotIcon className="size-4" />
+                    </span>
+                    <div>
+                      <p className="max-w-64 truncate font-medium">
+                        {session.lessonTitle}
+                      </p>
+                      <p className="mt-1 text-xs capitalize text-muted-foreground">
+                        {session.source} · {session.model}
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>{user?.name ?? "Unknown tutor"}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="capitalize">
+                    {session.mode.replaceAll("_", " ")}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatDateTime(session.startedAt)}
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  {formatDuration(session.durationSeconds)}
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  {formatNumber(session.inputTokens + session.outputTokens)}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {formatCost(session.estimatedCostUsd)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
       </Table>
-      {sessions.length === 0 ? <div className="p-12 text-center"><BotIcon className="mx-auto size-6 text-muted-foreground" /><p className="mt-3 text-sm font-medium">No AI sessions in this range</p><p className="mt-1 text-xs text-muted-foreground">New Realtime classes will appear here automatically.</p></div> : null}
+      {sessions.length === 0 ? (
+        <div className="p-12 text-center">
+          <BotIcon className="mx-auto size-6 text-muted-foreground" />
+          <p className="mt-3 text-sm font-medium">No AI sessions in this range</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            New Realtime classes will appear here automatically.
+          </p>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -311,3 +640,82 @@ function sum<T>(items: T[], key: keyof T, initial: number, pick: (value: number)
 function sumNullableCosts(sessions: AdminRealtimeSession[]) { const values = sessions.map((session) => session.estimatedCostUsd).filter((value): value is number => value !== null); return values.length ? values.reduce((total, value) => total + value, 0) : null; }
 function groupUsageByUser(sessions: AdminRealtimeSession[]) { const map = new Map<string, { count: number; duration: number; cost: number | null }>(); for (const session of sessions) { const current = map.get(session.ownerId) ?? { count: 0, duration: 0, cost: null }; current.count += 1; current.duration += session.durationSeconds; if (session.estimatedCostUsd !== null) current.cost = (current.cost ?? 0) + session.estimatedCostUsd; map.set(session.ownerId, current); } return map; }
 function getTopUser(sessions: AdminRealtimeSession[], users: AdminUser[]) { if (sessions.length === 0) return undefined; const usage = groupUsageByUser(sessions); return users.toSorted((left, right) => (usage.get(right.id)?.duration ?? 0) - (usage.get(left.id)?.duration ?? 0))[0]; }
+
+function sortUsers(
+  users: AdminUser[],
+  userStats: Map<string, { sessions: number; duration: number; cost: number }>,
+  field: SortField,
+  direction: SortDirection
+): AdminUser[] {
+  const sorted = [...users].sort((a, b) => {
+    let aValue: number | string = 0;
+    let bValue: number | string = 0;
+
+    switch (field) {
+      case "name":
+        aValue = a.name.toLowerCase();
+        bValue = b.name.toLowerCase();
+        break;
+      case "email":
+        aValue = a.email.toLowerCase();
+        bValue = b.email.toLowerCase();
+        break;
+      case "joined":
+        aValue = new Date(a.createdAt).getTime();
+        bValue = new Date(b.createdAt).getTime();
+        break;
+      case "sessions":
+        aValue = userStats.get(a.id)?.sessions ?? 0;
+        bValue = userStats.get(b.id)?.sessions ?? 0;
+        break;
+      case "spend":
+        aValue = userStats.get(a.id)?.cost ?? 0;
+        bValue = userStats.get(b.id)?.cost ?? 0;
+        break;
+      case "active":
+        aValue = userStats.get(a.id)?.duration ?? 0;
+        bValue = userStats.get(b.id)?.duration ?? 0;
+        break;
+    }
+
+    if (typeof aValue === "string" && typeof bValue === "string") {
+      return direction === "asc"
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+
+    return direction === "asc"
+      ? (aValue as number) - (bValue as number)
+      : (bValue as number) - (aValue as number);
+  });
+
+  return sorted;
+}
+
+function sortSessions(
+  sessions: AdminRealtimeSession[],
+  field: "date" | "cost" | "duration",
+  direction: SortDirection
+): AdminRealtimeSession[] {
+  return [...sessions].sort((a, b) => {
+    let aValue: number;
+    let bValue: number;
+
+    switch (field) {
+      case "date":
+        aValue = new Date(a.startedAt).getTime();
+        bValue = new Date(b.startedAt).getTime();
+        break;
+      case "duration":
+        aValue = a.durationSeconds;
+        bValue = b.durationSeconds;
+        break;
+      case "cost":
+        aValue = a.estimatedCostUsd ?? 0;
+        bValue = b.estimatedCostUsd ?? 0;
+        break;
+    }
+
+    return direction === "asc" ? aValue - bValue : bValue - aValue;
+  });
+}
