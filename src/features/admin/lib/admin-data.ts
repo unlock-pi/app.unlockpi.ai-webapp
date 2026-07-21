@@ -4,6 +4,7 @@ import type {
   AdminDashboardData,
   AdminRealtimeSession,
   AdminUser,
+  AdminVisualGeneration,
 } from "@/features/admin/types/admin-types";
 import { createAdminClient } from "@/lib/supabase-admin";
 
@@ -11,7 +12,7 @@ const PAGE_SIZE = 1000;
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const admin = createAdminClient();
-  const [authUsers, profilesResult, activityResult, sessionsResult] =
+  const [authUsers, profilesResult, activityResult, sessionsResult, visualsResult] =
     await Promise.all([
       listAllAuthUsers(),
       admin
@@ -28,11 +29,17 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         )
         .order("started_at", { ascending: false })
         .limit(2000),
+      admin
+        .from("visuals")
+        .select("id, owner_id, kind, title, model_tier, cost_usd, created_at")
+        .order("created_at", { ascending: false })
+        .limit(2000),
     ]);
 
   if (profilesResult.error) throw profilesResult.error;
   if (activityResult.error) throw activityResult.error;
   if (sessionsResult.error) throw sessionsResult.error;
+  if (visualsResult.error) throw visualsResult.error;
 
   const profileByUser = new Map(
     (profilesResult.data ?? []).map((profile) => [profile.user_id, profile]),
@@ -81,6 +88,25 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
   );
 
+  const visualRows = visualsResult.data ?? [];
+  const visualGenerations: AdminVisualGeneration[] = visualRows.map((row) => ({
+    id: row.id,
+    ownerId: row.owner_id,
+    kind: row.kind as "image" | "mermaid",
+    title: row.title,
+    modelTier: row.model_tier,
+    costUsd: row.cost_usd === null ? null : Number(row.cost_usd),
+    createdAt: row.created_at,
+  }));
+  const visualsSpend = {
+    totalCostUsd: visualGenerations.reduce(
+      (total, generation) => total + (generation.costUsd ?? 0),
+      0,
+    ),
+    totalGenerations: visualGenerations.length,
+    recent: visualGenerations.slice(0, 20),
+  };
+
   return {
     users,
     activity: Array.from({ length: 90 }, (_, index) => {
@@ -88,6 +114,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       return { date, activeUsers: activityByDay.get(date)?.size ?? 0 };
     }),
     realtimeSessions,
+    visualsSpend,
   };
 }
 

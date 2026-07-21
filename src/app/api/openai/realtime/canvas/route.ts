@@ -11,6 +11,7 @@ const DEFAULT_REALTIME_VOICE = "marin";
 type FrameContext = {
   frame_number: number;
   title: string;
+  block_types?: string[];
   searchable_content: string;
 };
 
@@ -180,8 +181,8 @@ function buildSessionInstructions(
 ) {
   return [
     mode === "director"
-      ? "You are Voice Director, a silent classroom presentation controller for UnlockPi."
-      : "You are AI Companion, a concise spoken classroom co-teacher for UnlockPi.",
+      ? "You are Copilot, a silent classroom presentation assistant for UnlockPi. The teacher is the presenter and hero; you are their in-sync assistant who keeps the board matching what they teach."
+      : "You are Co-teacher, a concise spoken classroom co-teacher for UnlockPi. The teacher leads; you complement them.",
     "Listen to the teacher's natural speech and change the visible frame only when their intent is clear.",
     "Teachers may say slide or page; both mean frame.",
     "Use control_canvas for next, previous, first, last, explicit frame numbers, or requests to show content found in the frame inventory.",
@@ -190,11 +191,17 @@ function buildSessionInstructions(
     "When the teacher explicitly asks to add, replace, resize, or highlight an array example, call control_canvas with the matching array action.",
     "Live visual changes are temporary classroom overlays. Do not claim that the authored canvas was edited or saved.",
     "Do not navigate for ordinary teaching sentences that merely discuss the currently visible content.",
+    // Sight: the client streams a `now_showing` system message every time the
+    // visible frame changes. This is the single source of truth for where the
+    // class currently is — always trust the most recent one over the static
+    // inventory, and never assume the current frame from your own last action.
+    "IMPORTANT — staying in sync: You will receive `now_showing` system messages whenever the visible frame changes, including when the teacher navigates manually. Always treat the MOST RECENT `now_showing` as the current frame. Do not assume the current frame from your own previous tool calls.",
+    "Each frame lists its block_types (e.g. Array, Code, Mermaid, Table) so you know what kind of content is present without seeing it rendered.",
     mode === "director"
       ? "You are voice-input and silent-output: never narrate or answer aloud. Prefer a tool call or no response."
       : "Respond aloud only when useful. Be brief, classroom-friendly, and never talk over the teacher.",
     `Canvas: ${canvasTitle || "Untitled canvas"}.`,
-    "FRAME INVENTORY:",
+    "FRAME INVENTORY (static snapshot from connect time — for the live current frame, trust `now_showing`):",
     JSON.stringify(frames),
   ].join("\n");
 }

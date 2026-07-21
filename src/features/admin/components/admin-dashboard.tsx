@@ -8,6 +8,7 @@ import {
   Clock3Icon,
   CoinsIcon,
   DownloadIcon,
+  ImageIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   SearchIcon,
@@ -56,6 +57,7 @@ import type {
   AdminDashboardData,
   AdminRealtimeSession,
   AdminUser,
+  AdminVisualGeneration,
 } from "@/features/admin/types/admin-types";
 import { SessionDetailModal } from "./session-detail-modal";
 import { TutorProfileDrawer } from "./tutor-profile-drawer";
@@ -200,6 +202,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
             <TabsTrigger value="overview"><LayoutDashboardIcon /> Overview</TabsTrigger>
             <TabsTrigger value="users"><UsersIcon /> Users</TabsTrigger>
             <TabsTrigger value="sessions"><AudioWaveformIcon /> AI sessions</TabsTrigger>
+            <TabsTrigger value="visuals"><ImageIcon /> Visuals</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-5">
@@ -264,6 +267,14 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
             </div>
             <SessionTable sessions={sortedSessions} users={data.users} sessionSort={sessionSort} onSort={setSessionSort} onSelectSession={setSelectedSession} />
           </TabsContent>
+
+          <TabsContent value="visuals" className="space-y-4">
+            <section className="grid gap-4 sm:grid-cols-2">
+              <MetricCard icon={CoinsIcon} label="Total visuals spend" value={formatCost(data.visualsSpend.totalCostUsd)} detail="Estimated — see visual-config.ts" />
+              <MetricCard icon={ImageIcon} label="Total generations" value={formatNumber(data.visualsSpend.totalGenerations)} detail="Images and diagrams combined" />
+            </section>
+            <VisualsSpendTable generations={data.visualsSpend.recent} />
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -304,6 +315,49 @@ function MetricCard({ icon: Icon, label, value, detail }: { icon: typeof UsersIc
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
         <p className="mt-2 font-[var(--font-canvas-heading)] text-3xl font-semibold tracking-[-0.04em] tabular-nums">{value}</p>
         <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+      </CardPanel>
+    </Card>
+  );
+}
+
+function VisualsSpendTable({ generations }: { generations: AdminVisualGeneration[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent generations</CardTitle>
+        <CardDescription>Latest images and diagrams, with estimated cost.</CardDescription>
+      </CardHeader>
+      <CardPanel className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Tier</TableHead>
+              <TableHead>Cost</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {generations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  No visuals generated yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              generations.map((generation) => (
+                <TableRow key={generation.id}>
+                  <TableCell className="max-w-64 truncate">{generation.title ?? "Untitled"}</TableCell>
+                  <TableCell className="capitalize">{generation.kind}</TableCell>
+                  <TableCell className="capitalize">{generation.modelTier ?? "—"}</TableCell>
+                  <TableCell>{formatCost(generation.costUsd)}</TableCell>
+                  <TableCell>{new Date(generation.createdAt).toLocaleString()}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardPanel>
     </Card>
   );

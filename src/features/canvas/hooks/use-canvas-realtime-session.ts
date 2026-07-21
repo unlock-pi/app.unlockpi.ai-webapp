@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { CanvasPresentationFrame } from "@/features/canvas/lib/canvas-presentation";
+import {
+  getFrameBlockTypes,
+  type CanvasPresentationFrame,
+} from "@/features/canvas/lib/canvas-presentation";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -121,6 +124,26 @@ export function useCanvasRealtimeSession({
     );
   }, []);
 
+  /**
+   * Push the current-frame state into the model's context as a system item.
+   * We deliberately do NOT follow it with response.create, so this updates
+   * what the model *knows* without making it speak or act. Called whenever the
+   * visible frame changes — this is what keeps the model's sight fresh.
+   */
+  const syncFrameContext = useCallback(
+    (contextText: string) => {
+      sendEvent({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "system",
+          content: [{ type: "input_text", text: contextText }],
+        },
+      });
+    },
+    [sendEvent],
+  );
+
   const sendToolOutput = useCallback(
     (callId: string | undefined, output: string) => {
       if (!callId) {
@@ -223,6 +246,7 @@ export function useCanvasRealtimeSession({
           frames: frames.map((frame) => ({
             frame_number: frame.index + 1,
             title: frame.title,
+            block_types: getFrameBlockTypes(frame),
             searchable_content: frame.searchText.slice(0, 1200),
           })),
         }),
@@ -344,6 +368,7 @@ export function useCanvasRealtimeSession({
     isConnected: status === "connected" || status === "paused",
     isPaused: status === "paused",
     status,
+    syncFrameContext,
     togglePause,
   };
 }

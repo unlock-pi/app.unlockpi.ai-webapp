@@ -36,19 +36,19 @@ const classModes: Array<{
   {
     mode: "voice",
     icon: MicIcon,
-    title: "Voice Director",
-    tagline: "Silent frame control",
+    title: "Copilot",
+    tagline: "Silent, keeps your board in sync",
     details:
-      "A silent AI listens while you teach and switches frames when you ask naturally. It never speaks over you.",
+      "A silent assistant that follows your voice — it navigates frames, reveals content, and builds examples in a side panel as you teach. It never speaks over you.",
     featured: true,
   },
   {
     mode: "companion",
     icon: BotIcon,
-    title: "AI Companion",
-    tagline: "Spoken co-teacher",
+    title: "Co-teacher",
+    tagline: "Speaks aloud alongside you",
     details:
-      "A concise spoken co-teacher that can answer questions, navigate frames, and create temporary visual examples during class.",
+      "A concise spoken co-teacher that answers questions, navigates frames, and creates visual examples during class — a second voice in the room when you want one.",
     featured: false,
   },
 ];

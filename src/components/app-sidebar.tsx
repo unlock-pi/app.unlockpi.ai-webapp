@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   CircleHelpIcon,
   FolderIcon,
+  ImageIcon,
   LogOutIcon,
   MessageSquareIcon,
   MoonIcon,
@@ -72,6 +73,11 @@ const topItems: MainItem[] = [
     title: "Projects",
     url: "/dashboard/projects",
     icon: FolderIcon,
+  },
+  {
+    title: "Visuals",
+    url: "/dashboard/visuals",
+    icon: ImageIcon,
   },
 ];
 

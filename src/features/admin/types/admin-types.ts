@@ -30,9 +30,26 @@ export type AdminRealtimeSession = {
   estimatedCostUsd: number | null;
 };
 
+export type AdminVisualGeneration = {
+  id: string;
+  ownerId: string;
+  kind: "image" | "mermaid";
+  title: string | null;
+  modelTier: string | null;
+  costUsd: number | null;
+  createdAt: string;
+};
+
+export type AdminVisualSpend = {
+  totalCostUsd: number;
+  totalGenerations: number;
+  recent: AdminVisualGeneration[];
+};
+
 export type AdminDashboardData = {
   users: AdminUser[];
   activity: AdminActivityDay[];
   realtimeSessions: AdminRealtimeSession[];
+  visualsSpend: AdminVisualSpend;
 };
 

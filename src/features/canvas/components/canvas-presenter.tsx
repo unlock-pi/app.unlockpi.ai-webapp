@@ -36,7 +36,10 @@ import {
   applyCanvasAction,
   summarizeCanvas,
 } from "@/features/canvas/lib/canvas-commands";
-import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
+import {
+  describeFrameForModel,
+  getCanvasPresentationFrames,
+} from "@/features/canvas/lib/canvas-presentation";
 import type {
   CanvasAiAction,
   CanvasDocument,
@@ -146,6 +149,18 @@ export function CanvasPresenter({
     onAction: applyRealtimeAction,
   });
 
+  const { isConnected: aiConnected, syncFrameContext } = realtimeSession;
+
+  // Give the AI sight: every time the visible frame changes — whether the
+  // teacher navigated manually or the AI did — tell the model exactly what is
+  // now on screen. Also fires on connect (aiConnected flips true), so the AI
+  // gets its bearings the moment it joins. This is what stops it going blind
+  // after the first second.
+  useEffect(() => {
+    if (!aiConnected || !activeFrame) return;
+    syncFrameContext(describeFrameForModel(activeFrame, frames.length));
+  }, [aiConnected, activeFrame, frames.length, syncFrameContext]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -244,13 +259,13 @@ export function CanvasPresenter({
             <ModeButton
               active={selectedMode === "voice"}
               icon={<MicIcon className="size-3.5" />}
-              label="Voice Director"
+              label="Copilot"
               onClick={() => selectMode("voice")}
             />
             <ModeButton
               active={selectedMode === "companion"}
               icon={<BotIcon className="size-3.5" />}
-              label="AI Companion"
+              label="Co-teacher"
               onClick={() => selectMode("companion")}
             />
           </div>

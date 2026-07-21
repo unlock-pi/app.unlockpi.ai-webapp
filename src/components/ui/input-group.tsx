@@ -3,6 +3,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Input, type InputProps } from "@/components/ui/input";
 import { Textarea, type TextareaProps } from "@/components/ui/textarea";
 
@@ -85,6 +86,27 @@ export function InputGroupText({
         "line-clamp-1 flex items-center gap-2 whitespace-nowrap text-muted-foreground leading-none in-[[data-slot=input-group]:has([data-slot=input-control],[data-slot=textarea-control])]:[&_svg:not([class*='size-'])]:size-4.5 sm:in-[[data-slot=input-group]:has([data-slot=input-control],[data-slot=textarea-control])]:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:-mx-0.5",
         className,
       )}
+      {...props}
+    />
+  );
+}
+
+/**
+ * Button sized for use inside an InputGroup addon.
+ * Added for AI Elements' prompt-input, which expects this export.
+ */
+export function InputGroupButton({
+  className,
+  size = "icon-xs",
+  variant = "ghost",
+  ...props
+}: React.ComponentProps<typeof Button>): React.ReactElement {
+  return (
+    <Button
+      className={cn("shrink-0", className)}
+      data-slot="input-group-button"
+      size={size}
+      variant={variant}
       {...props}
     />
   );
