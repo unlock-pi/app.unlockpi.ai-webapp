@@ -1,13 +1,31 @@
 "use client";
 
-import { BracesIcon, CheckIcon, ChevronLeftIcon, PlusIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  BracesIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  LayoutGridIcon,
+  MaximizeIcon,
+  PencilRulerIcon,
+  PlusIcon,
+} from "lucide-react";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { CanvasComponentPalette } from "@/features/canvas/components/editor/canvas-component-palette";
+import { CanvasSketchPad } from "@/features/canvas/components/editor/canvas-sketch-pad";
+import type { SketchSceneData } from "@/features/canvas/types/canvas-types";
 import {
   leftPanelCopy,
   quickCommands,
@@ -18,6 +36,17 @@ import {
 } from "@/features/canvas/lib/canvas-theme";
 import type { CanvasEditorController } from "@/features/canvas/types/canvas-other-types";
 import { cn } from "@/lib/utils";
+
+type HomeTab = "blocks" | "draw";
+
+const homeTabs: Array<{
+  icon: typeof LayoutGridIcon;
+  id: HomeTab;
+  label: string;
+}> = [
+  { icon: LayoutGridIcon, id: "blocks", label: "Blocks" },
+  { icon: PencilRulerIcon, id: "draw", label: "Draw" },
+];
 
 type CanvasEditorLeftPanelProps = {
   activeCanvasTheme: CanvasEditorController["activeCanvasTheme"];
@@ -50,6 +79,13 @@ export function CanvasEditorLeftPanel({
   leftPanelView,
   show,
 }: CanvasEditorLeftPanelProps) {
+  const [homeTab, setHomeTab] = useState<HomeTab>("blocks");
+  const [boardOpen, setBoardOpen] = useState(false);
+  // A ref, not state: the pad reports every edit here, and re-rendering on each
+  // one would send Excalidraw into an update loop. Reading it when a pad mounts
+  // is enough to carry the scratchpad between the panel and the modal.
+  const sketchScene = useRef<SketchSceneData | null>(null);
+
   return (
     <motion.aside
       aria-hidden={!show}
@@ -80,14 +116,80 @@ export function CanvasEditorLeftPanel({
         </div>
       </section> */}
 
-      <ScrollArea className="min-h-0 mt-4 flex-1" scrollFade scrollbarGutter>
-        <div className="p-3">
-          {leftPanelView === "home" ? (
-            <div className="grid gap-5">
-              <CanvasComponentPalette />
-            </div>
-          ) : null}
+      {leftPanelView === "home" ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="p-3 pb-0">
+            <div
+              role="tablist"
+              aria-label="Tool panel view"
+              className="grid grid-cols-2 gap-1 rounded-xl bg-muted/40 p-1"
+            >
+              {homeTabs.map((tab) => {
+                const isActive = homeTab === tab.id;
+                const Icon = tab.icon;
 
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setHomeTab(tab.id)}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold outline-none transition-[background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring",
+                      isActive
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {homeTab === "blocks" ? (
+            <ScrollArea className="min-h-0 flex-1" scrollFade scrollbarGutter>
+              <div className="p-3">
+                <CanvasComponentPalette />
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="justify-center"
+                onClick={() => setBoardOpen(true)}
+              >
+                <MaximizeIcon className="size-3.5" />
+                Open drawing board
+              </Button>
+
+              {boardOpen ? (
+                <div className="grid min-h-0 flex-1 place-items-center rounded-xl border border-dashed border-border bg-muted/10 p-4 text-center text-xs text-muted-foreground">
+                  Drawing board is open.
+                </div>
+              ) : (
+                <div className="min-h-0 flex-1">
+                  <CanvasSketchPad
+                    activeFrameId={activeSlideId}
+                    frames={frames}
+                    getInitialScene={() => sketchScene.current}
+                    onSceneChange={(next) => {
+                      sketchScene.current = next;
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <ScrollArea className="min-h-0 mt-4 flex-1" scrollFade scrollbarGutter>
+          <div className="p-3">
           {leftPanelView === "frames" ? (
             <div className="grid gap-2">
               <Button
@@ -296,8 +398,39 @@ export function CanvasEditorLeftPanel({
               </section>
             </div>
           ) : null}
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
+      )}
+
+      <Dialog open={boardOpen} onOpenChange={setBoardOpen}>
+        <DialogPopup className="h-[min(88vh,900px)] max-w-[min(1200px,95vw)]">
+          <DialogHeader>
+            <DialogTitle>Drawing board</DialogTitle>
+            <DialogDescription>
+              Sketch here, pick a frame, then add it to the canvas.
+            </DialogDescription>
+          </DialogHeader>
+          {/* A plain flex section, not DialogPanel: that wraps children in a
+              ScrollArea, which sizes to content and collapses the board to zero
+              height — and a drawing surface should never scroll anyway. */}
+          <div className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-1">
+            {/* Mounted only while open. Two live pads would both write to the
+                shared scratchpad ref, and the hidden one would clobber it. */}
+            {boardOpen ? (
+              <CanvasSketchPad
+                activeFrameId={activeSlideId}
+                frames={frames}
+                getInitialScene={() => sketchScene.current}
+                showDragHandle={false}
+                onAdded={() => setBoardOpen(false)}
+                onSceneChange={(next) => {
+                  sketchScene.current = next;
+                }}
+              />
+            ) : null}
+          </div>
+        </DialogPopup>
+      </Dialog>
     </motion.aside>
   );
 }

@@ -9,6 +9,7 @@ import {
   LayoutPanelTopIcon,
   ListChecksIcon,
   NetworkIcon,
+  PencilRulerIcon,
   Share2Icon,
   TableIcon,
 } from "lucide-react";
@@ -134,6 +135,16 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     label: "Table",
     description: "Rows and columns for comparisons",
     icon: TableIcon,
+  },
+  SketchBlock: {
+    label: "Drawing",
+    description: "A sketch drawn in the Draw panel",
+    icon: PencilRulerIcon,
+  },
+  Drawing: {
+    label: "Drawing",
+    description: "A sketch drawn in the Draw panel",
+    icon: PencilRulerIcon,
   },
 };
 
