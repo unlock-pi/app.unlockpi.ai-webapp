@@ -121,6 +121,29 @@ export type CheckpointBlockProps = {
   answer: string;
 };
 
+/** Scratchpad scene kept in the Draw tool panel, never stored on a block. */
+export type SketchSceneData = {
+  elements: readonly unknown[];
+  appState?: Record<string, unknown>;
+  files?: Record<string, unknown>;
+};
+
+/** A drawing exported from the Draw panel and dropped onto the canvas. */
+export type SketchPayload = {
+  src: string;
+  aspectRatio: number;
+  widthPercent: number;
+};
+
+export type SketchBlockProps = {
+  title: string;
+  caption: string;
+  /** Rendered width as a percentage of the frame column. */
+  widthPercent: number;
+  src?: string;
+  aspectRatio?: number;
+};
+
 export type CanvasComponents = {
   SlideBlock: SlideBlockProps;
   HeadingTextBlock: HeadingTextBlockProps;
@@ -135,6 +158,7 @@ export type CanvasComponents = {
   MermaidBlock: MermaidBlockProps;
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
+  SketchBlock: SketchBlockProps;
 };
 
 export type CanvasDocument = Data<CanvasComponents, CanvasRootProps>;

@@ -31,6 +31,9 @@ import { StackStrip } from "@/components/data-structure/stack-strip";
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
+import { SketchBlock } from "@/features/canvas/components/sketch-block";
+import { sketchWidthOptions } from "@/features/canvas/lib/sketch-sizes";
+import { readPendingSketch } from "@/features/canvas/lib/sketch-transfer";
 import type {
   ArrayBlockProps,
   BodyTextBlockProps,
@@ -244,6 +247,7 @@ function SlideBlock({
             "MermaidBlock",
             "TableBlock",
             "CheckpointBlock",
+            "SketchBlock",
           ]}
           className="grid min-h-[470px] min-w-0 flex-1 content-start gap-4 rounded-lg border border-dashed border-border/70 bg-muted/10 p-3 sm:p-4"
         />
@@ -684,6 +688,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "MermaidBlock",
             "TableBlock",
             "CheckpointBlock",
+            "SketchBlock",
           ],
         },
       },
@@ -991,6 +996,49 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         answer: "Add the expected answer.",
       },
       render: CheckpointBlock,
+    },
+    SketchBlock: {
+      label: "Drawing",
+      fields: {
+        title: { type: "text", label: "Title" },
+        caption: { type: "textarea", label: "Caption" },
+        widthPercent: {
+          type: "select",
+          label: "Width",
+          options: sketchWidthOptions,
+        },
+      },
+      defaultProps: {
+        title: "",
+        caption: "",
+        widthPercent: 100,
+        src: "",
+        aspectRatio: 1.6,
+      },
+      // The drag from the Draw panel can only carry this component's name, so
+      // the exported image is collected here as the block is inserted.
+      resolveData: async (data, { trigger }) => {
+        if (trigger !== "insert" || data.props.src) {
+          return data;
+        }
+
+        const sketch = await readPendingSketch();
+
+        if (!sketch) {
+          return data;
+        }
+
+        return {
+          ...data,
+          props: {
+            ...data.props,
+            src: sketch.src,
+            aspectRatio: sketch.aspectRatio,
+            widthPercent: sketch.widthPercent,
+          },
+        };
+      },
+      render: SketchBlock,
     },
   },
 };
