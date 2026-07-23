@@ -3,6 +3,8 @@
 import { Render } from "@puckeditor/core";
 import {
   BotIcon,
+  CaptionsIcon,
+  CaptionsOffIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleStopIcon,
@@ -11,6 +13,7 @@ import {
   MicIcon,
   MicOffIcon,
   MinimizeIcon,
+  PanelRightIcon,
   PauseIcon,
   PlayIcon,
   PowerIcon,
@@ -28,10 +31,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
+import { CopilotPanel } from "@/features/canvas/components/copilot-panel";
 import {
   type CanvasRealtimeAction,
   useCanvasRealtimeSession,
 } from "@/features/canvas/hooks/use-canvas-realtime-session";
+import { useCopilotPanel } from "@/features/canvas/hooks/use-copilot-panel";
+import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
 import {
   applyCanvasAction,
   summarizeCanvas,
@@ -141,15 +147,59 @@ export function CanvasPresenter({
     [activeFrame, activeIndex, frames, goTo, runtimeDocument],
   );
 
+  const panel = useCopilotPanel();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const { addPending: addPanelItem, resolve: resolvePanelItem } = panel;
+
+  // When the AI asks to show something in the panel: open it, drop a skeleton
+  // in instantly, then generate independently and stream the result in. Because
+  // this lives in the panel (not on the frame), navigating away never breaks it.
+  const handlePanelRequest = useCallback(
+    async (request: PanelGenerateRequest) => {
+      setPanelOpen(true);
+      const itemId = addPanelItem(request.type, request.topic);
+      try {
+        const frameContext = activeFrame
+          ? describeFrameForModel(activeFrame, frames.length)
+          : undefined;
+        const response = await fetch("/api/canvas/panel-generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...request, frameContext }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.content) {
+          throw new Error(data.error ?? "Generation failed.");
+        }
+        resolvePanelItem(itemId, {
+          status: "ready",
+          content: data.content,
+          topic: data.topic ?? request.topic,
+          language: data.language,
+        });
+      } catch {
+        resolvePanelItem(itemId, { status: "error" });
+      }
+    },
+    [activeFrame, frames.length, addPanelItem, resolvePanelItem],
+  );
+
   const realtimeSession = useCanvasRealtimeSession({
     canvasId,
     canvasTitle: title,
     frames,
     mode: selectedMode === "companion" ? "companion" : "director",
     onAction: applyRealtimeAction,
+    onPanelRequest: handlePanelRequest,
   });
 
-  const { isConnected: aiConnected, syncFrameContext } = realtimeSession;
+  const {
+    activity: aiActivity,
+    caption: aiCaption,
+    isConnected: aiConnected,
+    syncFrameContext,
+  } = realtimeSession;
+  const [captionsOn, setCaptionsOn] = useState(true);
 
   // Give the AI sight: every time the visible frame changes — whether the
   // teacher navigated manually or the AI did — tell the model exactly what is
@@ -275,6 +325,35 @@ export function CanvasPresenter({
           {!publicView && selectedMode !== "manual" ? (
             <RealtimeControls session={realtimeSession} />
           ) : null}
+          {!publicView && selectedMode !== "manual" ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={captionsOn ? "Hide captions" : "Show captions"}
+              title={captionsOn ? "Hide captions" : "Show captions"}
+              onClick={() => setCaptionsOn((on) => !on)}
+            >
+              {captionsOn ? (
+                <CaptionsIcon className="size-4" />
+              ) : (
+                <CaptionsOffIcon className="size-4 text-muted-foreground" />
+              )}
+            </Button>
+          ) : null}
+          {!publicView && selectedMode !== "manual" ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="relative"
+              aria-label={panelOpen ? "Hide Copilot panel" : "Show Copilot panel"}
+              onClick={() => setPanelOpen((open) => !open)}
+            >
+              <PanelRightIcon className="size-4" />
+              {!panelOpen && panel.items.length > 0 ? (
+                <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" />
+              ) : null}
+            </Button>
+          ) : null}
           {hasLiveChanges ? (
             <Button
               size="icon"
@@ -322,49 +401,75 @@ export function CanvasPresenter({
         </div>
       </header>
 
+      {aiActivity ? (
+        <div className="pointer-events-none absolute left-1/2 top-[4.75rem] z-30 flex max-w-[80vw] -translate-x-1/2 items-center gap-2 rounded-full border bg-card/90 px-3 py-1 text-[11px] font-medium backdrop-blur-xl">
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              aiActivity.kind === "listening"
+                ? "bg-muted-foreground"
+                : "animate-pulse bg-primary",
+            )}
+            aria-hidden="true"
+          />
+          <span className="text-muted-foreground">{activityVerb(aiActivity.kind)}</span>
+          <span className="truncate text-foreground">{aiActivity.label}</span>
+        </div>
+      ) : null}
+
       {hasLiveChanges ? (
-        <div className="absolute left-1/2 top-[4.75rem] z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-xl">
+        <div className="absolute left-4 top-[4.75rem] z-30 flex items-center gap-1.5 rounded-full border bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-xl">
           <span className="size-1.5 rounded-full bg-amber-400" aria-hidden="true" />
           Live-only changes · not saved to canvas
         </div>
       ) : null}
 
-      <main
-        className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-3 py-5 sm:px-10 sm:py-8"
-        onPointerDown={(event) => {
-          pointerStartRef.current = event.clientX;
-        }}
-        onPointerUp={(event) => {
-          if (pointerStartRef.current === null) return;
-          const distance = event.clientX - pointerStartRef.current;
-          pointerStartRef.current = null;
-          if (Math.abs(distance) < 70) return;
-          goTo(activeIndex + (distance < 0 ? 1 : -1));
-        }}
-      >
-        <div
-          key={activeFrame.id}
-          className={cn(
-            "canvas-presenter-frame relative z-10 w-full max-w-6xl animate-in fade-in duration-300",
-            direction === "forward"
-              ? "slide-in-from-right-8"
-              : "slide-in-from-left-8",
-          )}
+      <div className="flex min-h-0 flex-1">
+        <main
+          className="relative grid flex-1 place-items-center overflow-hidden px-3 py-5 sm:px-10 sm:py-8"
+          onPointerDown={(event) => {
+            pointerStartRef.current = event.clientX;
+          }}
+          onPointerUp={(event) => {
+            if (pointerStartRef.current === null) return;
+            const distance = event.clientX - pointerStartRef.current;
+            pointerStartRef.current = null;
+            if (Math.abs(distance) < 70) return;
+            goTo(activeIndex + (distance < 0 ? 1 : -1));
+          }}
         >
-          <Render config={canvasPuckConfig} data={activeFrame.document} />
-        </div>
+          <div
+            key={activeFrame.id}
+            className={cn(
+              "canvas-presenter-frame relative z-10 w-full max-w-6xl animate-in fade-in duration-300",
+              direction === "forward"
+                ? "slide-in-from-right-8"
+                : "slide-in-from-left-8",
+            )}
+          >
+            <Render config={canvasPuckConfig} data={activeFrame.document} />
+          </div>
 
-        <FrameArrow
-          direction="previous"
-          disabled={activeIndex === 0}
-          onClick={() => goTo(activeIndex - 1)}
-        />
-        <FrameArrow
-          direction="next"
-          disabled={activeIndex === frames.length - 1}
-          onClick={() => goTo(activeIndex + 1)}
-        />
-      </main>
+          <FrameArrow
+            direction="previous"
+            disabled={activeIndex === 0}
+            onClick={() => goTo(activeIndex - 1)}
+          />
+          <FrameArrow
+            direction="next"
+            disabled={activeIndex === frames.length - 1}
+            onClick={() => goTo(activeIndex + 1)}
+          />
+        </main>
+
+        {!publicView && selectedMode !== "manual" && panelOpen ? (
+          <CopilotPanel
+            items={panel.items}
+            onClose={() => setPanelOpen(false)}
+            onRemove={panel.remove}
+          />
+        ) : null}
+      </div>
 
       <footer className="relative z-20 flex h-12 shrink-0 items-center justify-center gap-1 border-t bg-background/80 px-4 backdrop-blur-xl">
         {frames.map((frame) => (
@@ -382,6 +487,12 @@ export function CanvasPresenter({
           />
         ))}
       </footer>
+
+      {captionsOn && aiCaption ? (
+        <div className="pointer-events-none absolute bottom-20 left-1/2 z-30 w-[min(90%,42rem)] -translate-x-1/2 rounded-xl border bg-background/85 px-4 py-2.5 text-center text-sm leading-snug text-foreground shadow-lg backdrop-blur-xl">
+          {aiCaption}
+        </div>
+      ) : null}
 
       {realtimeSession.error ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-xl">
@@ -569,6 +680,21 @@ function FrameOverview({
       </div>
     </div>
   );
+}
+
+function activityVerb(kind: NonNullable<ReturnType<typeof useCanvasRealtimeSession>["activity"]>["kind"]) {
+  switch (kind) {
+    case "listening":
+      return "Listening";
+    case "navigating":
+      return "Showing";
+    case "explaining":
+      return "Explaining";
+    case "generating":
+      return "Creating";
+    case "walkthrough":
+      return "Walkthrough";
+  }
 }
 
 function resolveNavigationIndex(

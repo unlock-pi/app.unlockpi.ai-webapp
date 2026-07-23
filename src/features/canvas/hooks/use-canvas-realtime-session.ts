@@ -6,6 +6,7 @@ import {
   getFrameBlockTypes,
   type CanvasPresentationFrame,
 } from "@/features/canvas/lib/canvas-presentation";
+import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -42,6 +43,12 @@ export type CanvasRealtimeStatus =
   | "paused"
   | "error";
 
+/** What the AI is doing right now, surfaced to the teacher as a sync HUD. */
+export type RealtimeActivity = {
+  kind: "listening" | "navigating" | "explaining" | "generating" | "walkthrough";
+  label: string;
+};
+
 type RealtimeFunctionCall = {
   arguments?: string;
   call_id?: string;
@@ -50,6 +57,8 @@ type RealtimeFunctionCall = {
 };
 
 type RealtimeServerEvent = RealtimeFunctionCall & {
+  delta?: string;
+  transcript?: string;
   item?: RealtimeFunctionCall;
   response?: RealtimeUsageResponse & { output?: RealtimeFunctionCall[] };
 };
@@ -60,6 +69,8 @@ type UseCanvasRealtimeSessionArgs = {
   frames: CanvasPresentationFrame[];
   mode: CanvasRealtimeMode;
   onAction: (action: CanvasRealtimeAction) => string;
+  /** Fired when the model asks to render something in the side panel. */
+  onPanelRequest?: (request: PanelGenerateRequest) => void;
 };
 
 export function useCanvasRealtimeSession({
@@ -68,21 +79,39 @@ export function useCanvasRealtimeSession({
   frames,
   mode,
   onAction,
+  onPanelRequest,
 }: UseCanvasRealtimeSessionArgs) {
   const [status, setStatus] = useState<CanvasRealtimeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
+  const [activity, setActivity] = useState<RealtimeActivity | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const handledCallIdsRef = useRef(new Set<string>());
   const onActionRef = useRef(onAction);
+  const onPanelRequestRef = useRef(onPanelRequest);
   const modeRef = useRef(mode);
+  const framesRef = useRef(frames);
   const usageSessionIdRef = useRef<string | null>(null);
+  const captionBufferRef = useRef("");
+  const captionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Non-null while a guided walkthrough is running; holds the last frame in
+  // range so we know when to stop pacing.
+  const walkthroughRef = useRef<{ toFrame: number } | null>(null);
 
   useEffect(() => {
     onActionRef.current = onAction;
   }, [onAction]);
+
+  useEffect(() => {
+    framesRef.current = frames;
+  }, [frames]);
+
+  useEffect(() => {
+    onPanelRequestRef.current = onPanelRequest;
+  }, [onPanelRequest]);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -108,6 +137,14 @@ export function useCanvasRealtimeSession({
     }
 
     handledCallIdsRef.current.clear();
+    walkthroughRef.current = null;
+    captionBufferRef.current = "";
+    if (captionTimerRef.current) {
+      clearTimeout(captionTimerRef.current);
+      captionTimerRef.current = null;
+    }
+    setCaption("");
+    setActivity(null);
     setError(null);
     setStatus("idle");
   }, []);
@@ -158,23 +195,47 @@ export function useCanvasRealtimeSession({
           output,
         },
       });
-
-      if (modeRef.current === "companion") {
-        sendEvent({
-          type: "response.create",
-          response: {
-            instructions:
-              "Briefly acknowledge the visual change, then continue helping the teacher.",
-          },
-        });
-      }
     },
     [sendEvent],
   );
 
+  /**
+   * This is the core sync fix. After the client navigates, it — not the model —
+   * decides what gets narrated: ONLY the frame that is actually on screen now.
+   * This is what stops the model narrating one frame ahead of the visuals.
+   */
+  const narrateCurrentFrame = useCallback(
+    (frameLine: string, isWalkthrough: boolean) => {
+      const base = `You are now showing ${frameLine}. In one or two short sentences, explain ONLY what is on THIS frame for the class. Never describe a frame you are not currently showing.`;
+      const tail = isWalkthrough
+        ? ' Then, to continue the walkthrough, call control_canvas with action "next". If this was the last frame, wrap up in one sentence instead of navigating.'
+        : " Then stop and wait.";
+      sendEvent({
+        type: "response.create",
+        response: { instructions: base + tail },
+      });
+    },
+    [sendEvent],
+  );
+
+  /** Accumulate the AI's spoken/written words into the live caption. */
+  const appendCaption = useCallback((delta: string) => {
+    if (captionTimerRef.current) {
+      clearTimeout(captionTimerRef.current);
+      captionTimerRef.current = null;
+    }
+    captionBufferRef.current += delta;
+    setCaption(captionBufferRef.current);
+    setActivity((previous) =>
+      previous?.kind === "walkthrough"
+        ? previous
+        : { kind: "explaining", label: "Explaining" },
+    );
+  }, []);
+
   const handleFunctionCall = useCallback(
     (call: RealtimeFunctionCall) => {
-      if (call.name !== "control_canvas" || !call.arguments) {
+      if (!call.name || !call.arguments) {
         return;
       }
 
@@ -184,21 +245,108 @@ export function useCanvasRealtimeSession({
       }
       handledCallIdsRef.current.add(callKey);
 
-      try {
-        const action = JSON.parse(call.arguments) as CanvasRealtimeAction;
-        const currentState = onActionRef.current(action);
-        sendToolOutput(
-          call.call_id,
-          JSON.stringify({ ok: true, current_state: currentState }),
-        );
-      } catch {
-        sendToolOutput(
-          call.call_id,
-          JSON.stringify({ ok: false, error: "Invalid canvas action." }),
-        );
+      if (call.name === "control_canvas") {
+        try {
+          const action = JSON.parse(call.arguments) as CanvasRealtimeAction;
+          const currentState = onActionRef.current(action);
+          const frameLine = currentState.split("\n")[0];
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({ ok: true, current_state: currentState }),
+          );
+
+          // If a walkthrough is running and we've reached the last frame, stop
+          // pacing so the model wraps up instead of looping forever.
+          const inWalkthrough = walkthroughRef.current !== null;
+          const frameNumber = parseFrameNumber(currentState);
+          if (
+            inWalkthrough &&
+            frameNumber !== null &&
+            frameNumber >= walkthroughRef.current!.toFrame
+          ) {
+            walkthroughRef.current = null;
+          }
+
+          setActivity(
+            inWalkthrough
+              ? { kind: "walkthrough", label: frameLine }
+              : { kind: "navigating", label: frameLine },
+          );
+
+          // Narrate the shown frame in a walkthrough (either mode), or after
+          // any nav in Co-teacher mode. Copilot stays silent otherwise.
+          if (inWalkthrough || modeRef.current === "companion") {
+            narrateCurrentFrame(frameLine, inWalkthrough);
+          }
+        } catch {
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({ ok: false, error: "Invalid canvas action." }),
+          );
+        }
+        return;
+      }
+
+      if (call.name === "present_walkthrough") {
+        try {
+          const args = JSON.parse(call.arguments) as {
+            from_frame?: number;
+            to_frame?: number;
+          };
+          const total = framesRef.current.length;
+          const from = clampFrame(args.from_frame ?? 1, 1, total);
+          const to = clampFrame(args.to_frame ?? total, from, total);
+          walkthroughRef.current = { toFrame: to };
+
+          const currentState = onActionRef.current({
+            action: "goto",
+            frame_number: from,
+          });
+          const frameLine = currentState.split("\n")[0];
+          setActivity({ kind: "walkthrough", label: frameLine });
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({
+              ok: true,
+              walkthrough: { from, to },
+              protocol:
+                "Explain only the frame now shown, then call control_canvas next to advance. Stay in sync — never explain a frame before it is shown.",
+            }),
+          );
+          narrateCurrentFrame(frameLine, true);
+        } catch {
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({ ok: false, error: "Invalid walkthrough request." }),
+          );
+        }
+        return;
+      }
+
+      if (call.name === "show_in_panel") {
+        try {
+          const request = JSON.parse(call.arguments) as PanelGenerateRequest;
+          onPanelRequestRef.current?.(request);
+          setActivity({ kind: "generating", label: `Creating ${request.type}` });
+          // Ack immediately — generation runs independently and streams into
+          // the panel, so we never block the model waiting for content.
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({
+              ok: true,
+              status: "generating",
+              note: "The panel is building this now; it will appear for the class shortly.",
+            }),
+          );
+        } catch {
+          sendToolOutput(
+            call.call_id,
+            JSON.stringify({ ok: false, error: "Invalid panel request." }),
+          );
+        }
       }
     },
-    [sendToolOutput],
+    [narrateCurrentFrame, sendToolOutput],
   );
 
   const handleServerEvent = useCallback(
@@ -220,11 +368,38 @@ export function useCanvasRealtimeSession({
         }
       });
 
+      // Captions: match text deltas AND audio-transcript deltas defensively,
+      // since the exact event name differs across Realtime API versions.
+      const type = event.type ?? "";
+      if (
+        typeof event.delta === "string" &&
+        (type.endsWith("text.delta") || type.endsWith("transcript.delta"))
+      ) {
+        appendCaption(event.delta);
+      }
+
+      // The teacher started talking — drop any running walkthrough so the model
+      // answers them instead of ploughing ahead.
+      if (event.type === "input_audio_buffer.speech_started") {
+        walkthroughRef.current = null;
+        setActivity({ kind: "listening", label: "Listening" });
+      }
+
       if (event.type === "response.done") {
         trackRealtimeResponse(usageSessionIdRef.current, event.response);
+        // Let the finished caption linger, then fade. A new response's deltas
+        // clear this timer and start a fresh caption.
+        captionBufferRef.current = "";
+        if (captionTimerRef.current) clearTimeout(captionTimerRef.current);
+        captionTimerRef.current = setTimeout(() => {
+          setCaption("");
+          setActivity((previous) =>
+            previous?.kind === "walkthrough" ? previous : null,
+          );
+        }, 4000);
       }
     },
-    [handleFunctionCall],
+    [appendCaption, handleFunctionCall],
   );
 
   const connect = useCallback(async () => {
@@ -362,6 +537,8 @@ export function useCanvasRealtimeSession({
   }, [status]);
 
   return {
+    activity,
+    caption,
     connect,
     disconnect,
     error,
@@ -371,4 +548,14 @@ export function useCanvasRealtimeSession({
     syncFrameContext,
     togglePause,
   };
+}
+
+/** Pulls the frame number out of a "Frame N of M: Title" state string. */
+function parseFrameNumber(state: string): number | null {
+  const match = /frame\s+(\d+)\s+of\s+\d+/i.exec(state);
+  return match ? Number(match[1]) : null;
+}
+
+function clampFrame(value: number, min: number, max: number): number {
+  return Math.min(Math.max(Math.round(value), min), max);
 }
