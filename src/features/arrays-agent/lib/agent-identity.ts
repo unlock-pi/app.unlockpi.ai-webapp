@@ -1,13 +1,9 @@
+import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
 import { toRealtimeTools } from "@/features/arrays-agent/lib/realtime-tools";
 import { createArrayTools } from "@/features/arrays-agent/tools/array";
 import { createSchemaOnlyContext } from "@/features/arrays-agent/tools/tool-context";
 
-/**
- * The agent's name. Deliberately its own identity rather than the canvas's
- * generic "Copilot"/"Co-teacher": this one only knows arrays, and saying so
- * up front is what stops a teacher asking it about linked lists.
- */
-export const ARRAYS_AGENT_NAME = "Indexa";
+export { ARRAYS_AGENT_NAME };
 
 /** Realtime function definitions, derived from the Zod tool schemas. */
 export function getArrayRealtimeTools() {

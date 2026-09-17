@@ -9,6 +9,7 @@ import { createSearchTools } from "@/features/arrays-agent/tools/array/search";
 import { createSortingTools } from "@/features/arrays-agent/tools/array/sorting";
 import { createTeachingTools } from "@/features/arrays-agent/tools/array/teaching";
 import { createTraversalTools } from "@/features/arrays-agent/tools/array/traversal";
+import { createPresentationTools } from "@/features/arrays-agent/tools/presentation";
 
 /**
  * The agent's whole vocabulary, as an AI SDK ToolSet.
@@ -30,6 +31,7 @@ export function createArrayTools(ctx: ArrayToolContext) {
     ...createMultidimensionalTools(ctx),
     ...createCanvasTools(ctx),
     ...createTeachingTools(ctx),
+    ...createPresentationTools(ctx),
   };
 }
 

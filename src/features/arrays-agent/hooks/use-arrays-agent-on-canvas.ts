@@ -14,6 +14,8 @@ type Args = {
   getDocument: () => CanvasDocument;
   getActiveFrameId: () => string | null;
   applyDocument: (document: CanvasDocument, activeFrameId: string | null) => void;
+  /** Frame navigation, so the teacher never has to touch the keyboard. */
+  presentation?: PresentationControls;
 };
 
 /**

@@ -16,6 +16,7 @@ import { createArrayTools } from "@/features/arrays-agent/tools/array";
 import type {
   ArrayOverlay,
   ArrayToolContext,
+  PresentationControls,
 } from "@/features/arrays-agent/tools/tool-context";
 import {
   finishRealtimeUsageSession,
@@ -47,6 +48,11 @@ type UseArraysVoiceAgentArgs = {
   onEnsureArray?: (values: ArrayValue[], name: string) => void;
   /** Called when the agent clears the board. */
   onClear?: () => void;
+  /**
+   * Frame navigation, when the agent is running inside a presentation. Omit
+   * on surfaces that have no frames.
+   */
+  presentation?: PresentationControls;
 };
 
 /** How many overlays stay on the board before the oldest is dropped. */
@@ -60,6 +66,7 @@ export function useArraysVoiceAgent({
   onCommit,
   onEnsureArray,
   onClear,
+  presentation,
 }: UseArraysVoiceAgentArgs = {}) {
   const [status, setStatus] = useState<RealtimeStatus | "paused">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -106,12 +113,14 @@ export function useArraysVoiceAgent({
   const onCommitRef = useRef(onCommit);
   const onEnsureArrayRef = useRef(onEnsureArray);
   const onClearRef = useRef(onClear);
+  const presentationRef = useRef(presentation);
 
   useEffect(() => {
     onCommitRef.current = onCommit;
     onEnsureArrayRef.current = onEnsureArray;
     onClearRef.current = onClear;
-  }, [onClear, onCommit, onEnsureArray]);
+    presentationRef.current = presentation;
+  }, [onClear, onCommit, onEnsureArray, presentation]);
 
   const pushOverlay = useCallback((overlay: ArrayOverlay) => {
     setOverlays((previous) =>
@@ -126,6 +135,11 @@ export function useArraysVoiceAgent({
     () => ({
       get state() {
         return stateRef.current;
+      },
+      // A getter for the same reason `state` is one: the host can hand over
+      // navigation after the context was built, and the tools must see it.
+      get presentation() {
+        return presentationRef.current;
       },
       play(result: ArrayOpResult) {
         if (!result.rejected) {
