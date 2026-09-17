@@ -17,18 +17,12 @@ export function createAccessTools(ctx: ArrayToolContext) {
   };
 
   return {
+    // `access_by_index` used to exist alongside this as a second name for the
+    // identical operation. Two tools that do the same thing only ever split
+    // the model's choice, so there is one.
     access_array_element: tool({
       description:
-        "Read the value at one index and spotlight that cell. Use for 'what is at index 2', 'show me the third element', 'access A of 1'. This is the O(1) random-access demonstration.",
-      inputSchema: z.object({
-        index: z.number().int().describe("Zero-based index to read."),
-      }),
-      execute: async ({ index }) => runAccess(index),
-    }),
-
-    access_by_index: tool({
-      description:
-        "Same as access_array_element — read one cell by its index. Use whichever phrasing the teacher used ('index into the array', 'index 3').",
+        "Read the value at one index and spotlight that cell. Use for 'what is at index 2', 'show me the third element', 'access A of 1', 'index into the array'. This is the O(1) random-access demonstration.",
       inputSchema: z.object({
         index: z.number().int().describe("Zero-based index to read."),
       }),

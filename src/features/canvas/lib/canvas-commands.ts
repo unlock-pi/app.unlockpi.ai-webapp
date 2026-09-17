@@ -109,7 +109,10 @@ function itemLayoutCost(item: FrameContentItem) {
       const values = Array.isArray(props.values) ? props.values.length : 0;
       return 1.9 + Math.max(1, values) * 0.35;
     }
+    // An array block draws only the strip — no title or caption — so it
+    // reserves a fixed height whatever copy happens to be stored on it.
     case "ArrayBlock":
+      return 1.9;
     case "QueueBlock":
     case "LinkedListBlock": {
       // Optional title/caption rows consume real vertical space. Once the
@@ -348,6 +351,51 @@ function pushIntoActiveSlide(
   return { inserted: true, slideId: slide.props.id };
 }
 
+/**
+ * Find one block on the active frame, by id when given and otherwise by type.
+ *
+ * Type is the useful fallback because that is how a teacher refers to these:
+ * "change the subheading" means the subheading on the frame they are looking
+ * at, and there is normally exactly one.
+ */
+function findBlockOnSlide(
+  document: CanvasDocument,
+  slideId: string | null,
+  blockType: string,
+  componentId?: string,
+): CanvasItem | null {
+  const slide = getSlides(document).find((item) => item.props.id === slideId);
+  if (!slide) return null;
+
+  const content = getSlideContent(slide);
+  if (componentId) {
+    return (
+      content.find((item) => (item.props as { id?: string }).id === componentId) ?? null
+    );
+  }
+  return content.find((item) => item.type === blockType) ?? null;
+}
+
+/** Human name for a block type, for messages the AI reads back to the class. */
+function blockLabel(blockType: string): string {
+  const labels: Record<string, string> = {
+    HeadingTextBlock: "heading",
+    SubheadingTextBlock: "subheading",
+    BodyTextBlock: "paragraph",
+    CodeBlock: "code block",
+    ArrayBlock: "array",
+    StackBlock: "stack",
+    QueueBlock: "queue",
+    LinkedListBlock: "linked list",
+    TableBlock: "table",
+    MermaidBlock: "diagram",
+    CheckpointBlock: "checkpoint",
+    MindMapBlock: "mind map",
+    SketchBlock: "drawing",
+  };
+  return labels[blockType] ?? blockType.replace(/Block$/, "").toLowerCase();
+}
+
 export function getInitialSlideId(document: CanvasDocument): string | null {
   return getSlides(document)[0]?.props.id ?? null;
 }
@@ -487,16 +535,142 @@ export function applyCanvasAction(
     message = result.inserted ? "Added a heading block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
+  if (action.action === "add_subheading_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "SubheadingTextBlock",
+      props: {
+        id: createCanvasId("subheading"),
+        text: action.text?.trim() || "New subheading",
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added a subheading to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "add_body_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "BodyTextBlock",
+      props: {
+        id: createCanvasId("body"),
+        text: action.text?.trim() || "New paragraph",
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added a paragraph to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "add_code_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "CodeBlock",
+      props: {
+        id: createCanvasId("code"),
+        title: action.title?.trim() || "Code",
+        language: action.language ?? "javascript",
+        code: action.code ?? "",
+        explanation: action.explanation?.trim() || "",
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added a code block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_block_text") {
+    const block = findBlockOnSlide(
+      nextDocument,
+      nextSlideId,
+      action.blockType,
+      action.componentId,
+    );
+    if (block) {
+      (block.props as { text: string }).text = action.text;
+      message = `Updated the ${blockLabel(action.blockType)}.`;
+    } else {
+      // Nothing to rewrite — add it instead, so "change the subheading" still
+      // does the obvious thing on a frame that has no subheading yet.
+      const created = pushIntoActiveSlide(nextDocument, nextSlideId, {
+        type: action.blockType,
+        props: { id: createCanvasId(action.blockType), text: action.text },
+      } as CanvasItem);
+      nextSlideId = created.slideId;
+      message = created.inserted
+        ? `That frame had no ${blockLabel(action.blockType)}, so one was added.`
+        : FRAME_CONTENT_LIMIT_MESSAGE;
+    }
+  }
+
+  if (action.action === "set_code_block") {
+    const block = findBlockOnSlide(
+      nextDocument,
+      nextSlideId,
+      "CodeBlock",
+      action.componentId,
+    );
+    if (block) {
+      const props = block.props as {
+        code: string;
+        language: string;
+        explanation: string;
+      };
+      props.code = action.code;
+      if (action.language) props.language = action.language;
+      if (action.explanation !== undefined) props.explanation = action.explanation;
+      message = "Updated the code block.";
+    } else {
+      message = "There is no code block on this frame to update.";
+    }
+  }
+
+  if (action.action === "remove_block") {
+    const slide = getSlides(nextDocument).find(
+      (item) => item.props.id === nextSlideId,
+    );
+    const content = slide ? getSlideContent(slide) : [];
+    const index = content.findIndex((item) =>
+      action.componentId
+        ? (item.props as { id?: string }).id === action.componentId
+        : item.type === action.blockType,
+    );
+
+    if (slide && index >= 0) {
+      const [removed] = content.splice(index, 1);
+      slide.props.content = content;
+      message = `Removed the ${blockLabel(String(removed.type))} from this frame.`;
+    } else {
+      message = "Could not find that block on the current frame.";
+    }
+  }
+
+  if (action.action === "clear_frame") {
+    const slide = getSlides(nextDocument).find(
+      (item) => item.props.id === nextSlideId,
+    );
+    if (!slide) {
+      message = "There is no frame showing to clear.";
+    } else {
+      const removed = getSlideContent(slide).length;
+      slide.props.content = [];
+      message = removed
+        ? `Cleared ${removed} block(s) from this frame.`
+        : "This frame was already empty.";
+    }
+  }
+
   if (action.action === "add_array_block") {
     const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
       type: "ArrayBlock",
       props: {
         id: createCanvasId("array"),
-        title: action.title?.trim() || "Array A",
+        title: action.title?.trim() || "A",
         values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0", "1"]),
-        highlightedIndex: 0,
+        highlightedIndex: undefined,
         showIndices: true,
-        caption: "Use voice or the fields panel to change this array during class.",
+        caption: "",
       },
     });
     nextSlideId = result.slideId;

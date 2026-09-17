@@ -27,6 +27,22 @@ export class OpenAIRealtimeClient {
   private handledCallIds = new Set<string>();
   private status: RealtimeStatus = "idle";
 
+  // ── Turn bookkeeping ─────────────────────────────────────────────────
+  // The API rejects `response.create` while a response is still running
+  // ("conversation_already_has_active_response"). Tool calls are dispatched
+  // mid-response and our tools resolve in about a millisecond, so asking for
+  // the follow-up immediately was always rejected — silently — and the model
+  // stalled after "let me check". The follow-up is now requested once, after
+  // the response is done AND every tool result from it has been sent.
+  private responseActive = false;
+  private pendingCallIds = new Set<string>();
+  private followUpNeeded = false;
+  private userSpeaking = false;
+  private awaitingFirstOutput = false;
+  /** Item ids of replaceable context messages, keyed by slot name. */
+  private contextItemIds = new Map<string, string>();
+  private contextItemCounter = 0;
+
   constructor(private readonly options: OpenAIRealtimeClientOptions) {}
 
   getStatus(): RealtimeStatus {
@@ -35,7 +51,8 @@ export class OpenAIRealtimeClient {
 
   /** Push new instructions to an already-connected session (e.g. "here is the next question"). */
   updateInstructions(instructions: string): void {
-    this.sendEvent({ type: "session.update", session: { instructions } });
+    // `type` is required on session.update for GA Realtime sessions.
+    this.sendEvent({ type: "session.update", session: { type: "realtime", instructions } });
   }
 
   sendEvent(event: Record<string, unknown>): void {
@@ -152,6 +169,12 @@ export class OpenAIRealtimeClient {
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.handledCallIds.clear();
+    this.pendingCallIds.clear();
+    this.contextItemIds.clear();
+    this.responseActive = false;
+    this.followUpNeeded = false;
+    this.userSpeaking = false;
+    this.awaitingFirstOutput = false;
     this.options.onRemoteStream?.(null);
     this.setStatus("idle");
   }
@@ -168,19 +191,75 @@ export class OpenAIRealtimeClient {
     });
   }
 
+  /**
+   * Like `syncContext`, but keeps exactly ONE copy per slot: the previous
+   * message for the slot is deleted before the new one is added.
+   *
+   * Appending a fresh board description on every change filled the model's
+   * context window with stale copies, which pushed out the actual conversation
+   * — the reason it "forgot" what it had just done. Replacing keeps the latest
+   * state at the end of the conversation, where it is both fresh and the last
+   * thing to be trimmed.
+   */
+  replaceContext(slot: string, text: string): void {
+    if (this.dataChannel?.readyState !== "open") return;
+
+    const previous = this.contextItemIds.get(slot);
+    if (previous) {
+      this.sendEvent({ type: "conversation.item.delete", item_id: previous });
+    }
+
+    // Item ids are client-chosen and capped at 32 characters.
+    const id = `ctx_${slot.slice(0, 8)}_${(this.contextItemCounter++).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    this.contextItemIds.set(slot, id);
+    this.sendEvent({
+      type: "conversation.item.create",
+      item: {
+        id,
+        type: "message",
+        role: "system",
+        content: [{ type: "input_text", text }],
+      },
+    });
+  }
+
   private setStatus(status: RealtimeStatus) {
     this.status = status;
     this.options.onStatusChange?.(status);
   }
 
-  /** Sends a tool's result back so the model can continue the conversation. */
+  /** Sends a tool's result back, then asks for the follow-up once it is safe. */
   private sendToolOutput(callId: string, output: string) {
     this.sendEvent({
       type: "conversation.item.create",
       item: { type: "function_call_output", call_id: callId, output },
     });
-    // Ask the model to react (speak/continue) now that it has the result.
+    this.pendingCallIds.delete(callId);
+    this.followUpNeeded = true;
+    this.requestFollowUpIfReady();
+  }
+
+  /**
+   * Ask the model to continue after its tool calls — but only when nothing
+   * would make the API reject it or make it talk over the teacher.
+   */
+  private requestFollowUpIfReady() {
+    if (
+      !this.followUpNeeded ||
+      this.responseActive ||
+      this.pendingCallIds.size > 0 ||
+      this.userSpeaking
+    ) {
+      return;
+    }
+    this.followUpNeeded = false;
     this.sendEvent({ type: "response.create" });
+  }
+
+  private markFirstOutput() {
+    if (!this.awaitingFirstOutput) return;
+    this.awaitingFirstOutput = false;
+    this.options.onFirstOutput?.();
   }
 
   private dispatchToolCall(call: RealtimeToolCall) {
@@ -190,6 +269,8 @@ export class OpenAIRealtimeClient {
       return;
     }
     this.handledCallIds.add(call.callId);
+    this.pendingCallIds.add(call.callId);
+    this.options.onToolCallStart?.(call);
 
     let output: string | Promise<string>;
     try {
@@ -225,17 +306,38 @@ export class OpenAIRealtimeClient {
     // the client only deals with one RealtimeToolCall shape.
     const type = event.type as string | undefined;
 
+    // Server errors used to fall through unhandled, which is how a rejected
+    // follow-up could stall the agent with no trace anywhere.
+    if (type === "error") {
+      const error = event.error as { message?: string; code?: string } | undefined;
+      this.options.onServerError?.(
+        error?.message ?? "The realtime API reported an error.",
+        error?.code,
+      );
+      return;
+    }
+
     // Text deltas and audio-transcript deltas are named differently across
     // Realtime API versions, so match on the suffix rather than the full name.
     if (
       typeof event.delta === "string" &&
       (type?.endsWith("text.delta") || type?.endsWith("transcript.delta"))
     ) {
+      this.markFirstOutput();
       this.options.onTranscriptDelta?.(event.delta);
       return;
     }
 
+    if (type === "response.function_call_arguments.delta") {
+      this.markFirstOutput();
+      return;
+    }
+
     if (type === "response.done") {
+      // Mark the response finished BEFORE dispatching any calls it carries, so
+      // their follow-up is not held back waiting on a response that is over.
+      this.responseActive = false;
+      this.awaitingFirstOutput = false;
       this.options.onResponseDone?.(event.response);
       // `response.output` carries function calls when the model emitted them
       // as part of a completed response rather than streaming them.
@@ -250,15 +352,45 @@ export class OpenAIRealtimeClient {
           });
         }
       });
+      this.requestFollowUpIfReady();
       return;
     }
 
     if (type === "input_audio_buffer.speech_started") {
+      this.userSpeaking = true;
+      // The teacher has started a new turn. Their turn produces its own
+      // response, which will already see every tool result — a separate
+      // follow-up now would only talk over them.
+      this.followUpNeeded = false;
       this.options.onSpeechStarted?.();
       return;
     }
 
+    if (type === "input_audio_buffer.speech_stopped") {
+      this.userSpeaking = false;
+      this.options.onSpeechStopped?.();
+      return;
+    }
+
+    if (type === "response.created") {
+      this.responseActive = true;
+      this.awaitingFirstOutput = true;
+      this.options.onResponseCreated?.();
+      return;
+    }
+
+    // The name of this event has moved around across API versions; matching on
+    // the suffix keeps the "what did it hear" signal working across all of them.
+    if (type?.endsWith("input_audio_transcription.completed")) {
+      const transcript = event.transcript;
+      if (typeof transcript === "string" && transcript.trim()) {
+        this.options.onUserTranscript?.(transcript.trim());
+      }
+      return;
+    }
+
     if (type === "output_audio_buffer.started") {
+      this.markFirstOutput();
       this.options.onAudioPlaybackChange?.(true);
       return;
     }

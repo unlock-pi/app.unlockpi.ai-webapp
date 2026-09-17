@@ -42,6 +42,25 @@ export type OpenAIRealtimeClientOptions = {
   onRemoteStream?: (stream: MediaStream | null) => void;
   /** The user started speaking — useful for interrupting a walkthrough. */
   onSpeechStarted?: () => void;
+  /** The user stopped speaking. The clock for "did it understand me" starts here. */
+  onSpeechStopped?: () => void;
+  /** The model began generating a response. */
+  onResponseCreated?: () => void;
+  /**
+   * What the model heard the user say, once transcription completes. The most
+   * direct answer to "is it actually listening to me".
+   */
+  onUserTranscript?: (text: string) => void;
+  /** A tool call is about to run, before the handler is invoked. */
+  onToolCallStart?: (call: RealtimeToolCall) => void;
+  /**
+   * The response produced its first real output — a word, the start of a tool
+   * call, or audio. Measured from here, latency means "it understood and is
+   * acting", not merely "a response object was created".
+   */
+  onFirstOutput?: () => void;
+  /** An `error` event from the server. Not fatal on its own; the session continues. */
+  onServerError?: (message: string, code?: string) => void;
   /** True while the model's voice is actually playing out to the room. */
   onAudioPlaybackChange?: (active: boolean) => void;
 };

@@ -4,8 +4,26 @@ import type {
   Complexity,
 } from "@/features/arrays-agent/lib/array-types";
 
-/** Hard cap so a voice command can never blow past the fixed 16:9 frame. */
-export const MAX_ARRAY_LENGTH = 12;
+/**
+ * Hard cap so a voice command can never blow past the fixed 16:9 frame.
+ * Ten cells is what stays readable from the back of a room at presentation
+ * scale; beyond that the strip shrinks faster than it teaches.
+ */
+export const MAX_ARRAY_LENGTH = 10;
+
+/**
+ * Cells are a fixed square, so a long value has to fit rather than widen the
+ * strip. Past this many characters the display is truncated (the full value
+ * stays in the data and in the cell's tooltip).
+ */
+export const MAX_VALUE_DISPLAY_CHARS = 9;
+
+/** Shortens one value for display only — never changes what is stored. */
+export function truncateValue(value: string): string {
+  return value.length > MAX_VALUE_DISPLAY_CHARS
+    ? `${value.slice(0, MAX_VALUE_DISPLAY_CHARS - 1)}…`
+    : value;
+}
 
 export function frame(
   values: ArrayValue[],

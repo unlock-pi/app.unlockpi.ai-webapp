@@ -2,6 +2,7 @@
 
 import { Render } from "@puckeditor/core";
 import {
+  ActivityIcon,
   BotIcon,
   BracketsIcon,
   CaptionsIcon,
@@ -37,10 +38,12 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import Logo from "@/components/logo";
+import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
-import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-identity";
+import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import type { PresentationControls } from "@/features/arrays-agent/tools/tool-context";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { CopilotPanel } from "@/features/canvas/components/copilot-panel";
 import { AgentAudioVisualizerWave } from "@/features/talk/components/agent-audio-visualizer-wave";
@@ -60,6 +63,7 @@ import {
 } from "@/features/canvas/lib/canvas-commands";
 import {
   describeFrameForModel,
+  describeFrameReadable,
   getCanvasPresentationFrames,
 } from "@/features/canvas/lib/canvas-presentation";
 import type { CanvasPresentationMode } from "@/features/canvas/lib/canvas-presentation";
@@ -173,6 +177,7 @@ export function CanvasPresenter({
   const [selectedMode, setSelectedMode] =
     useState<CanvasPresentationMode>(mode);
   const [hasLiveChanges, setHasLiveChanges] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(true);
   const frames = useMemo(
     () => getCanvasPresentationFrames(runtimeDocument),
     [runtimeDocument],
@@ -337,6 +342,16 @@ export function CanvasPresenter({
     activeFrameIdRef.current = activeFrame?.id ?? null;
   }, [activeFrame?.id, runtimeDocument]);
 
+  // Stable identities, deliberately.
+  //
+  // These read refs, so they never need to change — and they MUST not: the
+  // bridge's callbacks depend on them, the agent's adopt effect depends on
+  // those, and adopting calls setState. Inline arrows here gave every render a
+  // new identity, which re-fired that effect, which re-rendered — an infinite
+  // loop that also cleared the animation and re-sent board state on every pass.
+  const getArraysDocument = useCallback(() => runtimeDocumentRef.current, []);
+  const getArraysFrameId = useCallback(() => activeFrameIdRef.current, []);
+
   const applyArraysDocument = useCallback(
     (nextDocument: CanvasDocument, nextFrameId: string | null) => {
       runtimeDocumentRef.current = nextDocument;
@@ -354,12 +369,79 @@ export function CanvasPresenter({
     [],
   );
 
+  // Navigation the agent can drive. Every call derives frames from the live
+  // document ref at the moment it runs — never from `frames`/`activeIndex`
+  // captured in a render. Those go stale the instant the agent adds or edits a
+  // frame, and a burst of tool calls ("add a heading, then tell me what's on
+  // this frame") runs entirely before React re-renders. Reading the stale copy
+  // is how the agent described a frame without the block it had just added.
+  const arraysPresentation = useMemo<PresentationControls>(() => {
+    const liveFrames = () => getCanvasPresentationFrames(runtimeDocumentRef.current);
+    const liveIndex = (list: ReturnType<typeof getCanvasPresentationFrames>) =>
+      Math.max(
+        0,
+        list.findIndex((frame) => frame.id === activeFrameIdRef.current),
+      );
+
+    const show = (index: number) => {
+      const list = liveFrames();
+      if (list.length === 0) return "There are no frames in this canvas.";
+      const current = liveIndex(list);
+      const bounded = Math.min(Math.max(index, 0), list.length - 1);
+      const frame = list[bounded];
+      // Updated synchronously so the next call in the same burst sees it.
+      activeFrameIdRef.current = frame.id;
+      setDirection(bounded < current ? "backward" : "forward");
+      setActiveIndex(bounded);
+      setOverviewOpen(false);
+      // Returning the whole frame lets the agent explain it straight away,
+      // without a second round-trip to read what it just moved to.
+      return describeFrameReadable(frame, list.length);
+    };
+
+    return {
+      next: () => {
+        const list = liveFrames();
+        return show(liveIndex(list) + 1);
+      },
+      previous: () => {
+        const list = liveFrames();
+        return show(liveIndex(list) - 1);
+      },
+      first: () => show(0),
+      last: () => show(liveFrames().length - 1),
+      goTo: (frameNumber: number) => show(frameNumber - 1),
+      find: (query: string) => {
+        const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+        const best = liveFrames()
+          .map((frame) => ({
+            frame,
+            score: words.filter((word) => frame.searchText.includes(word)).length,
+          }))
+          .sort((left, right) => right.score - left.score)[0];
+        return best?.score
+          ? show(best.frame.index)
+          : `Nothing on the frames matches "${query}". Staying on the current frame.`;
+      },
+      describe: () => {
+        const list = liveFrames();
+        const frame = list[liveIndex(list)];
+        return frame
+          ? describeFrameReadable(frame, list.length)
+          : "No frame is currently showing.";
+      },
+    };
+  }, []);
+
   const arrays = useArraysAgentOnCanvas({
     canvasId,
     canvasTitle: title,
-    getDocument: () => runtimeDocumentRef.current,
-    getActiveFrameId: () => activeFrameIdRef.current,
+    getDocument: getArraysDocument,
+    getActiveFrameId: getArraysFrameId,
     applyDocument: applyArraysDocument,
+    presentation: arraysPresentation,
+    activeFrameId: activeFrame?.id ?? null,
+    enabled: selectedMode === "arrays",
   });
 
   const isArraysMode = selectedMode === "arrays";
@@ -546,7 +628,22 @@ export function CanvasPresenter({
 
         <div className="flex items-center gap-1.5">
           {!publicView && isArraysMode ? (
-            <ArraysAgentControls agent={arrays.agent} />
+            <>
+              <ArraysAgentControls agent={arrays.agent} />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="relative"
+                aria-label={activityOpen ? "Hide agent activity" : "Show agent activity"}
+                title={activityOpen ? "Hide agent activity" : "Show agent activity"}
+                onClick={() => setActivityOpen((open) => !open)}
+              >
+                <ActivityIcon className="size-4" />
+                {!activityOpen && arrays.agent.latency.toolFailures > 0 ? (
+                  <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-destructive" />
+                ) : null}
+              </Button>
+            </>
           ) : null}
           {!publicView && isCopilotMode ? (
             <RealtimeControls session={realtimeSession} />
@@ -723,7 +820,7 @@ export function CanvasPresenter({
             <ArraysAgentViewProvider
               {...(isArraysMode
                 ? arrays.viewProviderProps
-                : { blockId: null, view: null, showIndices: true })}
+                : { blockId: null, view: null, showIndices: true, isAnimating: false })}
             >
               <FittedPresentationFrame document={activeFrame.document} />
             </ArraysAgentViewProvider>
@@ -750,7 +847,24 @@ export function CanvasPresenter({
           />
         </main>
 
-        {!publicView && selectedMode !== "manual" && panelOpen ? (
+        {!publicView && isArraysMode && activityOpen ? (
+          <ArraysAgentActivityPanel
+            events={arrays.agent.events}
+            latency={arrays.agent.latency}
+            status={arrays.agent.status}
+            isConnected={arrays.agent.isConnected}
+            isUserSpeaking={arrays.agent.isUserSpeaking}
+            isResponding={arrays.agent.isResponding}
+            isAnimating={arrays.agent.isAnimating}
+            animationNote={arrays.agent.animationNote}
+            animationProgress={arrays.agent.animationProgress}
+            animationSpeed={arrays.agent.animationSpeed}
+            onSkipAnimation={arrays.agent.skipAnimation}
+            onClose={() => setActivityOpen(false)}
+          />
+        ) : null}
+
+        {!publicView && isCopilotMode && panelOpen ? (
           <CopilotPanel
             items={panel.items}
             onClose={() => setPanelOpen(false)}

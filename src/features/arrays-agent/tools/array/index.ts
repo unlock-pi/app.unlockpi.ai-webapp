@@ -1,5 +1,7 @@
 import type { ArrayToolContext } from "@/features/arrays-agent/tools/tool-context";
 import { createAccessTools } from "@/features/arrays-agent/tools/array/access";
+import { createAnalysisTools } from "@/features/arrays-agent/tools/array/analysis";
+import { createAnimationTools } from "@/features/arrays-agent/tools/array/animation";
 import { createCanvasTools } from "@/features/arrays-agent/tools/array/canvas";
 import { createCreationTools } from "@/features/arrays-agent/tools/array/creation";
 import { createDeletionTools } from "@/features/arrays-agent/tools/array/deletion";
@@ -9,6 +11,7 @@ import { createSearchTools } from "@/features/arrays-agent/tools/array/search";
 import { createSortingTools } from "@/features/arrays-agent/tools/array/sorting";
 import { createTeachingTools } from "@/features/arrays-agent/tools/array/teaching";
 import { createTraversalTools } from "@/features/arrays-agent/tools/array/traversal";
+import { createBlockTools } from "@/features/arrays-agent/tools/blocks";
 import { createPresentationTools } from "@/features/arrays-agent/tools/presentation";
 
 /**
@@ -28,10 +31,13 @@ export function createArrayTools(ctx: ArrayToolContext) {
     ...createDeletionTools(ctx),
     ...createSearchTools(ctx),
     ...createSortingTools(ctx),
+    ...createAnalysisTools(ctx),
     ...createMultidimensionalTools(ctx),
     ...createCanvasTools(ctx),
+    ...createAnimationTools(ctx),
     ...createTeachingTools(ctx),
     ...createPresentationTools(ctx),
+    ...createBlockTools(ctx),
   };
 }
 

@@ -143,7 +143,7 @@ export function createCanvasTools(ctx: ArrayToolContext) {
 
     show_explanation: tool({
       description:
-        "Put a short written explanation on the board beside the array. Use when the teacher asks 'why did the elements shift', 'explain that', 'write that down for the class'.",
+        "Leave a written note in the side panel that STAYS after you move on. Prefer spotlight for explaining something now; use this only when the teacher asks you to write it down or keep it up.",
       inputSchema: z.object({
         title: z.string().describe("Short heading, e.g. 'Why did the elements shift?'"),
         content: z.string().describe("Two or three sentences in plain classroom language."),
@@ -156,21 +156,28 @@ export function createCanvasTools(ctx: ArrayToolContext) {
 
     reset_canvas: tool({
       description:
-        "Clear highlights, markers and side panels but KEEP the array itself. Use for 'clear the highlights', 'reset the view', 'start that again'.",
+        "Clear highlights and side notes but KEEP every block on the frame. Use for 'clear the highlights', 'reset the view', 'start that again'.",
       inputSchema: z.object({}),
       execute: async () => {
         ctx.resetCanvas();
-        return report(ctx, "Cleared highlights and panels. The array is still on the board.");
+        return report(ctx, "Cleared highlights and notes. Everything on the frame is still there.");
       },
     }),
 
     clear_canvas: tool({
       description:
-        "Remove the array and everything around it, leaving an empty board. Use ONLY for 'clear everything', 'wipe the board', 'start from scratch'.",
+        "Remove EVERY block from the frame now showing — headings, text, code and the array — leaving it empty. Use for 'clear the frame', 'clear the canvas', 'wipe the board', 'start from scratch'. Only affects this frame, and only for this class: the teacher's Reset button restores it.",
       inputSchema: z.object({}),
       execute: async () => {
+        // Clearing used to reset only the agent's own memory of the array, so
+        // the frame on screen never changed. The frame itself is cleared now,
+        // and the agent's state follows it.
+        const message = ctx.blocks?.clearFrame();
         ctx.clearCanvas();
-        return report(ctx, "Board cleared. There is no array on it now.");
+        return report(
+          ctx,
+          message ?? "Cleared the array. This board has no other blocks to remove.",
+        );
       },
     }),
   };

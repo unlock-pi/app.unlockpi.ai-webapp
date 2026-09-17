@@ -2,6 +2,7 @@ import {
   createInitialAgentState,
   describeAgentState,
 } from "@/features/arrays-agent/lib/array-types";
+import type { AnimationSpeed } from "@/features/arrays-agent/lib/array-types";
 import type {
   ArrayAgentState,
   ArrayOpResult,
@@ -50,7 +51,7 @@ export type ArrayToolContext = {
     selectedIndex?: number | null;
     topic?: string | null;
     algorithm?: string | null;
-    animationEnabled?: boolean;
+    speed?: AnimationSpeed;
   }) => void;
   /** Show supporting material beside the strip. */
   overlay: (overlay: ArrayOverlay) => void;
@@ -59,12 +60,49 @@ export type ArrayToolContext = {
   /** Remove the array and everything around it. */
   clearCanvas: () => void;
   /**
+   * Play the last operation's animation again, optionally at a different
+   * speed. This is how "that was too fast, show me again slowly" works
+   * without re-running the operation and changing the array a second time.
+   */
+  replayLast: (speed?: AnimationSpeed) => { ok: boolean; message: string };
+  /**
    * Frame navigation, present only when the agent is running inside the
    * presenter. Absent on surfaces with no frames (the demo page), where the
    * navigation tools report that there is nothing to navigate rather than
    * disappearing — the model is offered a stable tool list either way.
    */
   presentation?: PresentationControls;
+  /**
+   * Editing the frame's own blocks. Present only on a canvas; absent on a
+   * standalone board, where the block tools report that rather than failing.
+   */
+  blocks?: BlockControls;
+};
+
+export type BlockControls = {
+  add: (input: {
+    type: "heading" | "subheading" | "body" | "code";
+    text?: string;
+    code?: string;
+    language?: string;
+    explanation?: string;
+  }) => string;
+  update: (
+    target: "heading" | "subheading" | "body" | "frame_title",
+    text: string,
+  ) => string;
+  remove: (target: "heading" | "subheading" | "body" | "code" | "array") => string;
+  /** Add a code block mirroring the array, and keep it in sync from now on. */
+  linkCode: (language: string) => string;
+  /** Read an array literal back out of the frame's code block. */
+  readCodeArray: () => { name: string | null; values: string[] } | null;
+  /** Remove every block from the frame now showing. */
+  clearFrame: () => string;
+  /**
+   * Add a frame after the one showing and move to it. `copyCurrent` duplicates
+   * the current frame's blocks instead of starting empty.
+   */
+  addFrame: (options: { title?: string; copyCurrent?: boolean }) => string;
 };
 
 export type PresentationControls = {
@@ -82,10 +120,16 @@ export type PresentationControls = {
 export type ArrayToolOutcome = {
   ok: boolean;
   summary: string;
-  /** JSON snapshot of authoritative state, so the model never has to guess. */
+  /** One-line snapshot of the array, so the model never has to guess. */
   state: string;
   complexity?: Complexity;
   meta?: Record<string, unknown>;
+  /** Present only in slow mode: the beats to talk through as they play. */
+  narration?: {
+    playing_slowly: true;
+    steps: string[];
+    instruction: string;
+  };
 };
 
 /**
@@ -104,6 +148,47 @@ export function commit(
     state: describeAgentState(ctx.state),
     complexity: result.complexity,
     meta: result.meta,
+    ...narrationFor(ctx, result),
+  };
+}
+
+/** How many beats the model is given to narrate in slow mode. */
+const MAX_NARRATION_STEPS = 14;
+
+/**
+ * In slow mode the animation IS the lesson, so the model gets the beats it is
+ * about to play and is told to talk through them. In normal mode it only gets
+ * the summary — sending a hundred beats every time would refill the context
+ * window we just freed up, to narrate something already over.
+ */
+function narrationFor(
+  ctx: ArrayToolContext,
+  result: ArrayOpResult,
+): Pick<ArrayToolOutcome, "narration"> {
+  if (ctx.state.teaching.speed !== "slow" || result.rejected) return {};
+  const notes = result.frames
+    .map((frame) => frame.note.trim())
+    .filter((note, index, all) => note && note !== all[index - 1]);
+  if (notes.length < 2) return {};
+
+  const kept =
+    notes.length <= MAX_NARRATION_STEPS
+      ? notes
+      : [
+          // Keep both ends: how it starts and how it ends are the parts a
+          // class needs, and the middle of a long sort is repetitive.
+          ...notes.slice(0, MAX_NARRATION_STEPS - 4),
+          `… ${notes.length - MAX_NARRATION_STEPS} more steps …`,
+          ...notes.slice(-3),
+        ];
+
+  return {
+    narration: {
+      playing_slowly: true,
+      steps: kept.map((note) => note.slice(0, 90)),
+      instruction:
+        "This is playing slowly on screen right now. Talk the class through these steps in order, in your own words, while they watch. Do not call another tool until you have finished.",
+    },
   };
 }
 
@@ -142,5 +227,6 @@ export function createSchemaOnlyContext(): ArrayToolContext {
     overlay: () => {},
     resetCanvas: () => {},
     clearCanvas: () => {},
+    replayLast: () => ({ ok: false, message: "" }),
   };
 }

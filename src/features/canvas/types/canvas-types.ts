@@ -66,13 +66,15 @@ export type BodyTextBlockProps = {
 };
 
 export type ArrayBlockProps = {
-  title: string;
+  /** Stored on older blocks but never drawn — an array block shows only the strip. */
+  title?: string;
   values: Array<{ value: string }>;
   highlightedIndex?: number;
   visitedIndices?: number[];
   traversalTarget?: number;
   showIndices: boolean;
-  caption: string;
+  /** Stored on older blocks but never drawn — an array block shows only the strip. */
+  caption?: string;
 };
 
 export type StackBlockProps = {
@@ -231,6 +233,32 @@ export type CanvasAiAction =
   | { action: "update_slide_title"; slideId?: string; title: string }
   | { action: "update_frame_title"; frameId?: string; title: string }
   | { action: "add_text_block"; heading?: string; body?: string }
+  | { action: "add_subheading_block"; text?: string }
+  | { action: "add_body_block"; text?: string }
+  | {
+    action: "add_code_block";
+    code?: string;
+    language?: CodeLanguage;
+    title?: string;
+    explanation?: string;
+  }
+  | {
+    /** Rewrite the text of an existing text block on the active frame. */
+    action: "set_block_text";
+    componentId?: string;
+    blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+    text: string;
+  }
+  | {
+    action: "set_code_block";
+    componentId?: string;
+    code: string;
+    language?: CodeLanguage;
+    explanation?: string;
+  }
+  | { action: "remove_block"; componentId?: string; blockType?: string }
+  /** Remove every block from the active frame, leaving the frame itself. */
+  | { action: "clear_frame" }
   | { action: "add_array_block"; title?: string; values?: string[] }
   | { action: "set_array_values"; componentId?: string; values: string[] }
   | { action: "resize_array"; componentId?: string; length: number }

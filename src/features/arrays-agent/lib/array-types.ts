@@ -11,6 +11,16 @@
 /** Canvas array cells are strings; numeric ops coerce on the way in. */
 export type ArrayValue = string;
 
+/**
+ * How an operation plays out.
+ *
+ * `normal` paces the whole operation into a classroom-sized moment, which
+ * means a long sort races past — fine for "show me the result", useless for
+ * "help me follow it". `slow` gives every beat the same, generous time so a
+ * quicksort can actually be read; `instant` skips straight to the result.
+ */
+export type AnimationSpeed = "instant" | "normal" | "slow";
+
 export type Complexity = {
   time: string;
   space: string;
@@ -128,7 +138,8 @@ export type ArrayAgentState = {
   teaching: {
     topic: string | null;
     algorithm: string | null;
-    animationEnabled: boolean;
+    /** How fast operations animate. See `AnimationSpeed`. */
+    speed: AnimationSpeed;
   };
 };
 
@@ -146,26 +157,26 @@ export function createInitialAgentState(
       selectedIndex: null,
       showIndices: true,
     },
-    teaching: { topic: null, algorithm: null, animationEnabled: true },
+    teaching: { topic: null, algorithm: null, speed: "normal" },
   };
 }
 
-/** Compact state description sent back to the model after every tool call. */
+/**
+ * One-line state description sent back to the model after every tool call.
+ *
+ * It rides along on EVERY tool result, so it has to be small: the previous
+ * multi-field JSON was repeated dozens of times per class and ate the context
+ * window the conversation itself needed.
+ */
 export function describeAgentState(state: ArrayAgentState): string {
-  const { array, teaching } = state;
-  return JSON.stringify({
-    array: {
-      name: array.name,
-      values: array.values,
-      length: array.values.length,
-      dimensions: array.dimensions,
-      selected_index: array.selectedIndex,
-      show_indices: array.showIndices,
-    },
-    teaching: {
-      topic: teaching.topic,
-      algorithm: teaching.algorithm,
-      animation_enabled: teaching.animationEnabled,
-    },
-  });
+  const { array } = state;
+  if (array.values.length === 0) return "No array on the board.";
+
+  const grid =
+    array.dimensions.length === 2
+      ? ` as a ${array.dimensions[0]}x${array.dimensions[1]} grid`
+      : "";
+  const selected =
+    array.selectedIndex === null ? "" : `, index ${array.selectedIndex} selected`;
+  return `${array.name} = [${array.values.join(", ")}] (${array.values.length} elements${grid}${selected})`;
 }

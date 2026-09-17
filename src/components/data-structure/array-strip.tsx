@@ -52,6 +52,39 @@ const EMPTY_INDICES: number[] = [];
  */
 type CellState = "found" | "settled" | "active" | "visited" | "idle";
 
+/**
+ * Cells are a fixed square so the strip's width depends only on how MANY
+ * elements there are, never on how long they are — an array of
+ * "cultural biodiversity" must lay out exactly like an array of 1, 2, 3.
+ * Longer values step down in size, then truncate; the full value stays
+ * available as the cell's tooltip.
+ */
+type ValueSize = "md" | "sm" | "xs" | "2xs";
+
+function valueSize(value: ArrayValue): ValueSize {
+  const length = String(value).length;
+  if (length <= 3) return "md";
+  if (length <= 5) return "sm";
+  if (length <= 7) return "xs";
+  return "2xs";
+}
+
+const VALUE_TEXT_CLASS: Record<ValueSize, string> = {
+  md: "text-base sm:text-lg md:text-xl",
+  sm: "text-sm sm:text-base md:text-lg",
+  xs: "text-xs sm:text-sm md:text-base",
+  "2xs": "text-[10px] sm:text-xs md:text-sm",
+};
+
+const MAX_CELL_CHARS = 9;
+
+function truncateCellValue(value: ArrayValue): string {
+  const text = String(value);
+  return text.length > MAX_CELL_CHARS
+    ? `${text.slice(0, MAX_CELL_CHARS - 1)}…`
+    : text;
+}
+
 function cellState(
   index: number,
   {
@@ -337,8 +370,13 @@ export function ArrayStrip({
                       ref={(el) => setCellRef(index, el)}
                       layout
                       transition={CELL_SPRING}
+                      // Truncation lives on the value span, not here: an
+                      // overflow-hidden cell also clipped the pivot label that
+                      // hangs below it.
+                      data-value-size={valueSize(item)}
                       className={cn(
-                        "canvas-array-strip-cell relative flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-sm border border-border bg-[#4C4C4C] text-base tracking-tight text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition-colors duration-300 sm:h-14 sm:w-14 sm:text-lg md:h-16 md:w-16 md:text-xl",
+                        "canvas-array-strip-cell relative flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-sm border border-border bg-[#4C4C4C] px-1 tracking-tight text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition-colors duration-300 sm:h-14 sm:w-14 md:h-16 md:w-16",
+                        VALUE_TEXT_CLASS[valueSize(item)],
                         isTraversalMiss &&
                           "border-border bg-muted/50 text-muted-foreground opacity-40",
                         isTargetHit &&
@@ -372,9 +410,10 @@ export function ArrayStrip({
                           }}
                           exit={{ opacity: 0, scale: 0.7, filter: "blur(2px)" }}
                           transition={VALUE_SPRING}
-                          className="pointer-events-none select-none"
+                          className="block max-w-full select-none truncate"
+                          title={String(item)}
                         >
-                          {item}
+                          {truncateCellValue(item)}
                         </motion.span>
                       </AnimatePresence>
 
@@ -413,7 +452,12 @@ export function ArrayStrip({
           <motion.div
             layout
             transition={CELL_SPRING}
-            className="flex gap-2  px-3 py-1 "
+            // Mirrors the plates row above — same gap, same inline padding, and
+            // a transparent border matching the plates' 2px border — so each
+            // index is centred under its own cell. It previously used a fixed
+            // 4rem per index, which drifted as soon as the presenter resized
+            // the cells.
+            className="canvas-array-strip-index-row flex gap-2 border-2 border-y-0 border-transparent px-3 py-1"
           >
             <AnimatePresence initial={false} mode="popLayout">
               {data.map((item, index) => {
@@ -426,7 +470,7 @@ export function ArrayStrip({
                     animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                     exit={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
                     transition={CELL_SPRING}
-                    className="flex flex-col items-center  w-[4rem]  "
+                    className="canvas-array-strip-index flex w-[3.25rem] shrink-0 flex-col items-center sm:w-14 md:w-16"
                   >
                     {/* <motion.div
                       ref={(el) => setCellRef(index, el)}

@@ -583,19 +583,80 @@ html ::-webkit-scrollbar-track {
   padding-block: clamp(1rem, 2vh, 2rem);
 }
 
-.canvas-presenter-surface .canvas-array-strip-name {
-  font-size: clamp(2rem, 3vw, 4rem);
+/* ── Array block: sized to its block, never scrolled ─────────────────────
+   Cells used to be sized by viewport width, so ten of them overflowed the
+   frame and the block was made horizontally scrollable to cope. Sizing by the
+   block's own width (cqi) means ten cells always fit. The index row reads the
+   same variables as the cells, so each index stays centred under its cell at
+   every size — the fixed-width index row is what drifted out of line. */
+.canvas-array-block .canvas-array-strip {
+  container-type: inline-size;
+  --array-cell: clamp(2.25rem, 6.4cqi, 4rem);
+  --array-gap: clamp(0.25rem, 0.8cqi, 0.5rem);
+  --array-pad: clamp(0.375rem, 1cqi, 0.75rem);
 }
 
-.canvas-presenter-surface .canvas-array-strip-plates {
-  gap: clamp(0.625rem, 1vw, 1.25rem);
-  padding: clamp(0.75rem, 1.2vw, 1.25rem);
+.canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.125rem, 3.5cqi, 1.5rem);
 }
 
-.canvas-presenter-surface .canvas-array-strip-cell {
-  height: clamp(4.5rem, 6vw, 7.5rem);
-  width: clamp(4.5rem, 6vw, 7.5rem);
-  font-size: clamp(1.5rem, 2vw, 2.5rem);
+.canvas-array-block .canvas-array-strip-plates {
+  gap: var(--array-gap);
+  padding: var(--array-pad);
+}
+
+.canvas-array-block .canvas-array-strip-index-row {
+  gap: var(--array-gap);
+  padding-inline: var(--array-pad);
+}
+
+.canvas-array-block .canvas-array-strip-cell {
+  width: var(--array-cell);
+  height: var(--array-cell);
+  font-size: calc(var(--array-cell) * 0.36);
+}
+
+/* Long values step down so "biodiversity" fits the same square as "7". */
+.canvas-array-block .canvas-array-strip-cell[data-value-size="sm"] {
+  font-size: calc(var(--array-cell) * 0.28);
+}
+
+.canvas-array-block .canvas-array-strip-cell[data-value-size="xs"] {
+  font-size: calc(var(--array-cell) * 0.22);
+}
+
+.canvas-array-block .canvas-array-strip-cell[data-value-size="2xs"] {
+  font-size: calc(var(--array-cell) * 0.17);
+}
+
+.canvas-array-block .canvas-array-strip-index {
+  width: var(--array-cell);
+}
+
+.canvas-array-block .canvas-array-strip-index > span {
+  font-size: calc(var(--array-cell) * 0.2);
+}
+
+/* The beat currently playing, shown under the strip only while animating. */
+.canvas-array-block .canvas-array-step {
+  font-size: clamp(0.75rem, 2.2cqi, 1rem);
+  text-align: center;
+  min-height: 1.4em;
+}
+
+.canvas-presenter-surface .canvas-array-block .canvas-array-step {
+  font-size: clamp(1rem, 2.4cqi, 1.75rem);
+}
+
+/* On the presentation stage the same array can be much bigger. */
+.canvas-presenter-surface .canvas-array-block .canvas-array-strip {
+  --array-cell: clamp(3rem, 6.4cqi, 7.5rem);
+  --array-gap: clamp(0.375rem, 0.9cqi, 1.25rem);
+  --array-pad: clamp(0.5rem, 1.1cqi, 1.25rem);
+}
+
+.canvas-presenter-surface .canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.5rem, 4.5cqi, 4rem);
 }
 
 /* Preserve the whole lesson when several blocks share a single slide. This
@@ -614,14 +675,12 @@ html ::-webkit-scrollbar-track {
   padding-block: 0.5rem;
 }
 
-.canvas-presenter-surface--dense .canvas-array-strip-name {
-  font-size: clamp(1.5rem, 2.25vw, 2.75rem);
+.canvas-presenter-surface--dense .canvas-array-block .canvas-array-strip {
+  --array-cell: clamp(2.5rem, 5.5cqi, 5rem);
 }
 
-.canvas-presenter-surface--dense .canvas-array-strip-cell {
-  height: clamp(3.25rem, 4vw, 5rem);
-  width: clamp(3.25rem, 4vw, 5rem);
-  font-size: clamp(1.125rem, 1.5vw, 1.75rem);
+.canvas-presenter-surface--dense .canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.25rem, 3.5cqi, 2.75rem);
 }
 
 .canvas-presenter-surface .canvas-frame-watermark {

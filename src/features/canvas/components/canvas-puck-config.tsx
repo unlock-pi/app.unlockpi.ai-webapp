@@ -418,15 +418,22 @@ function BodyTextBlock({ text }: BodyTextBlockProps) {
   );
 }
 
+/**
+ * Just the array: no title, no caption, and never its own scroll container.
+ *
+ * It used to be `overflow-x-auto`, which turned a wide array into a
+ * scrollbar in the middle of a presented frame. The strip now sizes its cells
+ * to the block's width instead (see `.canvas-array-strip` in globals.css), so
+ * ten cells fit without scrolling. Any title/caption stored on older blocks
+ * is simply not drawn.
+ */
 function ArrayBlock({
   id,
-  title,
   values,
   highlightedIndex,
   visitedIndices,
   traversalTarget,
   showIndices,
-  caption,
 }: ArrayBlockProps & { id: string }) {
   const arrayValues = values.map((item) => item.value);
   const traversal = useTraversalState(
@@ -441,9 +448,8 @@ function ArrayBlock({
 
   if (agent) {
     return blockShell(
-      cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
+      "canvas-frame-block--compact canvas-array-block",
       <div className="grid w-full gap-4">
-        <OptionalBlockCopy id={id} title={title} caption={agent.view.note || caption} />
         <ArrayStrip
           className="max-w-none justify-start"
           data={agent.view.values}
@@ -456,14 +462,16 @@ function ArrayBlock({
           marker={agent.view.marker}
           held={agent.view.held}
         />
+        {agent.isAnimating && agent.view.note ? (
+          <p className="canvas-array-step text-muted-foreground">{agent.view.note}</p>
+        ) : null}
       </div>,
     );
   }
 
   return blockShell(
-    cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
+    "canvas-frame-block--compact canvas-array-block",
     <div className="grid w-full gap-4">
-      <OptionalBlockCopy id={id} title={title} caption={caption} />
       <ArrayStrip
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
@@ -972,8 +980,9 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     },
     ArrayBlock: {
       label: "Array",
+      // No title/caption fields: the block draws only the strip, so editing
+      // copy it would never show would just be confusing.
       fields: {
-        title: { type: "text", label: "Title", contentEditable: true },
         values: {
           type: "array",
           label: "Array values",
@@ -987,13 +996,13 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           type: "number",
           label: "Highlighted index",
           min: 0,
-          max: 11,
+          max: 9,
         },
         traversalTarget: {
           type: "number",
           label: "Traversal target index",
           min: 0,
-          max: 11,
+          max: 9,
         },
         showIndices: {
           type: "radio",
@@ -1003,14 +1012,13 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             { label: "No", value: false },
           ],
         },
-        caption: { type: "textarea", label: "Caption", contentEditable: true },
       },
       defaultProps: {
-        title: "Array A",
+        title: "A",
         values: [{ value: "8" }, { value: "5" }, { value: "0" }],
         highlightedIndex: 0,
         showIndices: true,
-        caption: "Explain this array live.",
+        caption: "",
       },
       render: ArrayBlock,
     },

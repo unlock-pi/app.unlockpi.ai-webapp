@@ -9,9 +9,16 @@ type ArraysAgentViewValue = {
   blockId: string | null;
   view: ArrayFrame | null;
   showIndices: boolean;
+  /** True while an animation is playing, so the step caption can show. */
+  isAnimating: boolean;
 };
 
-const EMPTY: ArraysAgentViewValue = { blockId: null, view: null, showIndices: true };
+const EMPTY: ArraysAgentViewValue = {
+  blockId: null,
+  view: null,
+  showIndices: true,
+  isAnimating: false,
+};
 
 const ArraysAgentViewContext = createContext<ArraysAgentViewValue>(EMPTY);
 
@@ -28,11 +35,12 @@ export function ArraysAgentViewProvider({
   blockId,
   view,
   showIndices,
+  isAnimating,
   children,
 }: ArraysAgentViewValue & { children: ReactNode }) {
   const value = useMemo(
-    () => ({ blockId, view, showIndices }),
-    [blockId, view, showIndices],
+    () => ({ blockId, view, showIndices, isAnimating }),
+    [blockId, view, showIndices, isAnimating],
   );
 
   return (
@@ -49,6 +57,10 @@ export function ArraysAgentViewProvider({
 export function useArraysAgentView(blockId: string) {
   const context = useContext(ArraysAgentViewContext);
   return context.blockId === blockId && context.view
-    ? { view: context.view, showIndices: context.showIndices }
+    ? {
+        view: context.view,
+        showIndices: context.showIndices,
+        isAnimating: context.isAnimating,
+      }
     : null;
 }

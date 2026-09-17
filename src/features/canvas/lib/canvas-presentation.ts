@@ -121,6 +121,150 @@ export function describeFrameForModel(
   });
 }
 
+type AnyBlock = { type?: string; props?: Record<string, unknown> };
+
+/**
+ * Read every block on a frame as structured data.
+ *
+ * `describeFrameForModel` flattens a frame into one text blob, which is fine
+ * for matching but useless for explaining — the model cannot tell a heading
+ * from a caption, or see an array's values in order. This keeps the shape, so
+ * the agent can actually say what is on screen and in what role.
+ */
+export function readFrameBlocks(frame: CanvasPresentationFrame) {
+  const slide = frame.document.content[0] as
+    | { props?: { content?: AnyBlock[]; teachingBeat?: string } }
+    | undefined;
+
+  return (slide?.props?.content ?? []).map((block) => {
+    const props = (block.props ?? {}) as Record<string, unknown>;
+    const kind = String(block.type ?? "").replace(/Block$/, "");
+    const id = typeof props.id === "string" ? props.id : undefined;
+
+    const text = (key: string) =>
+      typeof props[key] === "string" && (props[key] as string).trim()
+        ? (props[key] as string)
+        : undefined;
+
+    const values = Array.isArray(props.values)
+      ? (props.values as Array<{ value?: unknown }>).map((entry) =>
+          String(entry?.value ?? ""),
+        )
+      : undefined;
+
+    const nodes = Array.isArray(props.nodes)
+      ? (props.nodes as Array<{ value?: unknown }>).map((entry) =>
+          String(entry?.value ?? ""),
+        )
+      : undefined;
+
+    return {
+      id,
+      kind,
+      title: text("title"),
+      text: text("text"),
+      caption: text("caption"),
+      code: text("code"),
+      language: text("language"),
+      explanation: text("explanation"),
+      question: text("question"),
+      answer: text("answer"),
+      chart: text("chart"),
+      // A drawing the model cannot see — the teacher's own description is the
+      // only thing it can honestly talk about.
+      drawingDescription: text("aiContext"),
+      values: values ?? nodes,
+      highlightedIndex:
+        typeof props.highlightedIndex === "number" ? props.highlightedIndex : undefined,
+    };
+  });
+}
+
+/** Everything the agent needs to explain the frame the class is looking at. */
+export function describeFrameContents(
+  frame: CanvasPresentationFrame,
+  totalFrames: number,
+) {
+  return JSON.stringify({
+    frame_number: frame.index + 1,
+    total_frames: totalFrames,
+    title: frame.title,
+    teaching_beat: getFrameTeachingBeat(frame),
+    blocks: readFrameBlocks(frame),
+  });
+}
+
+const BLOCK_NAMES: Record<string, string> = {
+  HeadingText: "heading",
+  SubheadingText: "subheading",
+  BodyText: "paragraph",
+  Array: "array",
+  Stack: "stack",
+  Queue: "queue",
+  LinkedList: "linked list",
+  Code: "code",
+  Table: "table",
+  Mermaid: "diagram",
+  Checkpoint: "question",
+  MindMap: "mind map",
+  Sketch: "drawing",
+};
+
+function clip(text: string, max: number) {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
+/**
+ * The frame as a short numbered list a person could read aloud.
+ *
+ * This is what the voice agent receives, instead of `describeFrameContents`'
+ * JSON. The JSON carried every block id and field name — roughly twice the
+ * size for a typical frame — and in a realtime session every token of it
+ * stays in the context window, pushing out the conversation.
+ *
+ * Text is kept nearly whole: the agent is asked to explain frames, and a
+ * paragraph cut short is a paragraph it cannot explain. Frame capacity
+ * already bounds how much text one frame can hold.
+ */
+export function describeFrameReadable(
+  frame: CanvasPresentationFrame,
+  totalFrames: number,
+): string {
+  const beat = getFrameTeachingBeat(frame);
+  const lines = readFrameBlocks(frame).map((block, index) => {
+    const name = BLOCK_NAMES[block.kind] ?? block.kind.toLowerCase();
+    const position = `${index + 1}. ${name}`;
+
+    switch (block.kind) {
+      case "HeadingText":
+      case "SubheadingText":
+      case "BodyText":
+        return `${position}: "${clip(block.text ?? "", 600)}"`;
+      case "Array":
+      case "Stack":
+      case "Queue":
+      case "LinkedList":
+        return `${position} = [${(block.values ?? []).join(", ")}] (${block.values?.length ?? 0} elements)`;
+      case "Code": {
+        const code = (block.code ?? "").split("\n").slice(0, 6).join(" ⏎ ");
+        return `${position} (${block.language ?? "code"}): ${clip(code, 240)}${block.explanation ? ` — ${clip(block.explanation, 120)}` : ""}`;
+      }
+      case "Checkpoint":
+        return `${position}: "${clip(block.question ?? "", 200)}" (answer: "${clip(block.answer ?? "", 120)}")`;
+      case "Sketch":
+        return `${position}: ${block.drawingDescription ? `"${clip(block.drawingDescription, 200)}"` : "no description"}`;
+      default:
+        return `${position}${block.title ? `: "${clip(block.title, 120)}"` : ""}`;
+    }
+  });
+
+  return [
+    `Frame ${frame.index + 1} of ${totalFrames}: "${frame.title}"${beat ? ` (beat: ${beat})` : ""}`,
+    lines.length ? lines.join("\n") : "(this frame is empty)",
+  ].join("\n");
+}
+
 function collectSearchText(value: unknown): string {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);

@@ -12,6 +12,9 @@ export const runtime = "nodejs";
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2";
 const DEFAULT_REALTIME_VOICE = "marin";
+const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+/** ISO-639-1. The one language the agent hears in and answers in. */
+const DEFAULT_LANGUAGE = "en";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -40,6 +43,9 @@ export async function POST(request: NextRequest) {
   const speaks = body.responseMode !== "silent";
   const model = process.env.OPENAI_REALTIME_MODEL ?? DEFAULT_REALTIME_MODEL;
   const voice = process.env.OPENAI_REALTIME_VOICE ?? DEFAULT_REALTIME_VOICE;
+  const transcriptionModel =
+    process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL ?? DEFAULT_TRANSCRIPTION_MODEL;
+  const language = process.env.OPENAI_REALTIME_LANGUAGE ?? DEFAULT_LANGUAGE;
 
   let response: Response;
   try {
@@ -59,9 +65,19 @@ export async function POST(request: NextRequest) {
           instructions: buildArraysAgentInstructions({
             lessonTitle: body.lessonTitle,
             speaks,
+            language,
           }),
           audio: {
-            input: { turn_detection: { type: "semantic_vad" } },
+            input: {
+              turn_detection: { type: "semantic_vad" },
+              // Off by default in the Realtime API. Without it the session
+              // never reports what it heard, so the activity panel cannot
+              // show whether the teacher's words actually arrived.
+              // Pinning the language stops accented speech being transcribed
+              // into another language or script — which the model then tends
+              // to answer in.
+              transcription: { model: transcriptionModel, language },
+            },
             ...(speaks ? { output: { voice } } : {}),
           },
           // Derived from the same Zod schemas the client executes, so the
