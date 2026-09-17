@@ -91,6 +91,7 @@ export class OpenAIRealtimeClient {
       document.body.append(audioElement);
       peerConnection.ontrack = (event) => {
         audioElement.srcObject = event.streams[0];
+        this.options.onRemoteStream?.(event.streams[0] ?? null);
       };
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -151,7 +152,20 @@ export class OpenAIRealtimeClient {
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.handledCallIds.clear();
+    this.options.onRemoteStream?.(null);
     this.setStatus("idle");
+  }
+
+  /**
+   * Adds a message to the model's context WITHOUT asking it to respond.
+   * This is how the app keeps the model's picture of the board fresh: state
+   * changes update what it knows, but only the teacher's voice makes it talk.
+   */
+  syncContext(text: string): void {
+    this.sendEvent({
+      type: "conversation.item.create",
+      item: { type: "message", role: "system", content: [{ type: "input_text", text }] },
+    });
   }
 
   private setStatus(status: RealtimeStatus) {
@@ -176,8 +190,33 @@ export class OpenAIRealtimeClient {
       return;
     }
     this.handledCallIds.add(call.callId);
-    const output = this.options.onToolCall(call);
-    this.sendToolOutput(call.callId, output);
+
+    let output: string | Promise<string>;
+    try {
+      output = this.options.onToolCall(call);
+    } catch (error) {
+      // A throwing handler must still close the turn, or the model waits
+      // forever for a result that is never coming.
+      this.sendToolOutput(
+        call.callId,
+        JSON.stringify({ ok: false, error: describeError(error) }),
+      );
+      return;
+    }
+
+    if (typeof output === "string") {
+      this.sendToolOutput(call.callId, output);
+      return;
+    }
+
+    output
+      .then((resolved) => this.sendToolOutput(call.callId, resolved))
+      .catch((error: unknown) =>
+        this.sendToolOutput(
+          call.callId,
+          JSON.stringify({ ok: false, error: describeError(error) }),
+        ),
+      );
   }
 
   private handleServerEvent(event: Record<string, unknown>) {
@@ -185,6 +224,49 @@ export class OpenAIRealtimeClient {
     // event shapes depending on timing; normalize them here so the rest of
     // the client only deals with one RealtimeToolCall shape.
     const type = event.type as string | undefined;
+
+    // Text deltas and audio-transcript deltas are named differently across
+    // Realtime API versions, so match on the suffix rather than the full name.
+    if (
+      typeof event.delta === "string" &&
+      (type?.endsWith("text.delta") || type?.endsWith("transcript.delta"))
+    ) {
+      this.options.onTranscriptDelta?.(event.delta);
+      return;
+    }
+
+    if (type === "response.done") {
+      this.options.onResponseDone?.(event.response);
+      // `response.output` carries function calls when the model emitted them
+      // as part of a completed response rather than streaming them.
+      const output = (event.response as { output?: unknown[] } | undefined)?.output;
+      output?.forEach((item) => {
+        const call = item as { type?: string; call_id?: string; name?: string; arguments?: string };
+        if (call.type === "function_call" && call.call_id && call.name && call.arguments) {
+          this.dispatchToolCall({
+            callId: call.call_id,
+            name: call.name,
+            argumentsJson: call.arguments,
+          });
+        }
+      });
+      return;
+    }
+
+    if (type === "input_audio_buffer.speech_started") {
+      this.options.onSpeechStarted?.();
+      return;
+    }
+
+    if (type === "output_audio_buffer.started") {
+      this.options.onAudioPlaybackChange?.(true);
+      return;
+    }
+
+    if (type === "output_audio_buffer.stopped") {
+      this.options.onAudioPlaybackChange?.(false);
+      return;
+    }
 
     if (type === "response.function_call_arguments.done") {
       const callId = event.call_id as string | undefined;
@@ -209,4 +291,8 @@ export class OpenAIRealtimeClient {
       }
     }
   }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : "The tool failed to run.";
 }

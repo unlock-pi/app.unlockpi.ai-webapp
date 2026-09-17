@@ -3,6 +3,7 @@
 import { Render } from "@puckeditor/core";
 import {
   BotIcon,
+  BracketsIcon,
   CaptionsIcon,
   CaptionsOffIcon,
   ChevronLeftIcon,
@@ -36,6 +37,10 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import Logo from "@/components/logo";
+import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
+import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
+import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
+import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-identity";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { CopilotPanel } from "@/features/canvas/components/copilot-panel";
 import { AgentAudioVisualizerWave } from "@/features/talk/components/agent-audio-visualizer-wave";
@@ -57,14 +62,28 @@ import {
   describeFrameForModel,
   getCanvasPresentationFrames,
 } from "@/features/canvas/lib/canvas-presentation";
+import type { CanvasPresentationMode } from "@/features/canvas/lib/canvas-presentation";
 import type {
   CanvasAiAction,
   CanvasDocument,
 } from "@/features/canvas/types/canvas-types";
 import { cn } from "@/lib/utils";
 
-export type CanvasPresentationMode = "manual" | "voice" | "companion";
+// Re-exported so existing import sites keep working; the list itself lives in
+// canvas-presentation.ts, which has no React dependency.
+export type { CanvasPresentationMode } from "@/features/canvas/lib/canvas-presentation";
 
+/**
+ * Represents the properties for the `CanvasPresenter` component.
+ *
+ * @property {string | null} canvasId - The ID of the canvas.
+ * @property {CanvasDocument} document - The document for the canvas.
+ * @property {string | null} initialFrameId - The ID of the initial frame.
+ * @property {CanvasPresentationMode} mode - The mode of the canvas presentation.
+ * @property {() => void} onClose - The callback to be called when the canvas presenter is closed.
+ * @property {boolean} publicView - Indicates whether the canvas is in public view.
+ * @property {string} title - The title of the canvas.
+ */
 type CanvasPresenterProps = {
   canvasId?: string | null;
   document: CanvasDocument;
@@ -85,6 +104,9 @@ function FittedPresentationFrame({ document }: { document: CanvasDocument }) {
     if (!frame) return;
 
     let animationFrame = 0;
+
+    // Schedules the execution of the 'measure' function using the 'requestAnimationFrame' method.
+    // Cancels any previously scheduled animation frame before scheduling a new one.
     const measure = () => {
       const viewport = frame.querySelector<HTMLElement>(
         "[data-slot='scroll-area-viewport']",
@@ -106,6 +128,7 @@ function FittedPresentationFrame({ document }: { document: CanvasDocument }) {
         Math.abs(current - nextScale) < 0.01 ? current : nextScale,
       );
     };
+
     const scheduleMeasure = () => {
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(measure);
@@ -121,11 +144,7 @@ function FittedPresentationFrame({ document }: { document: CanvasDocument }) {
   }, [document]);
 
   return (
-    <div
-      ref={frameRef}
-      className="size-full"
-      style={{ overflow: "hidden" }}
-    >
+    <div ref={frameRef} className="size-full" style={{ overflow: "hidden" }}>
       <div
         className="size-full"
         style={{
@@ -301,6 +320,51 @@ export function CanvasPresenter({
     syncFrameContext,
   } = realtimeSession;
 
+  // The arrays agent runs on the same runtime document. Reads go through refs
+  // so the bridge always sees current state rather than the document captured
+  // when a tool sequence started — a burst of calls (create, insert, explain)
+  // would otherwise all write against the first one's snapshot.
+  const runtimeDocumentRef = useRef(runtimeDocument);
+  const activeFrameIdRef = useRef<string | null>(activeFrame?.id ?? null);
+
+  // Picks up changes made OUTSIDE the agent — manual navigation, resetting
+  // live changes. Changes made BY the agent keep these refs fresh
+  // synchronously in `applyArraysDocument` below, because a burst of tool
+  // calls all runs before React re-renders and each must see the previous
+  // one's document.
+  useEffect(() => {
+    runtimeDocumentRef.current = runtimeDocument;
+    activeFrameIdRef.current = activeFrame?.id ?? null;
+  }, [activeFrame?.id, runtimeDocument]);
+
+  const applyArraysDocument = useCallback(
+    (nextDocument: CanvasDocument, nextFrameId: string | null) => {
+      runtimeDocumentRef.current = nextDocument;
+      activeFrameIdRef.current = nextFrameId;
+      const nextFrames = getCanvasPresentationFrames(nextDocument);
+      setRuntimeDocument(nextDocument);
+      setActiveIndex(
+        Math.max(
+          0,
+          nextFrames.findIndex((frame) => frame.id === nextFrameId),
+        ),
+      );
+      setHasLiveChanges(true);
+    },
+    [],
+  );
+
+  const arrays = useArraysAgentOnCanvas({
+    canvasId,
+    canvasTitle: title,
+    getDocument: () => runtimeDocumentRef.current,
+    getActiveFrameId: () => activeFrameIdRef.current,
+    applyDocument: applyArraysDocument,
+  });
+
+  const isArraysMode = selectedMode === "arrays";
+  const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
+
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
   // `useTrackVolume`, which only ever reads `.mediaStream` and
   // `.mediaStreamTrack` off the track (verified in the bundle). A minimal shim
@@ -377,7 +441,10 @@ export function CanvasPresenter({
 
   const selectMode = (nextMode: CanvasPresentationMode) => {
     if (nextMode === selectedMode) return;
+    // Only one voice session may hold the microphone, so leaving a mode always
+    // ends its session before the next one can start.
     realtimeSession.disconnect();
+    arrays.agent.disconnect();
     setSelectedMode(nextMode);
   };
 
@@ -397,6 +464,7 @@ export function CanvasPresenter({
 
   const endClass = () => {
     realtimeSession.disconnect();
+    arrays.agent.disconnect();
     onClose?.();
   };
 
@@ -467,14 +535,23 @@ export function CanvasPresenter({
               label="Co-teacher"
               onClick={() => selectMode("companion")}
             />
+            <ModeButton
+              active={isArraysMode}
+              icon={<BracketsIcon className="size-3.5" />}
+              label={ARRAYS_AGENT_NAME}
+              onClick={() => selectMode("arrays")}
+            />
           </div>
         ) : null}
 
         <div className="flex items-center gap-1.5">
-          {!publicView && selectedMode !== "manual" ? (
+          {!publicView && isArraysMode ? (
+            <ArraysAgentControls agent={arrays.agent} />
+          ) : null}
+          {!publicView && isCopilotMode ? (
             <RealtimeControls session={realtimeSession} />
           ) : null}
-          {!publicView && selectedMode !== "manual" ? (
+          {!publicView && isCopilotMode ? (
             <Button
               size="icon"
               variant="ghost"
@@ -489,12 +566,14 @@ export function CanvasPresenter({
               )}
             </Button>
           ) : null}
-          {!publicView && selectedMode !== "manual" ? (
+          {!publicView && isCopilotMode ? (
             <Button
               size="icon"
               variant="ghost"
               className="relative"
-              aria-label={panelOpen ? "Hide Copilot panel" : "Show Copilot panel"}
+              aria-label={
+                panelOpen ? "Hide Copilot panel" : "Show Copilot panel"
+              }
               onClick={() => setPanelOpen((open) => !open)}
             >
               <PanelRightIcon className="size-4" />
@@ -568,7 +647,9 @@ export function CanvasPresenter({
             )}
             aria-hidden="true"
           />
-          <span className="text-muted-foreground">{activityVerb(aiActivity.kind)}</span>
+          <span className="text-muted-foreground">
+            {activityVerb(aiActivity.kind)}
+          </span>
           <span className="truncate text-foreground">{aiActivity.label}</span>
         </div>
       ) : null}
@@ -580,7 +661,10 @@ export function CanvasPresenter({
             topVisible ? "opacity-100" : "opacity-0",
           )}
         >
-          <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
+          <span
+            className="size-1.5 rounded-full bg-warning"
+            aria-hidden="true"
+          />
           Live-only changes · not saved to canvas
         </div>
       ) : null}
@@ -636,8 +720,23 @@ export function CanvasPresenter({
                 : "slide-in-from-left-8",
             )}
           >
-            <FittedPresentationFrame document={activeFrame.document} />
+            <ArraysAgentViewProvider
+              {...(isArraysMode
+                ? arrays.viewProviderProps
+                : { blockId: null, view: null, showIndices: true })}
+            >
+              <FittedPresentationFrame document={activeFrame.document} />
+            </ArraysAgentViewProvider>
           </div>
+
+          {isArraysMode && arrays.agent.overlays.length > 0 ? (
+            <div className="pointer-events-auto absolute right-4 top-1/2 z-20 w-72 max-w-[40vw] -translate-y-1/2">
+              <ArraysAgentOverlays
+                overlays={arrays.agent.overlays}
+                onDismiss={arrays.agent.dismissOverlay}
+              />
+            </div>
+          ) : null}
 
           <FrameArrow
             direction="previous"
@@ -817,6 +916,49 @@ function RealtimeControls({
   );
 }
 
+function ArraysAgentControls({
+  agent,
+}: {
+  agent: ReturnType<typeof useArraysAgentOnCanvas>["agent"];
+}) {
+  return (
+    <div className="mr-1 flex items-center gap-1">
+      {!agent.isConnected ? (
+        agent.status === "connecting" ? (
+          <Spinner className="size-5 text-primary" aria-label="Connecting" />
+        ) : (
+          <Button size="sm" onClick={() => void agent.connect()}>
+            <PowerIcon aria-hidden="true" />
+            Start {ARRAYS_AGENT_NAME}
+          </Button>
+        )
+      ) : (
+        <>
+          <span className="hidden items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground lg:flex">
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                agent.isAnimating ? "animate-pulse bg-warning" : "animate-pulse bg-primary",
+              )}
+              aria-hidden="true"
+            />
+            {agent.isAnimating ? "Animating" : "Listening"}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={agent.disconnect}
+          >
+            <MicOffIcon className="size-3.5" />
+            <span className="hidden xl:inline">Disconnect</span>
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function FrameArrow({
   direction,
   disabled,
@@ -889,7 +1031,9 @@ function FrameOverview({
                   {String(frame.index + 1).padStart(2, "0")}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">Frame {frame.index + 1}</p>
+              <p className="text-xs text-muted-foreground">
+                Frame {frame.index + 1}
+              </p>
               <p className="mt-1 truncate font-semibold">{frame.title}</p>
             </button>
           ))}
@@ -929,7 +1073,11 @@ function toAgentVisualizerState(
   }
 }
 
-function activityVerb(kind: NonNullable<ReturnType<typeof useCanvasRealtimeSession>["activity"]>["kind"]) {
+function activityVerb(
+  kind: NonNullable<
+    ReturnType<typeof useCanvasRealtimeSession>["activity"]
+  >["kind"],
+) {
   switch (kind) {
     case "listening":
       return "Listening";

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Render } from "@puckeditor/core";
 import {
   BotIcon,
+  BracketsIcon,
   DoorOpenIcon,
   MicIcon,
   MoonIcon,
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
+import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-identity";
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
@@ -90,7 +92,7 @@ import {
   ONBOARDING_QUERY_VALUE,
 } from "@/features/onboarding/lib/onboarding-tour";
 
-// The two AI modes a class can start in — Manual (no AI) is reachable from
+// The AI modes a class can start in — Manual (no AI) is reachable from
 // inside the presenter itself, so it isn't offered as a starting choice
 // here. Mirrors CanvasPresenter's own ModeButton labels/icons.
 const classModes: Array<{
@@ -110,6 +112,12 @@ const classModes: Array<{
     icon: BotIcon,
     title: "Co-teacher",
     tagline: "Speaks aloud alongside you",
+  },
+  {
+    mode: "arrays",
+    icon: BracketsIcon,
+    title: ARRAYS_AGENT_NAME,
+    tagline: "Teaches arrays — builds, sorts and searches on the board",
   },
 ];
 

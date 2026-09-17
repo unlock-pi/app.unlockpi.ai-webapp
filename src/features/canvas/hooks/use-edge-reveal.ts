@@ -73,6 +73,7 @@ export function useEdgeReveal({
         clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
+      // FIX: `setVisible(true)` was being called twice in a row, which caused a React state update warning. Now it only sets visible once when active is true.
       setVisible(true);
       return;
     }

@@ -1,5 +1,28 @@
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";
 
+/**
+ * Every mode a class can be presented in, in one place.
+ *
+ * The mode list used to be restated in three places — the union type, the
+ * editor's start-class buttons, and the `?present=` URL guard — so adding one
+ * meant finding all three. Deriving them from this array means a new mode is
+ * added once.
+ */
+export const CANVAS_PRESENTATION_MODES = [
+  "manual",
+  "voice",
+  "companion",
+  "arrays",
+] as const;
+
+export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
+
+export function isCanvasPresentationMode(
+  value: string | null,
+): value is CanvasPresentationMode {
+  return (CANVAS_PRESENTATION_MODES as readonly string[]).includes(value ?? "");
+}
+
 export type CanvasPresentationFrame = {
   document: CanvasDocument;
   id: string;

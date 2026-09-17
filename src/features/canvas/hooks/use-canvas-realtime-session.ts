@@ -17,22 +17,22 @@ export type CanvasRealtimeMode = "director" | "companion";
 
 export type CanvasRealtimeAction = {
   action:
-    | "next"
-    | "previous"
-    | "first"
-    | "last"
-    | "goto"
-    | "find"
-    | "add_array"
-    | "set_array"
-    | "resize_array"
-    | "highlight_array_index"
-    | "clear_array_highlight"
-    | "append_array_value"
-    | "pop_array_value"
-    | "duplicate_array"
-    | "push_stack"
-    | "pop_stack";
+  | "next"
+  | "previous"
+  | "first"
+  | "last"
+  | "goto"
+  | "find"
+  | "add_array"
+  | "set_array"
+  | "resize_array"
+  | "highlight_array_index"
+  | "clear_array_highlight"
+  | "append_array_value"
+  | "pop_array_value"
+  | "duplicate_array"
+  | "push_stack"
+  | "pop_stack";
   frame_number?: number;
   index?: number;
   length?: number;
@@ -52,6 +52,16 @@ const NAVIGATION_ACTIONS = new Set<CanvasRealtimeAction["action"]>([
   "find",
 ]);
 
+
+/**
+ * Represents the possible states a Canvas Realtime session can be in.
+ *
+ * - `idle`: The session is not currently doing anything.
+ * - `connecting`: The session is in the process of establishing a connection.
+ * - `connected`: The session has successfully established a connection.
+ * - `paused`: The session has been paused.
+ * - `error`: An error has occurred in the session.
+ */
 export type CanvasRealtimeStatus =
   | "idle"
   | "connecting"
@@ -88,6 +98,7 @@ type UseCanvasRealtimeSessionArgs = {
   /** Fired when the model asks to render something in the side panel. */
   onPanelRequest?: (request: PanelGenerateRequest) => void;
 };
+
 
 export function useCanvasRealtimeSession({
   canvasTitle,

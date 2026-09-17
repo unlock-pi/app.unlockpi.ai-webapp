@@ -32,6 +32,7 @@ import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
+import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import { SketchBlock } from "@/features/canvas/components/sketch-block";
@@ -433,6 +434,31 @@ function ArrayBlock({
     visitedIndices,
     traversalTarget,
   );
+  // While the arrays agent is driving this block, its animation beat is the
+  // truth on screen; the authored props are what the block falls back to the
+  // moment the agent lets go.
+  const agent = useArraysAgentView(id);
+
+  if (agent) {
+    return blockShell(
+      cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
+      <div className="grid w-full gap-4">
+        <OptionalBlockCopy id={id} title={title} caption={agent.view.note || caption} />
+        <ArrayStrip
+          className="max-w-none justify-start"
+          data={agent.view.values}
+          name="A"
+          showIndex={agent.showIndices}
+          activeIndices={agent.view.active}
+          settledIndices={agent.view.settled}
+          visitedIndices={agent.view.visited}
+          foundIndex={agent.view.found}
+          marker={agent.view.marker}
+          held={agent.view.held}
+        />
+      </div>,
+    );
+  }
 
   return blockShell(
     cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),

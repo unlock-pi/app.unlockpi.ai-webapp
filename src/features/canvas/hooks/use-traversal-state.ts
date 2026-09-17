@@ -33,6 +33,9 @@ export function useTraversalState(
   );
 
   useEffect(() => {
+    // Reset traversal state when traversalTarget changes
+    // TODO: `visitedIndices` should also be reset
+    // This ensures that when a new traversal target is set, the highlighted index and visited indices are correctly initialized based on the new target.
     setLiveHighlightedIndex(initialHighlighted(highlightedIndex, traversalTarget));
     setLiveVisitedIndices(initialVisited(visitedIndices, traversalTarget));
     // eslint-disable-next-line react-hooks/exhaustive-deps

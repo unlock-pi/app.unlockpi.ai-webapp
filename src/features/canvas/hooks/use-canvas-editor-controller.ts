@@ -56,9 +56,14 @@ import type {
   CanvasTypographyScale,
   SketchSceneData,
 } from "@/features/canvas/types/canvas-types";
+import {
+  isCanvasPresentationMode,
+  type CanvasPresentationMode,
+} from "@/features/canvas/lib/canvas-presentation";
 import { toastManager } from "@/components/ui/toast";
 
-type PresentationModeValue = "voice" | "companion" | "manual" | null;
+/** Derived, not restated — a new presentation mode must not need editing here. */
+type PresentationModeValue = CanvasPresentationMode | null;
 
 type BlockCopyField = "title" | "caption";
 
@@ -86,9 +91,9 @@ function withoutBlockCopy(
               (typeof (block.props as { title?: unknown }).title === "string" &&
                 (block.props as { title?: string }).title === title))
               ? {
-                  ...block,
-                  props: { ...block.props, [field]: "" },
-                } as typeof block
+                ...block,
+                props: { ...block.props, [field]: "" },
+              } as typeof block
               : block,
           ),
         },
@@ -154,7 +159,7 @@ export function useCanvasEditorController(
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("present");
-    if (fromUrl === "voice" || fromUrl === "companion" || fromUrl === "manual") {
+    if (isCanvasPresentationMode(fromUrl)) {
       setPresentationModeState(fromUrl);
     }
   }, []);
@@ -208,7 +213,7 @@ export function useCanvasEditorController(
   const [copySuccess, setCopySuccess] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   // Keep the server and client's first render identical. Reading matchMedia
-  // during state initialisation made the server render collapsed panels while
+  // during state initiation made the server render collapsed panels while
   // a desktop browser rendered them open, producing a hydration mismatch.
   const [isDesktop, setIsDesktop] = useState(false);
   const [actionLog, setActionLog] = useState([
@@ -287,6 +292,8 @@ export function useCanvasEditorController(
     }
 
     if (easyModeHiddenLeftPanelViews.includes(leftPanelView)) {
+      // TODO: If the teacher switches to easy mode while a hidden panel is open, force it back to the home view so they don't get stuck in a hidden panel.
+      // FIX: `setLeftPanelView` should be called inside `setEasyMode`
       setLeftPanelView("home");
     }
   }, [easyMode, leftPanelView]);
@@ -331,6 +338,7 @@ export function useCanvasEditorController(
       ? `${window.location.origin}/canvas/shared/${shareSlug}`
       : "";
 
+  // Persist the canvas document to the server. If `nextDocument` is not provided, it defaults to the current `canvasDocument`.
   async function persistCanvas(nextDocument = canvasDocument) {
     const title = getCanvasTitle(nextDocument);
     setSaveStatus("Saving...");
@@ -343,7 +351,7 @@ export function useCanvasEditorController(
       title,
       topic: activeTopic.trim() || title,
     });
-
+    // TODO: Consider adding error handling and user feedback for the save operation.
     if (!response.ok || !result?.canvas) {
       const message = result?.error ?? "Could not save the canvas draft.";
       setSaveStatus("Save failed");
@@ -361,7 +369,7 @@ export function useCanvasEditorController(
     setSaveStatus(
       `Last saved ${formatUpdatedAt(result.canvas.updated_at ?? new Date().toISOString())}`,
     );
-      appendLog("Saved the canvas draft.");
+    appendLog("Saved the canvas draft.");
     toastManager.add({
       title: "Canvas saved",
       // description: "Frames, content, and appearance are up to date.",
@@ -416,7 +424,8 @@ export function useCanvasEditorController(
 
   const handlePuckChange = (nextDocument: CanvasDocument) => {
     const normalizedDocument = normalizeCanvasFrames(nextDocument);
-
+    // Check for a frame with too much content.
+    // TODO: This should be a warning.
     if (addsContentPastFrameCapacity(canvasDocumentRef.current, normalizedDocument)) {
       toastManager.add({
         title: "Frame has no room",
@@ -429,6 +438,8 @@ export function useCanvasEditorController(
       return;
     }
 
+    // Puck owns the in-progress drag state. Re-mount from the last accepted
+    // document so a rejected drop cannot remain visible in the editor.
     setCanvasDocument(normalizedDocument);
     canvasDocumentRef.current = normalizedDocument;
     setSaveStatus("Unsaved changes");
@@ -450,6 +461,7 @@ export function useCanvasEditorController(
       ...current,
       root: {
         ...current.root,
+        // Merge the new appearance into the existing props
         props: {
           title: current.root?.props?.title ?? "Untitled canvas",
           subject: current.root?.props?.subject ?? "computer_science",

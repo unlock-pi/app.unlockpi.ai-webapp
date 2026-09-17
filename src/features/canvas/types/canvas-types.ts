@@ -1,5 +1,8 @@
 import type { Data, Slot } from "@puckeditor/core";
 
+// TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
+// FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
+// IMPLEMENTATION NOTE: The CanvasSubject type is currently limited to "computer_science". If we want to support more subjects in the future, we can extend this type and update the CanvasRootProps accordingly.
 export type CanvasSubject = "computer_science";
 
 export type CanvasThemeId =
@@ -45,10 +48,16 @@ export type SlideBlockProps = {
 };
 
 export type HeadingTextBlockProps = {
+  // The heading text is the main title or heading for a section of content. It should be concise and descriptive, providing a clear indication of the topic or subject matter being addressed in the following content.
+  // TODO: Consider adding support for different heading levels (e.g., h1, h2, h3) in the future to allow for more flexible content structuring. For now, we only have a single heading level.
+  // FIX: The heading text is currently limited to a single string in the HeadingTextBlockProps. We should consider allowing for more complex heading structures (e.g., multiple lines, formatting) in the future.
   text: string;
 };
 
 export type SubheadingTextBlockProps = {
+  // The subheading text is a secondary heading that provides additional context or clarification for the main heading. It should be concise and informative, helping to guide the reader's understanding of the content that follows.
+  // TODO: Consider adding support for different subheading levels (e.g., h4, h5) in the future to allow for more flexible content structuring. For now, we only have a single subheading level.
+  // FIX: The subheading text is currently limited to a single string in the SubheadingTextBlockProps. We should consider allowing for more complex subheading structures (e.g., multiple lines, formatting) in the future.
   text: string;
 };
 
@@ -210,11 +219,11 @@ export type CanvasAiAction =
   | { action: "add_slide"; title?: string; notes?: string }
   | { action: "add_frame"; title?: string; notes?: string }
   | {
-      action: "add_frame_below";
-      frameId?: string;
-      title?: string;
-      notes?: string;
-    }
+    action: "add_frame_below";
+    frameId?: string;
+    title?: string;
+    notes?: string;
+  }
   | { action: "duplicate_frame"; frameId?: string }
   | { action: "delete_frame"; frameId?: string }
   | { action: "go_to_slide"; slideIndex?: number; slideId?: string }
@@ -230,12 +239,12 @@ export type CanvasAiAction =
   | { action: "pop_array_value"; componentId?: string }
   | { action: "duplicate_array_block"; componentId?: string; title?: string; appendValue?: string }
   | {
-      action: "add_stack_block";
-      title?: string;
-      values?: string[];
-      isFixed?: boolean;
-      stackSize?: number;
-    }
+    action: "add_stack_block";
+    title?: string;
+    values?: string[];
+    isFixed?: boolean;
+    stackSize?: number;
+  }
   | { action: "push_stack_value"; componentId?: string; value?: string }
   | { action: "pop_stack_value"; componentId?: string }
   | { action: "add_queue_block"; title?: string; values?: string[] }

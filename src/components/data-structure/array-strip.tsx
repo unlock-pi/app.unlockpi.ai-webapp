@@ -22,10 +22,56 @@ export type ArrayStripProps = {
   highlightElements?: boolean;
   highlightIndices?: boolean;
   className?: string;
+  /**
+   * Several cells under examination at once — the pair a sort is comparing,
+   * or a highlighted range. `activeIndex` stays for the single-cell case.
+   */
+  activeIndices?: number[];
+  /** Cells proven to be in their final sorted position. */
+  settledIndices?: number[];
+  /** The cell that answers the question: a search hit, an inserted slot. */
+  foundIndex?: number;
+  /** A labelled pointer under one cell, e.g. the quicksort pivot. */
+  marker?: { index: number; label: string };
+  /**
+   * A value lifted OUT of the array — insertion sort's held element, merge
+   * sort's buffered value. Shown as a chip above the strip so the duplicate
+   * that in-place shifting creates reads as a copy rather than a glitch.
+   */
+  held?: { value: string; label: string };
 };
 
 const EMPTY_DISABLED_ELEMENTS: number[] = [];
 const EMPTY_VISITED_INDICES: number[] = [];
+const EMPTY_INDICES: number[] = [];
+
+/**
+ * Resolves one cell to a single visual state. Precedence matters: the answer
+ * outranks a settled cell, which outranks one merely being looked at — so a
+ * search hit inside an already-sorted region still reads as the hit.
+ */
+type CellState = "found" | "settled" | "active" | "visited" | "idle";
+
+function cellState(
+  index: number,
+  {
+    foundIndex,
+    settled,
+    active,
+    visited,
+  }: {
+    foundIndex?: number;
+    settled: number[];
+    active: number[];
+    visited: number[];
+  },
+): CellState {
+  if (foundIndex === index) return "found";
+  if (settled.includes(index)) return "settled";
+  if (active.includes(index)) return "active";
+  if (visited.includes(index)) return "visited";
+  return "idle";
+}
 
 // ── Springs ─────────────────────────────────────────────────────────────
 const CELL_SPRING = {
@@ -110,8 +156,17 @@ export function ArrayStrip({
   highlightElements,
   highlightIndices,
   className,
+  activeIndices = EMPTY_INDICES,
+  settledIndices = EMPTY_INDICES,
+  foundIndex,
+  marker,
+  held,
 }: ArrayStripProps) {
   const isTraversing = traversalTarget !== undefined;
+  // `activeIndex` (single) and `activeIndices` (many) are the same concept at
+  // two arities — merge them so the cell logic only deals with one.
+  const allActive =
+    activeIndex === undefined ? activeIndices : [...activeIndices, activeIndex];
   const containerRef = useRef<HTMLDivElement>(null);
   const cellRefsMap = useRef(new Map<number, HTMLDivElement>());
   const stableKeys = useStableKeys(data);
@@ -154,6 +209,25 @@ export function ArrayStrip({
         ) : null}
 
         <div className="relative" ref={containerRef}>
+          <AnimatePresence>
+            {held ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                transition={VALUE_SPRING}
+                className="absolute -top-12 right-0 z-10 flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 backdrop-blur-sm"
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                  {held.label}
+                </span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-amber-400/70 bg-amber-500 text-sm font-medium text-amber-950">
+                  {held.value}
+                </span>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
           {accessExpression ? (
             <AccessExpressionLabel
               expression={accessExpression}
@@ -237,6 +311,17 @@ export function ArrayStrip({
                   isTraversing && isVisited && !isTargetHit;
                 const isPlainActive = !isTraversing && isActive;
                 const shouldDim = dimElements && !isPlainActive && !isTargetHit;
+                // Traversal keeps its own colour rules (the Traverse button
+                // path); the agent's states only apply when no traversal is
+                // running, so the two never fight over the same cell.
+                const agentState = isTraversing
+                  ? "idle"
+                  : cellState(index, {
+                      foundIndex,
+                      settled: settledIndices,
+                      active: allActive,
+                      visited: visitedIndices,
+                    });
 
                 return (
                   <motion.div
@@ -260,6 +345,14 @@ export function ArrayStrip({
                           "border-emerald-500/60 bg-emerald-500 text-white",
                         isPlainActive &&
                           "border-primary/50 bg-primary text-primary-foreground",
+                        agentState === "found" &&
+                          "border-emerald-400 bg-emerald-500 text-white ring-2 ring-emerald-400/50",
+                        agentState === "settled" &&
+                          "border-emerald-600/50 bg-emerald-700 text-white",
+                        agentState === "active" &&
+                          "border-amber-400/70 bg-amber-500 text-amber-950",
+                        agentState === "visited" &&
+                          "bg-muted/50 text-muted-foreground opacity-45",
                         isDisabled && "opacity-30",
                         shouldDim && "opacity-40",
                       )}
@@ -283,6 +376,20 @@ export function ArrayStrip({
                         >
                           {item}
                         </motion.span>
+                      </AnimatePresence>
+
+                      <AnimatePresence>
+                        {marker?.index === index ? (
+                          <motion.span
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.18 }}
+                            className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                          >
+                            {marker.label}
+                          </motion.span>
+                        ) : null}
                       </AnimatePresence>
                     </motion.div>
 
