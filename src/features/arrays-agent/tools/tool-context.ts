@@ -77,6 +77,27 @@ export type ArrayToolContext = {
    * standalone board, where the block tools report that rather than failing.
    */
   blocks?: BlockControls;
+  /**
+   * Working with more than one array at a time. Canvas-only: a frame is what
+   * holds several array blocks side by side.
+   */
+  combine?: CombineControls;
+};
+
+export type CombineControls = {
+  /** Every array block on the frame, in the order they are laid out. */
+  list: () => Array<{ blockId: string; name: string; values: string[] }>;
+  /**
+   * Add another array block to the frame. Returns its name, or null when the
+   * frame has no room — deliberately NOT spilling onto a new frame, because
+   * arrays being combined have to be visible together.
+   */
+  addArray: (values: string[], name?: string) => string | null;
+  /**
+   * Create (or reuse) the block the result goes into, and point the animation
+   * at it. Returns its name, or null when the frame is full.
+   */
+  useResult: (name?: string) => string | null;
 };
 
 export type BlockControls = {

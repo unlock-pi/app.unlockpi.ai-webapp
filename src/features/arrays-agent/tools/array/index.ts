@@ -3,6 +3,7 @@ import { createAccessTools } from "@/features/arrays-agent/tools/array/access";
 import { createAnalysisTools } from "@/features/arrays-agent/tools/array/analysis";
 import { createAnimationTools } from "@/features/arrays-agent/tools/array/animation";
 import { createCanvasTools } from "@/features/arrays-agent/tools/array/canvas";
+import { createCombineTools } from "@/features/arrays-agent/tools/array/combine";
 import { createCreationTools } from "@/features/arrays-agent/tools/array/creation";
 import { createDeletionTools } from "@/features/arrays-agent/tools/array/deletion";
 import { createInsertionTools } from "@/features/arrays-agent/tools/array/insertion";
@@ -32,6 +33,7 @@ export function createArrayTools(ctx: ArrayToolContext) {
     ...createSearchTools(ctx),
     ...createSortingTools(ctx),
     ...createAnalysisTools(ctx),
+    ...createCombineTools(ctx),
     ...createMultidimensionalTools(ctx),
     ...createCanvasTools(ctx),
     ...createAnimationTools(ctx),

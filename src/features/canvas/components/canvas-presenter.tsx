@@ -10,14 +10,10 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleStopIcon,
-  ExpandIcon,
   Grid2X2Icon,
   MicIcon,
   MicOffIcon,
-  MinimizeIcon,
-  PanelRightIcon,
-  PauseIcon,
-  PlayIcon,
+  PhoneOffIcon,
   PowerIcon,
   RotateCcwIcon,
   XIcon,
@@ -29,20 +25,22 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import type { AgentState } from "@livekit/components-react";
 import type { RemoteAudioTrack } from "livekit-client";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import Logo from "@/components/logo";
 import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import {
+  PresenterDock,
+  type DockAction,
+} from "@/features/canvas/components/presenter/presenter-dock";
+import { PresenterFooter } from "@/features/canvas/components/presenter/presenter-footer";
 import type { PresentationControls } from "@/features/arrays-agent/tools/tool-context";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { CopilotPanel } from "@/features/canvas/components/copilot-panel";
@@ -55,7 +53,6 @@ import {
 } from "@/features/canvas/hooks/use-canvas-realtime-session";
 import { useCopilotPanel } from "@/features/canvas/hooks/use-copilot-panel";
 import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
-import { useEdgeReveal } from "@/features/canvas/hooks/use-edge-reveal";
 import { playCanvasActionSound } from "@/features/canvas/lib/canvas-action-sound";
 import {
   applyCanvasAction,
@@ -98,8 +95,19 @@ type CanvasPresenterProps = {
   title: string;
 };
 
+const MIN_ZOOM = 50;
+const MAX_ZOOM = 200;
+const ZOOM_STEP = 10;
+
 /** Keeps a busy frame inside the fixed presentation stage without scrolling. */
-function FittedPresentationFrame({ document }: { document: CanvasDocument }) {
+function FittedPresentationFrame({
+  document,
+  zoom = 1,
+}: {
+  document: CanvasDocument;
+  /** The teacher's zoom, multiplied on top of the automatic fit. */
+  zoom?: number;
+}) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -148,11 +156,17 @@ function FittedPresentationFrame({ document }: { document: CanvasDocument }) {
   }, [document]);
 
   return (
-    <div ref={frameRef} className="size-full" style={{ overflow: "hidden" }}>
+    <div
+      ref={frameRef}
+      className="size-full"
+      // Zoomed past the fit the frame is deliberately larger than its box, so
+      // the teacher can scroll to the part they are talking about.
+      style={{ overflow: zoom > 1 ? "auto" : "hidden" }}
+    >
       <div
         className="size-full"
         style={{
-          transform: `scale(${scale})`,
+          transform: `scale(${scale * zoom})`,
           transformOrigin: "top center",
         }}
       >
@@ -178,6 +192,9 @@ export function CanvasPresenter({
     useState<CanvasPresentationMode>(mode);
   const [hasLiveChanges, setHasLiveChanges] = useState(false);
   const [activityOpen, setActivityOpen] = useState(true);
+  const [zoomPercent, setZoomPercent] = useState(100);
+  /** A one-off line in the dock's pill — "it is already talking", say. */
+  const [transientHint, setTransientHint] = useState<string | null>(null);
   const frames = useMemo(
     () => getCanvasPresentationFrames(runtimeDocument),
     [runtimeDocument],
@@ -464,13 +481,9 @@ export function CanvasPresenter({
   }, [remoteAudioStream]);
   const [captionsOn, setCaptionsOn] = useState(true);
 
-  // Presenter chrome (header + footer + activity/live-changes pills) auto-hides
-  // when the mouse sits still, so the whole viewport is usable for teaching.
-  // Move the mouse and both reveal; hovering the top/bottom edges keeps the
-  // matching bar pinned. In publicView (embedded), we keep them always visible.
-  const edgeReveal = useEdgeReveal();
-  const topVisible = publicView ? true : edgeReveal.top;
-  const bottomVisible = publicView ? true : edgeReveal.bottom;
+  // The dock and the status bar stay put now rather than auto-hiding: the dock
+  // IS the controls, and a teacher should never have to wave the mouse to find
+  // out whether the microphone is live.
 
   // Give the AI sight: every time the visible frame changes — whether the
   // teacher navigated manually or the AI did — tell the model exactly what is
@@ -550,6 +563,154 @@ export function CanvasPresenter({
     onClose?.();
   };
 
+  const voiceConnected = isArraysMode
+    ? arrays.agent.isConnected
+    : realtimeSession.isConnected;
+  const voiceConnecting = isArraysMode
+    ? arrays.agent.status === "connecting"
+    : aiStatus === "connecting";
+  const micLive = isArraysMode ? arrays.agent.micEnabled : !realtimeSession.isPaused;
+
+  const flashHint = (message: string) => {
+    setTransientHint(message);
+    window.setTimeout(() => setTransientHint(null), 2600);
+  };
+
+  const toggleVoice = () => {
+    if (voiceConnected) {
+      if (isArraysMode) arrays.agent.disconnect();
+      else realtimeSession.disconnect();
+      return;
+    }
+    void (isArraysMode ? arrays.agent.connect() : realtimeSession.connect());
+  };
+
+  const dockPrimary: DockAction[] = [
+    {
+      id: "power",
+      label: voiceConnected
+        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
+        : voiceConnecting
+          ? "Connecting…"
+          : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
+      icon: <PowerIcon className="size-4" />,
+      active: voiceConnected,
+      disabled: selectedMode === "manual" || voiceConnecting,
+      onClick: toggleVoice,
+    },
+    {
+      id: "greet",
+      label: "Say hello",
+      text: "HI",
+      icon: null,
+      disabled: !voiceConnected || !isArraysMode,
+      onClick: () => {
+        const spoke = arrays.agent.speakNow(
+          "Greet the class in one short sentence, then say what is on this frame.",
+        );
+        if (!spoke) flashHint("It is already speaking — try again in a moment.");
+      },
+    },
+    {
+      id: "mic",
+      label: micLive ? "Mute your microphone" : "Unmute your microphone",
+      icon: micLive ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />,
+      active: micLive,
+      disabled: !voiceConnected,
+      onClick: () => {
+        if (isArraysMode) arrays.agent.toggleMic();
+        else realtimeSession.togglePause();
+      },
+    },
+    {
+      id: "activity",
+      label: activityOpen ? "Hide agent activity" : "Show agent activity",
+      icon: <ActivityIcon className="size-4" />,
+      active: activityOpen,
+      disabled: !isArraysMode,
+      onClick: () => setActivityOpen((open) => !open),
+    },
+    {
+      id: "end",
+      label: "End class",
+      icon: <PhoneOffIcon className="size-4" />,
+      tone: "danger",
+      onClick: endClass,
+    },
+  ];
+
+  const dockSecondary: DockAction[] = publicView
+    ? []
+    : [
+        {
+          id: "mode-manual",
+          label: "Manual",
+          icon: <CircleStopIcon className="size-4" />,
+          active: selectedMode === "manual",
+          onClick: () => selectMode("manual"),
+        },
+        {
+          id: "mode-voice",
+          label: "Copilot",
+          icon: <MicIcon className="size-4" />,
+          active: selectedMode === "voice",
+          onClick: () => selectMode("voice"),
+        },
+        {
+          id: "mode-companion",
+          label: "Co-teacher",
+          icon: <BotIcon className="size-4" />,
+          active: selectedMode === "companion",
+          onClick: () => selectMode("companion"),
+        },
+        {
+          id: "mode-arrays",
+          label: ARRAYS_AGENT_NAME,
+          icon: <BracketsIcon className="size-4" />,
+          active: isArraysMode,
+          onClick: () => selectMode("arrays"),
+        },
+        {
+          id: "overview",
+          label: "All frames",
+          icon: <Grid2X2Icon className="size-4" />,
+          active: overviewOpen,
+          onClick: () => setOverviewOpen((open) => !open),
+        },
+        {
+          id: "captions",
+          label: captionsOn ? "Hide captions" : "Show captions",
+          icon: captionsOn ? (
+            <CaptionsIcon className="size-4" />
+          ) : (
+            <CaptionsOffIcon className="size-4" />
+          ),
+          active: captionsOn,
+          onClick: () => setCaptionsOn((on) => !on),
+        },
+        ...(hasLiveChanges
+          ? [
+              {
+                id: "reset",
+                label: "Undo live changes",
+                icon: <RotateCcwIcon className="size-4" />,
+                onClick: resetLiveChanges,
+              } satisfies DockAction,
+            ]
+          : []),
+      ];
+
+  const liveCaption = isArraysMode ? arrays.agent.caption : aiCaption;
+  const dockHint =
+    transientHint ??
+    (captionsOn && liveCaption
+      ? liveCaption
+      : selectedMode === "manual"
+        ? "Manual mode · ← → to move between frames"
+        : voiceConnected
+          ? "Listening — just talk to change the board"
+          : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+
   if (!activeFrame) {
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
@@ -571,168 +732,18 @@ export function CanvasPresenter({
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
       className={cn(
-        // Header/footer are now absolute overlays inside this container,
-        // so it just needs to be a full-viewport positioned box — no flex
-        // column with sticky-height children.
-        "canvas-presenter relative h-svh w-full overflow-hidden bg-background text-foreground",
+        // A column: the stage takes the height that is left, and the status
+        // bar sits under it at a fixed height, spanning the activity panel
+        // too. Everything else floats over the stage.
+        "canvas-presenter relative flex h-svh w-full flex-col overflow-hidden bg-background text-foreground",
         !publicView && "fixed inset-0 z-[100]",
       )}
     >
-      <header
-        {...edgeReveal.topHoverHandlers}
-        className={cn(
-          // Fixed overlay so it floats over the presentation instead of
-          // eating the top 4rem of every frame. Slight bg translucency so
-          // the slide beneath is faintly visible — reads as a temporary
-          // control layer, not a page chrome.
-          "absolute inset-x-0 top-0 z-30  flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-md transition-[opacity,transform] duration-300 ease-out sm:px-6",
-          topVisible
-            ? "translate-y-0 opacity-100"
-            : "pointer-events-none -translate-y-full opacity-0",
-        )}
-      >
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
-          {/* <p className="text-xs text-muted-foreground">
-            Frame {activeIndex + 1} of {frames.length} / {activeFrame.title}
-          </p> */}
-        </div>
-
-        {!publicView ? (
-          <div className="order-3 flex w-full items-center justify-center gap-0.5 rounded-lg bg-muted p-0.5 md:order-none md:w-auto">
-            <ModeButton
-              active={selectedMode === "manual"}
-              label="Manual"
-              onClick={() => selectMode("manual")}
-            />
-            <ModeButton
-              active={selectedMode === "voice"}
-              icon={<MicIcon className="size-3.5" />}
-              label="Copilot"
-              onClick={() => selectMode("voice")}
-            />
-            <ModeButton
-              active={selectedMode === "companion"}
-              icon={<BotIcon className="size-3.5" />}
-              label="Co-teacher"
-              onClick={() => selectMode("companion")}
-            />
-            <ModeButton
-              active={isArraysMode}
-              icon={<BracketsIcon className="size-3.5" />}
-              label={ARRAYS_AGENT_NAME}
-              onClick={() => selectMode("arrays")}
-            />
-          </div>
-        ) : null}
-
-        <div className="flex items-center gap-1.5">
-          {!publicView && isArraysMode ? (
-            <>
-              <ArraysAgentControls agent={arrays.agent} />
-              <Button
-                size="icon"
-                variant="ghost"
-                className="relative"
-                aria-label={activityOpen ? "Hide agent activity" : "Show agent activity"}
-                title={activityOpen ? "Hide agent activity" : "Show agent activity"}
-                onClick={() => setActivityOpen((open) => !open)}
-              >
-                <ActivityIcon className="size-4" />
-                {!activityOpen && arrays.agent.latency.toolFailures > 0 ? (
-                  <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-destructive" />
-                ) : null}
-              </Button>
-            </>
-          ) : null}
-          {!publicView && isCopilotMode ? (
-            <RealtimeControls session={realtimeSession} />
-          ) : null}
-          {!publicView && isCopilotMode ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={captionsOn ? "Hide captions" : "Show captions"}
-              title={captionsOn ? "Hide captions" : "Show captions"}
-              onClick={() => setCaptionsOn((on) => !on)}
-            >
-              {captionsOn ? (
-                <CaptionsIcon className="size-4" />
-              ) : (
-                <CaptionsOffIcon className="size-4 text-muted-foreground" />
-              )}
-            </Button>
-          ) : null}
-          {!publicView && isCopilotMode ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="relative"
-              aria-label={
-                panelOpen ? "Hide Copilot panel" : "Show Copilot panel"
-              }
-              onClick={() => setPanelOpen((open) => !open)}
-            >
-              <PanelRightIcon className="size-4" />
-              {!panelOpen && panel.items.length > 0 ? (
-                <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" />
-              ) : null}
-            </Button>
-          ) : null}
-          {hasLiveChanges ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-muted-foreground"
-              aria-label="Reset temporary class changes"
-              title="Reset temporary class changes"
-              onClick={resetLiveChanges}
-            >
-              <RotateCcwIcon className="size-4" />
-            </Button>
-          ) : null}
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Open frame overview"
-            onClick={() => setOverviewOpen((open) => !open)}
-          >
-            <Grid2X2Icon className="size-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            onClick={() => void toggleFullscreen()}
-          >
-            {isFullscreen ? (
-              <MinimizeIcon className="size-4" />
-            ) : (
-              <ExpandIcon className="size-4" />
-            )}
-          </Button>
-          {onClose ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              aria-label="End class"
-              onClick={endClass}
-            >
-              <CircleStopIcon className="size-4" />
-              <span className="hidden sm:inline">End class</span>
-            </Button>
-          ) : null}
-        </div>
-      </header>
 
       {aiActivity ? (
         <div
           className={cn(
-            // Pinned just below the header — fades with it so nothing floats
-            // in the middle of the frame when chrome is hidden.
-            "pointer-events-none absolute  left-1/2 top-[4.75rem] z-30 flex max-w-[80vw] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-1 text-[11px] font-medium backdrop-blur-md transition-opacity duration-300",
-            topVisible ? "opacity-100" : "opacity-0",
+            "pointer-events-none absolute left-1/2 top-6 z-30 flex max-w-[80vw] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-1 text-[11px] font-medium backdrop-blur-md",
           )}
         >
           <span
@@ -754,8 +765,7 @@ export function CanvasPresenter({
       {hasLiveChanges ? (
         <div
           className={cn(
-            "absolute left-4 top-[4.75rem] z-30 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md transition-opacity duration-300",
-            topVisible ? "opacity-100" : "opacity-0",
+            "absolute left-6 top-24 z-30 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur-md",
           )}
         >
           <span
@@ -766,8 +776,8 @@ export function CanvasPresenter({
         </div>
       ) : null}
 
-      {/* Fills the whole viewport now that the header/footer are overlays. */}
-      <div className="absolute inset-0 flex">
+      {/* The stage row: board on the left, agent panel on the right. */}
+      <div className="relative flex min-h-0 flex-1">
         <main
           className="relative grid flex-1 place-items-center overflow-hidden"
           onPointerDown={(event) => {
@@ -781,6 +791,21 @@ export function CanvasPresenter({
             goTo(activeIndex + (distance < 0 ? 1 : -1));
           }}
         >
+          <div className="pointer-events-none absolute left-6 top-6 z-20 flex max-w-[60%] gap-3">
+            <span
+              aria-hidden="true"
+              className="mt-1 w-1 shrink-0 rounded-full bg-foreground/70"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold uppercase tracking-[0.06em] text-foreground">
+                {title}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                {activeFrame.title}
+              </p>
+            </div>
+          </div>
+
           {aiConnected ? (
             // Anchored inside `main` (not the outer presenter) so it shares the
             // same box the frame card centers in — when the Copilot panel opens
@@ -822,7 +847,10 @@ export function CanvasPresenter({
                 ? arrays.viewProviderProps
                 : { blockId: null, view: null, showIndices: true, isAnimating: false })}
             >
-              <FittedPresentationFrame document={activeFrame.document} />
+              <FittedPresentationFrame
+                document={activeFrame.document}
+                zoom={zoomPercent / 100}
+              />
             </ArraysAgentViewProvider>
           </div>
 
@@ -834,6 +862,17 @@ export function CanvasPresenter({
               />
             </div>
           ) : null}
+
+          {/* A shared/embedded canvas has no AI session and no class to end. */}
+          {publicView ? null : (
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center px-4">
+              <PresenterDock
+                primary={dockPrimary}
+                secondary={dockSecondary}
+                hint={dockHint}
+              />
+            </div>
+          )}
 
           <FrameArrow
             direction="previous"
@@ -875,54 +914,23 @@ export function CanvasPresenter({
 
       {/* Outside Puck's animated render tree so it stays in the actual
           presentation corner, rather than the bottom of a content block. */}
-      <div className="canvas-presentation-watermark pointer-events-none absolute bottom-6 right-6 z-20 flex items-center gap-1.5 rounded-md bg-background/75 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 backdrop-blur-sm">
-        <span>Made with</span>
-        <Logo
-          isLink={false}
-          width={18}
-          height={18}
-          className="rounded-full bg-background/70"
-        />
-        <span>UnlockPi</span>
-      </div>
 
-      <footer
-        {...edgeReveal.bottomHoverHandlers}
-        className={cn(
-          "absolute inset-x-0 bottom-0 z-30 flex h-12 items-center justify-center gap-1 border-t border-border bg-background/80 px-4 backdrop-blur-md transition-[opacity,transform] duration-300 ease-out",
-          bottomVisible
-            ? "translate-y-0 opacity-100"
-            : "pointer-events-none translate-y-full opacity-0",
-        )}
-      >
-        {frames.map((frame) => (
-          <button
-            key={frame.id}
-            type="button"
-            aria-label={`Go to frame ${frame.index + 1}`}
-            onClick={() => goTo(frame.index)}
-            className={cn(
-              "h-1.5 rounded-full transition-all",
-              frame.index === activeIndex
-                ? "w-8 bg-primary"
-                : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/60",
-            )}
-          />
-        ))}
-      </footer>
 
-      {captionsOn && aiCaption ? (
-        // Captions ride just above the footer bar — fade together so the
-        // caption doesn't linger over the frame after the chrome goes.
-        <div
-          className={cn(
-            "pointer-events-none absolute bottom-20 left-1/2 z-30 w-[min(90%,42rem)] -translate-x-1/2 rounded-xl border border-border bg-background/85 px-4 py-2.5 text-center text-sm leading-snug text-foreground shadow-lg backdrop-blur-md transition-opacity duration-300",
-            bottomVisible ? "opacity-100" : "opacity-0",
-          )}
-        >
-          {aiCaption}
-        </div>
-      ) : null}
+
+      <PresenterFooter
+        frameNumber={activeIndex + 1}
+        frameCount={frames.length}
+        onPrevious={() => goTo(activeIndex - 1)}
+        onNext={() => goTo(activeIndex + 1)}
+        zoomPercent={zoomPercent}
+        onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
+        onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
+        onZoomReset={() => setZoomPercent(100)}
+        canZoomIn={zoomPercent < MAX_ZOOM}
+        canZoomOut={zoomPercent > MIN_ZOOM}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={() => void toggleFullscreen()}
+      />
 
       {realtimeSession.error ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
@@ -939,137 +947,6 @@ export function CanvasPresenter({
         />
       ) : null}
     </motion.div>
-  );
-}
-
-function ModeButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon?: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-[color,background-color,box-shadow]",
-        active
-          ? "bg-background text-foreground shadow-sm/5"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function RealtimeControls({
-  session,
-}: {
-  session: ReturnType<typeof useCanvasRealtimeSession>;
-}) {
-  return (
-    <div className="mr-1 flex items-center gap-1">
-      {!session.isConnected ? (
-        session.status === "connecting" ? (
-          <Spinner className="size-5 text-primary" aria-label="Connecting" />
-        ) : (
-          <Button size="sm" onClick={() => void session.connect()}>
-            <PowerIcon aria-hidden="true" />
-            Connect AI
-          </Button>
-        )
-      ) : (
-        <>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={session.togglePause}
-            aria-label={
-              session.isPaused ? "Resume listening" : "Pause listening"
-            }
-          >
-            {session.isPaused ? (
-              <PlayIcon className="size-3.5" />
-            ) : (
-              <PauseIcon className="size-3.5" />
-            )}
-          </Button>
-          <span className="hidden items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground lg:flex">
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                session.isPaused
-                  ? "bg-muted-foreground"
-                  : "animate-pulse bg-primary",
-              )}
-              aria-hidden="true"
-            />
-            {session.isPaused ? "Paused" : "Live"}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={session.disconnect}
-          >
-            <MicOffIcon className="size-3.5" />
-            <span className="hidden xl:inline">Disconnect</span>
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
-
-function ArraysAgentControls({
-  agent,
-}: {
-  agent: ReturnType<typeof useArraysAgentOnCanvas>["agent"];
-}) {
-  return (
-    <div className="mr-1 flex items-center gap-1">
-      {!agent.isConnected ? (
-        agent.status === "connecting" ? (
-          <Spinner className="size-5 text-primary" aria-label="Connecting" />
-        ) : (
-          <Button size="sm" onClick={() => void agent.connect()}>
-            <PowerIcon aria-hidden="true" />
-            Start {ARRAYS_AGENT_NAME}
-          </Button>
-        )
-      ) : (
-        <>
-          <span className="hidden items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground lg:flex">
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                agent.isAnimating ? "animate-pulse bg-warning" : "animate-pulse bg-primary",
-              )}
-              aria-hidden="true"
-            />
-            {agent.isAnimating ? "Animating" : "Listening"}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={agent.disconnect}
-          >
-            <MicOffIcon className="size-3.5" />
-            <span className="hidden xl:inline">Disconnect</span>
-          </Button>
-        </>
-      )}
-    </div>
   );
 }
 

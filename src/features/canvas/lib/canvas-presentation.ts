@@ -1,3 +1,4 @@
+import { arrayNameFromTitle } from "@/features/arrays-agent/lib/array-name";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";
 
 /**
@@ -242,6 +243,7 @@ export function describeFrameReadable(
       case "BodyText":
         return `${position}: "${clip(block.text ?? "", 600)}"`;
       case "Array":
+        return `${position} ${arrayNameFromTitle(block.title)} = [${(block.values ?? []).join(", ")}] (${block.values?.length ?? 0} elements)`;
       case "Stack":
       case "Queue":
       case "LinkedList":

@@ -30,6 +30,7 @@ import type {
   ArrayOverlay,
   ArrayToolContext,
   BlockControls,
+  CombineControls,
   PresentationControls,
 } from "@/features/arrays-agent/tools/tool-context";
 import {
@@ -69,6 +70,8 @@ type UseArraysVoiceAgentArgs = {
   presentation?: PresentationControls;
   /** Frame block editing, when running on a canvas. */
   blocks?: BlockControls;
+  /** Multi-array operations, when running on a canvas. */
+  combine?: CombineControls;
 };
 
 /** How many overlays stay on the board before the oldest is dropped. */
@@ -84,6 +87,7 @@ export function useArraysVoiceAgent({
   onClear,
   presentation,
   blocks,
+  combine,
 }: UseArraysVoiceAgentArgs = {}) {
   const [status, setStatus] = useState<RealtimeStatus | "paused">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +101,8 @@ export function useArraysVoiceAgent({
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   /** True while the model is generating or speaking. */
   const [isResponding, setIsResponding] = useState(false);
+  /** False while the teacher has muted themselves from the dock. */
+  const [micEnabled, setMicEnabled] = useState(true);
   const player = useArrayPlayer();
 
   const logEvent = useCallback((event: AgentEvent) => {
@@ -154,6 +160,7 @@ export function useArraysVoiceAgent({
   const onClearRef = useRef(onClear);
   const presentationRef = useRef(presentation);
   const blocksRef = useRef(blocks);
+  const combineRef = useRef(combine);
 
   useEffect(() => {
     onCommitRef.current = onCommit;
@@ -161,7 +168,8 @@ export function useArraysVoiceAgent({
     onClearRef.current = onClear;
     presentationRef.current = presentation;
     blocksRef.current = blocks;
-  }, [blocks, onClear, onCommit, onEnsureArray, presentation]);
+    combineRef.current = combine;
+  }, [blocks, combine, onClear, onCommit, onEnsureArray, presentation]);
 
   // ── Context window ───────────────────────────────────────────────────
   /** Send the one LIVE CONTEXT message, replacing its previous copy. */
@@ -232,6 +240,9 @@ export function useArraysVoiceAgent({
       },
       get blocks() {
         return blocksRef.current;
+      },
+      get combine() {
+        return combineRef.current;
       },
       play(result: ArrayOpResult) {
         if (!result.rejected) {
@@ -405,6 +416,7 @@ export function useArraysVoiceAgent({
     setRemoteStream(null);
     setIsUserSpeaking(false);
     setIsResponding(false);
+    setMicEnabled(true);
     setStatus("idle");
   }, []);
 
@@ -540,6 +552,24 @@ export function useArraysVoiceAgent({
     [bumpState, player.controls, syncBoard],
   );
 
+  /** Mute or unmute the teacher's microphone without ending the session. */
+  const toggleMic = useCallback(() => {
+    setMicEnabled((enabled) => {
+      const next = !enabled;
+      clientRef.current?.setMicrophoneEnabled(next);
+      return next;
+    });
+  }, []);
+
+  /**
+   * Ask the agent to say something now. Returns false when it is already
+   * talking or the teacher is mid-sentence — the dock reports that rather
+   * than queueing a greeting that would arrive over the top of them.
+   */
+  const speakNow = useCallback((instructions: string) => {
+    return clientRef.current?.requestResponse(instructions) ?? false;
+  }, []);
+
   const dismissOverlay = useCallback((id: string) => {
     setOverlays((previous) => previous.filter((overlay) => overlay.id !== id));
   }, []);
@@ -574,6 +604,9 @@ export function useArraysVoiceAgent({
     isUserSpeaking,
     latency,
     isAnimating: player.isPlaying,
+    micEnabled,
+    toggleMic,
+    speakNow,
     /** The beat playing right now, for narrating the animation as it runs. */
     animationNote: player.isPlaying ? (player.frame?.note ?? "") : "",
     animationProgress: player.progress,

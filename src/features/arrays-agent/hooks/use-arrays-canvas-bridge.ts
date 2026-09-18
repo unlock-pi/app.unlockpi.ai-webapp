@@ -7,8 +7,16 @@ import {
   parseArrayFromCode,
   type CodeLanguageName,
 } from "@/features/arrays-agent/lib/array-code";
+import {
+  arrayNameFromTitle,
+  DEFAULT_ARRAY_NAME,
+  nextArrayName,
+} from "@/features/arrays-agent/lib/array-name";
 import type { ArrayValue } from "@/features/arrays-agent/lib/array-types";
-import type { BlockControls } from "@/features/arrays-agent/tools/tool-context";
+import type {
+  BlockControls,
+  CombineControls,
+} from "@/features/arrays-agent/tools/tool-context";
 import {
   applyCanvasAction,
   FRAME_CONTENT_LIMIT_MESSAGE,
@@ -42,16 +50,10 @@ type SlideLike = {
 export type FrameArraySnapshot = {
   blockId: string;
   values: string[];
-  /**
-   * The variable name drawn beside the strip. The array block always draws
-   * "A", so that is the name — the block's stored title ("Array A" by
-   * default) is not a valid identifier and used to leak into generated code.
-   */
+  /** The variable name drawn beside the strip — A, B, C… */
   name: string;
   showIndices: boolean;
 };
-
-export const CANVAS_ARRAY_NAME = "A";
 
 function slidesOf(document: CanvasDocument): SlideLike[] {
   return (document.content as unknown as SlideLike[]).filter(
@@ -96,9 +98,15 @@ export function readArrayFromFrame(
   return {
     blockId: block.props.id,
     values: (block.props.values ?? []).map((entry) => String(entry.value)),
-    name: CANVAS_ARRAY_NAME,
+    name: arrayNameFromTitle(block.props.title),
     showIndices: block.props.showIndices ?? true,
   };
+}
+
+/** Every array block on a frame, in layout order. */
+function arrayBlocksOf(document: CanvasDocument, frameId: string | null): BlockLike[] {
+  const slide = slidesOf(document).find((item) => item.props.id === frameId);
+  return (slide?.props.content ?? []).filter((item) => item.type === "ArrayBlock");
 }
 
 type BridgeArgs = {
@@ -226,6 +234,64 @@ export function useArraysCanvasBridge({
     [applyDocument, getActiveFrameId, getDocument, setTarget],
   );
 
+  /**
+   * Several arrays on one frame — what concatenation and element-wise
+   * addition need. The sources stay put and the result gets its own block, so
+   * the class can see all three at once.
+   */
+  const combineControls = useMemo<CombineControls>(() => {
+    const addArray = (values: ArrayValue[], name?: string): string | null => {
+      const document = getDocument();
+      const frameId = getActiveFrameId();
+      const existing = arrayBlocksOf(document, frameId).map((block) =>
+        arrayNameFromTitle(block.props.title),
+      );
+      const title = name ?? nextArrayName(existing);
+
+      const result = applyCanvasAction(document, frameId, {
+        action: "add_array_block",
+        title,
+        values,
+      });
+      // Deliberately no overflow onto a new frame: arrays being combined are
+      // only meaningful side by side.
+      if (result.message === FRAME_CONTENT_LIMIT_MESSAGE) return null;
+
+      applyDocument(result.document, result.activeSlideId);
+      const created = arrayBlocksOf(result.document, result.activeSlideId).at(-1);
+      setTarget(created?.props.id ?? null);
+      return title;
+    };
+
+    return {
+      list() {
+        return arrayBlocksOf(getDocument(), getActiveFrameId()).map((block) => ({
+          blockId: block.props.id,
+          name: arrayNameFromTitle(block.props.title),
+          values: (block.props.values ?? []).map((entry) => String(entry.value)),
+        }));
+      },
+      addArray,
+      useResult(name) {
+        const document = getDocument();
+        const frameId = getActiveFrameId();
+        const blocks = arrayBlocksOf(document, frameId);
+        const existing = name
+          ? blocks.find((block) => arrayNameFromTitle(block.props.title) === name)
+          : undefined;
+
+        if (existing) {
+          setTarget(existing.props.id);
+          return arrayNameFromTitle(existing.props.title);
+        }
+        return addArray(
+          [],
+          name ?? nextArrayName(blocks.map((block) => arrayNameFromTitle(block.props.title))),
+        );
+      },
+    };
+  }, [applyDocument, getActiveFrameId, getDocument, setTarget]);
+
   const releaseTarget = useCallback(() => {
     setTarget(null);
     linkedCodeRef.current = null;
@@ -328,7 +394,7 @@ export function useArraysCanvasBridge({
 
       linkCode(language) {
         const snapshot = readArrayFromFrame(getDocument(), getActiveFrameId());
-        const name = snapshot?.name ?? CANVAS_ARRAY_NAME;
+        const name = snapshot?.name ?? DEFAULT_ARRAY_NAME;
         const values = snapshot?.values ?? [];
         const lang = language as CodeLanguageName;
 
@@ -426,6 +492,7 @@ export function useArraysCanvasBridge({
     targetBlockId,
     adoptFrameArray,
     blockControls,
+    combineControls,
     commitValues,
     ensureArrayBlock,
     releaseTarget,

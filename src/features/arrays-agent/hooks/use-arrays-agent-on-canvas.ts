@@ -52,8 +52,14 @@ export function useArraysAgentOnCanvas({
     applyDocument,
   });
 
-  const { adoptFrameArray, blockControls, commitValues, ensureArrayBlock, releaseTarget } =
-    bridge;
+  const {
+    adoptFrameArray,
+    blockControls,
+    combineControls,
+    commitValues,
+    ensureArrayBlock,
+    releaseTarget,
+  } = bridge;
 
   const handleEnsureArray = useCallback(
     (values: ArrayValue[], name: string) => {
@@ -78,6 +84,7 @@ export function useArraysAgentOnCanvas({
     onClear: releaseTarget,
     presentation,
     blocks: blockControls,
+    combine: combineControls,
   });
 
   // Re-point the agent at whatever array the class is now looking at.

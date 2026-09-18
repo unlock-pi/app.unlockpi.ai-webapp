@@ -145,7 +145,12 @@ export class OpenAIRealtimeClient {
         },
       });
       if (!sdpResponse.ok) {
-        throw new Error("OpenAI rejected the realtime connection.");
+        // Read the body. This used to throw a generic "OpenAI rejected the
+        // realtime connection", which looks identical whether the account is
+        // out of credits, the key is wrong, or the model name is — three very
+        // different fixes, and no way to tell them apart from the UI.
+        const detail = await sdpResponse.text().catch(() => "");
+        throw new Error(describeApiFailure(sdpResponse.status, detail));
       }
       await peerConnection.setRemoteDescription({
         type: "answer",
@@ -221,6 +226,32 @@ export class OpenAIRealtimeClient {
         content: [{ type: "input_text", text }],
       },
     });
+  }
+
+  /** Mute or unmute the microphone without dropping the session. */
+  setMicrophoneEnabled(enabled: boolean): void {
+    this.localStream?.getAudioTracks().forEach((track) => {
+      track.enabled = enabled;
+    });
+  }
+
+  isMicrophoneEnabled(): boolean {
+    const track = this.localStream?.getAudioTracks()[0];
+    return track ? track.enabled : false;
+  }
+
+  /**
+   * Ask the model to speak now — a greeting, a recap. Returns false when a
+   * response is already running or the teacher is mid-sentence, because the
+   * API would reject it and the agent would talk over them.
+   */
+  requestResponse(instructions?: string): boolean {
+    if (this.responseActive || this.userSpeaking) return false;
+    this.sendEvent({
+      type: "response.create",
+      ...(instructions ? { response: { instructions } } : {}),
+    });
+    return true;
   }
 
   private setStatus(status: RealtimeStatus) {
@@ -427,4 +458,34 @@ export class OpenAIRealtimeClient {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : "The tool failed to run.";
+}
+
+/**
+ * Turn an OpenAI error response into something a teacher can act on.
+ *
+ * The common failures are not code problems — no credits, a bad key, a model
+ * the account cannot use — so the message has to say which one it is rather
+ * than "rejected".
+ */
+export function describeApiFailure(status: number, body: string): string {
+  let message = "";
+  let code = "";
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; code?: string } };
+    message = parsed.error?.message ?? "";
+    code = parsed.error?.code ?? "";
+  } catch {
+    message = body.slice(0, 200);
+  }
+
+  if (code === "credit_balance_exhausted" || code === "insufficient_quota") {
+    return "Your OpenAI account has no credits left, so the session cannot start. Add credits in the OpenAI billing settings and try again.";
+  }
+  if (status === 401 || status === 403) {
+    return `OpenAI refused the key (HTTP ${status}). Check OPENAI_API_KEY and that the project may use the Realtime API.${message ? ` ${message}` : ""}`;
+  }
+  if (status === 429) {
+    return `OpenAI is rate-limiting this account (HTTP 429).${message ? ` ${message}` : ""}`;
+  }
+  return `OpenAI rejected the connection (HTTP ${status}).${message ? ` ${message}` : ""}`;
 }
