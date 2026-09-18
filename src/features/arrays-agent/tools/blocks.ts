@@ -112,7 +112,7 @@ export function createBlockTools(ctx: ArrayToolContext) {
 
     show_array_as_code: tool({
       description:
-        "Put a code block on the frame that mirrors the array on screen, and keep it in sync as the array changes. Use for 'show the code for this array', 'what does this look like in Python', 'keep the code in sync'. After this, every insert, delete or sort updates the code too.",
+        "Show the code under the array and keep the two in sync from then on. The block shows the declaration (A = [1, 2, 3]) and, after each operation, the line that performed it (A.splice(2, 0, 10)) with the explanation. Use for 'show the code', 'show the code and array together', 'what does this look like in Python'. If the teacher already wrote a code block on the frame, theirs is used and their style is kept. Python shows Python (A.insert(2, 10)); Java, C and C++ show the declaration only, since their arrays are fixed-size.",
       inputSchema: z.object({
         language: z
           .enum(["javascript", "typescript", "python", "java", "cpp", "c"])
@@ -125,6 +125,16 @@ export function createBlockTools(ctx: ArrayToolContext) {
           return fail(ctx, "There is no array on the board yet to mirror in code.");
         }
         return report(ctx, ctx.blocks.linkCode(language));
+      },
+    }),
+
+    hide_code: tool({
+      description:
+        "Remove the code block from the frame, leaving the array on its own. Use for 'hide the code', 'just the array', 'take the code away'.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!ctx.blocks) return fail(ctx, NO_CANVAS);
+        return report(ctx, ctx.blocks.hideCode());
       },
     }),
 

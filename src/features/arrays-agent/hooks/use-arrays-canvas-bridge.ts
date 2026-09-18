@@ -3,10 +3,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
-  generateArrayCode,
+  buildSyncedCode,
   parseArrayFromCode,
+  parseDeclarationStyle,
   type CodeLanguageName,
+  type DeclarationStyle,
 } from "@/features/arrays-agent/lib/array-code";
+import {
+  codeForOperation,
+  type OperationRequest,
+} from "@/features/arrays-agent/lib/operation-code";
 import {
   arrayNameFromTitle,
   DEFAULT_ARRAY_NAME,
@@ -104,6 +110,42 @@ export function readArrayFromFrame(
 }
 
 /** Every array block on a frame, in layout order. */
+/**
+ * Put the code block directly under the array it describes.
+ *
+ * Blocks are appended to the end of a frame, so on a frame with a paragraph
+ * after the array the code would land below the paragraph — far from the strip
+ * it is meant to be read against. The class should be able to look at one line
+ * and the cells it moves without their eyes leaving the pair.
+ */
+function placeCodeUnderArray(
+  document: CanvasDocument,
+  frameId: string | null,
+  codeBlockId: string,
+): CanvasDocument {
+  const content = (document.content as unknown as SlideLike[])
+    .find((item) => item.type === "SlideBlock" && item.props.id === frameId)
+    ?.props.content;
+  if (!content) return document;
+
+  const arrayAt = content.findIndex((item) => item.type === "ArrayBlock");
+  const codeAt = content.findIndex((item) => item.props.id === codeBlockId);
+  if (arrayAt < 0 || codeAt < 0 || codeAt === arrayAt + 1) return document;
+
+  const rest = content.filter((_, index) => index !== codeAt);
+  const target = rest.findIndex((item) => item.type === "ArrayBlock") + 1;
+  const reordered = [...rest.slice(0, target), content[codeAt], ...rest.slice(target)];
+
+  return {
+    ...document,
+    content: (document.content as unknown as SlideLike[]).map((item) =>
+      item.type === "SlideBlock" && item.props.id === frameId
+        ? { ...item, props: { ...item.props, content: reordered } }
+        : item,
+    ),
+  } as unknown as CanvasDocument;
+}
+
 function arrayBlocksOf(document: CanvasDocument, frameId: string | null): BlockLike[] {
   const slide = slidesOf(document).find((item) => item.props.id === frameId);
   return (slide?.props.content ?? []).filter((item) => item.type === "ArrayBlock");
@@ -200,11 +242,13 @@ export function useArraysCanvasBridge({
   const linkedCodeRef = useRef<{
     blockId: string;
     language: CodeLanguageName;
+    /** The teacher's own declaration style, preserved rather than rewritten. */
+    style: DeclarationStyle;
   } | null>(null);
 
   /** Write settled values into the document — called when an animation ends. */
   const commitValues = useCallback(
-    (values: ArrayValue[], arrayName = "A") => {
+    (values: ArrayValue[], arrayName = "A", operation?: OperationRequest | null) => {
       const document = getDocument();
       const frameId = getActiveFrameId();
       const blockId = targetBlockIdRef.current ?? findArrayBlockOnFrame(document, frameId);
@@ -226,7 +270,23 @@ export function useArraysCanvasBridge({
         result = applyCanvasAction(result.document, result.activeSlideId, {
           action: "set_code_block",
           componentId: linked.blockId,
-          code: generateArrayCode(arrayName, values, linked.language),
+          code: buildSyncedCode({
+            name: arrayName,
+            values,
+            language: linked.language,
+            style: linked.style,
+            // Rendered here because only the block knows what language it is
+            // written in: the same insert is a splice in JavaScript and an
+            // insert in Python.
+            operation: operation
+              ? codeForOperation(
+                  operation.tool,
+                  operation.args,
+                  arrayName,
+                  linked.language,
+                )
+              : null,
+          }),
         });
       }
       applyDocument(result.document, result.activeSlideId);
@@ -393,21 +453,105 @@ export function useArraysCanvasBridge({
       },
 
       linkCode(language) {
-        const snapshot = readArrayFromFrame(getDocument(), getActiveFrameId());
+        const document = getDocument();
+        const frameId = getActiveFrameId();
+        const snapshot = readArrayFromFrame(document, frameId);
         const name = snapshot?.name ?? DEFAULT_ARRAY_NAME;
         const values = snapshot?.values ?? [];
         const lang = language as CodeLanguageName;
 
-        const { result, overflowed } = applyWithOverflow(
-          {
-            action: "add_code_block",
-            title: `${name} in ${language}`,
+        // If the teacher already put a code block on this frame, adopt it
+        // rather than adding a second one — and keep the way they wrote the
+        // declaration.
+        const existingCode = (
+          slidesOf(document).find((item) => item.props.id === frameId)?.props.content ?? []
+        ).find((item) => item.type === "CodeBlock");
+        const style = parseDeclarationStyle(existingCode?.props.code ?? "") ?? "bare";
+
+        if (existingCode) {
+          linkedCodeRef.current = { blockId: existingCode.props.id, language: lang, style };
+          const result = applyCanvasAction(document, frameId, {
+            action: "set_code_block",
+            componentId: existingCode.props.id,
             language: lang as CodeLanguage,
-            code: generateArrayCode(name, values, lang),
-            explanation: "This updates automatically as the array changes.",
+            code: buildSyncedCode({ name, values, language: lang, style }),
+          });
+          applyDocument(result.document, result.activeSlideId);
+          return `Using the code block already on this frame, in your own style. It now tracks ${name} and updates with every operation.`;
+        }
+
+        const declarationOnly = buildSyncedCode({ name, values, language: lang, style });
+        // Ask the frame for room at the block's FULL height, not the two lines
+        // it starts at. Once an operation runs it grows to the operation line,
+        // its underline and the explanation — deciding on the short version
+        // would let it be placed somewhere it cannot actually live.
+        const atFullHeight = buildSyncedCode({
+          name,
+          values,
+          language: lang,
+          style,
+          operation: {
+            line: `${name}.splice(0, 0, 0)`,
+            explanation: "Room kept for the line that runs on each step.",
           },
-          `${name} in ${language}`,
-        );
+        });
+        const codeBlockAction: CanvasAiAction = {
+          action: "add_code_block",
+          title: `${name} in ${language}`,
+          language: lang as CodeLanguage,
+          code: atFullHeight,
+          explanation: "Updates with every operation on the array.",
+        };
+
+        let result = applyCanvasAction(document, frameId, codeBlockAction);
+        let overflowed = false;
+
+        if (result.message === FRAME_CONTENT_LIMIT_MESSAGE) {
+          // The frame is too full to hold both. Code on one frame and the
+          // array on another teaches nothing — the whole point is watching the
+          // line and the strip move together — so the pair moves to a fresh
+          // frame and the original frame keeps its text intact.
+          const withFrame = applyCanvasAction(document, frameId, {
+            action: "add_frame",
+            title: `${name} + code`,
+          });
+          const withArray = applyCanvasAction(withFrame.document, withFrame.activeSlideId, {
+            action: "add_array_block",
+            title: name,
+            values,
+          });
+          result = applyCanvasAction(withArray.document, withArray.activeSlideId, codeBlockAction);
+          overflowed = true;
+        }
+
+        // Placed at full height; now show what is actually true so far, and
+        // move it up against the array.
+        const placed = (
+          slidesOf(result.document).find((item) => item.props.id === result.activeSlideId)
+            ?.props.content ?? []
+        ).filter((item) => item.type === "CodeBlock").at(-1);
+        if (placed) {
+          result = applyCanvasAction(result.document, result.activeSlideId, {
+            action: "set_code_block",
+            componentId: placed.props.id,
+            code: declarationOnly,
+          });
+          result = {
+            ...result,
+            document: placeCodeUnderArray(
+              result.document,
+              result.activeSlideId,
+              placed.props.id,
+            ),
+          };
+        }
+
+        applyDocument(result.document, result.activeSlideId);
+
+        if (overflowed) {
+          // Drive the copy the class is now looking at, not the one left behind.
+          setTarget(findArrayBlockOnFrame(result.document, result.activeSlideId));
+        }
 
         // Remember which block to rewrite on every later commit.
         const slide = slidesOf(result.document).find(
@@ -418,12 +562,32 @@ export function useArraysCanvasBridge({
         );
         const created = codeBlocks[codeBlocks.length - 1];
         linkedCodeRef.current = created
-          ? { blockId: created.props.id, language: lang }
+          ? { blockId: created.props.id, language: lang, style }
           : null;
 
         return created
-          ? `Added a ${language} code block mirroring ${name}. It will stay in sync as the array changes.${overflowed ? " The frame was full, so it went on a new frame." : ""}`
+          ? `Added a ${language} code block under ${name}. It shows the declaration and the code for each operation as you go.${overflowed ? ` The frame was full, so ${name} and its code are on a new frame together.` : ""}`
           : "Could not add the code block to this frame.";
+      },
+
+      hideCode() {
+        const linked = linkedCodeRef.current;
+        const document = getDocument();
+        const frameId = getActiveFrameId();
+        const result = applyCanvasAction(document, frameId, {
+          action: "remove_block",
+          componentId: linked?.blockId,
+          blockType: "CodeBlock",
+        });
+        applyDocument(result.document, result.activeSlideId);
+        linkedCodeRef.current = null;
+        return result.message.startsWith("Could not")
+          ? "There is no code block on this frame to hide."
+          : "Hid the code. The array is untouched.";
+      },
+
+      isCodeVisible() {
+        return linkedCodeRef.current !== null;
       },
 
       addFrame({ title, copyCurrent }) {

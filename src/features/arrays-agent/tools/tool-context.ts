@@ -117,6 +117,10 @@ export type BlockControls = {
   linkCode: (language: string) => string;
   /** Read an array literal back out of the frame's code block. */
   readCodeArray: () => { name: string | null; values: string[] } | null;
+  /** Remove the code block, leaving the array. */
+  hideCode: () => string;
+  /** Whether a code block is currently tracking the array. */
+  isCodeVisible: () => boolean;
   /** Remove every block from the frame now showing. */
   clearFrame: () => string;
   /**

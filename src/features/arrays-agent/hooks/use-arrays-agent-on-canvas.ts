@@ -8,6 +8,7 @@ import type {
   ArrayAgentState,
   ArrayValue,
 } from "@/features/arrays-agent/lib/array-types";
+import type { OperationRequest } from "@/features/arrays-agent/lib/operation-code";
 import type { PresentationControls } from "@/features/arrays-agent/tools/tool-context";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";
 
@@ -69,8 +70,8 @@ export function useArraysAgentOnCanvas({
   );
 
   const handleCommit = useCallback(
-    (values: ArrayValue[], state: ArrayAgentState) => {
-      commitValues(values, state.array.name);
+    (values: ArrayValue[], state: ArrayAgentState, operation?: OperationRequest | null) => {
+      commitValues(values, state.array.name, operation);
     },
     [commitValues],
   );

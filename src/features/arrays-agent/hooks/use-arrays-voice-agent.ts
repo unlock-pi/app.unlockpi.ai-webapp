@@ -18,6 +18,9 @@ import {
 } from "@/features/arrays-agent/lib/agent-memory";
 import { toDisplayValues } from "@/features/arrays-agent/lib/array-frames";
 import {
+  type OperationRequest,
+} from "@/features/arrays-agent/lib/operation-code";
+import {
   createInitialAgentState,
   describeAgentState,
   type ArrayAgentState,
@@ -54,7 +57,11 @@ type UseArraysVoiceAgentArgs = {
    * parent component's state. Called after every change, with the settled
    * values rather than every animation beat.
    */
-  onCommit?: (values: ArrayValue[], state: ArrayAgentState) => void;
+  onCommit?: (
+    values: ArrayValue[],
+    state: ArrayAgentState,
+    operation?: OperationRequest | null,
+  ) => void;
   /**
    * Called when the agent needs somewhere to put an array — the host is
    * responsible for making a place for it (on the canvas, that means adding a
@@ -152,6 +159,12 @@ export function useArraysVoiceAgent({
   const memoryRef = useRef<MemoryEntry[]>([]);
   /** The last animation, kept so "show me that again, slower" can replay it. */
   const lastPlayedRef = useRef<{ frames: ArrayFrame[]; summary: string } | null>(null);
+  /**
+   * The code for the operation being run right now, worked out from the tool
+   * call itself. It rides along to the commit so the code block and the strip
+   * change together.
+   */
+  const pendingCodeRef = useRef<OperationRequest | null>(null);
   const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usageSessionIdRef = useRef<string | null>(null);
   const captionBufferRef = useRef("");
@@ -255,11 +268,16 @@ export function useArraysVoiceAgent({
         if (!result.rejected && result.frames.length > 1) {
           lastPlayedRef.current = { frames: result.frames, summary: result.summary };
         }
+        const operation = pendingCodeRef.current;
         player.controls.play(
           result.frames,
           { speed: stateRef.current.teaching.speed },
           () => {
-            onCommitRef.current?.(stateRef.current.array.values, stateRef.current);
+            onCommitRef.current?.(
+              stateRef.current.array.values,
+              stateRef.current,
+              operation,
+            );
           },
         );
       },
@@ -357,6 +375,12 @@ export function useArraysVoiceAgent({
       }
 
       setLastToolCall(name);
+      // Worked out before the tool runs, from the arguments the model chose —
+      // the same arguments the operation is about to carry out.
+      pendingCodeRef.current = {
+        tool: name,
+        args: (input ?? {}) as Record<string, unknown>,
+      };
       const startedAt = performance.now();
       try {
         const outcome = (await tool.execute(input, {})) as {
