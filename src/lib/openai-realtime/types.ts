@@ -34,6 +34,12 @@ export type OpenAIRealtimeClientOptions = {
   /** Extra JSON body sent to tokenEndpoint, e.g. context for building instructions server-side. */
   tokenBody?: Record<string, unknown>;
   /**
+   * Called after the app has minted the OpenAI client secret. Realtime token
+   * routes may also create an internal usage-session row; this passes its id
+   * back to the feature so response usage and session duration can be saved.
+   */
+  onUsageSessionCreated?: (usageSessionId: string | null) => void;
+  /**
    * Called whenever the model invokes a tool. Return the string to send back
    * as the tool's result (e.g. `"ok"` or an error message), or a promise of
    * one. Keep it cheap either way — the model's turn waits on it.

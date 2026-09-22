@@ -41,7 +41,6 @@ export function beatDurationMs(speed: AnimationSpeed, frameCount: number): numbe
     Math.min(NORMAL_MAX_BEAT_MS, Math.round(NORMAL_TARGET_MS / Math.max(frameCount, 1))),
   );
 }
-
 export function useArrayPlayer() {
   const [frame, setFrame] = useState<ArrayFrame | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);

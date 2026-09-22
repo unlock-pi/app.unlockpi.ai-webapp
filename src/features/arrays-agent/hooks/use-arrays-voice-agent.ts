@@ -461,6 +461,13 @@ export function useArraysVoiceAgent({
     const client = new OpenAIRealtimeClient({
       tokenEndpoint: "/api/openai/realtime/arrays-agent",
       tokenBody: { canvasId, lessonTitle, responseMode },
+      // The shared WebRTC client owns the token fetch. Keep the usage-session
+      // id it receives too; without this, every response and finish event was
+      // sent with null and Array Agent calls could never show a duration or
+      // cost in admin analytics.
+      onUsageSessionCreated: (usageSessionId) => {
+        usageSessionIdRef.current = usageSessionId;
+      },
       onToolCall: (call) => runTool(call.name, call.argumentsJson),
       onStatusChange: (next) => {
         setStatus(next);
@@ -477,6 +484,11 @@ export function useArraysVoiceAgent({
         });
       },
       onError: (message) => {
+        // A session row is created before mic/WebRTC setup. If setup fails,
+        // close that row as failed rather than leaving a forever-open call
+        // with no duration.
+        finishRealtimeUsageSession(usageSessionIdRef.current, "failed");
+        usageSessionIdRef.current = null;
         setError(message);
         logEvent({ kind: "error", at: Date.now(), text: message });
       },

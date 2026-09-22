@@ -144,6 +144,11 @@ export class OpenAIRealtimeClient {
       if (!ephemeralKey) {
         throw new Error("Realtime client secret was missing from the server response.");
       }
+      this.options.onUsageSessionCreated?.(
+        typeof tokenData.usage_session_id === "string"
+          ? tokenData.usage_session_id
+          : null,
+      );
 
       // Step 2: set up the peer connection and attach the mic.
       const peerConnection = new RTCPeerConnection();

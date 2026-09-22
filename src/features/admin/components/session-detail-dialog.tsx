@@ -120,9 +120,8 @@ export function SessionDetailDialog({
                   </p>
                 ) : session.pricingVersion?.endsWith("~duration-estimate") ? (
                   <p className="text-warning">
-                    Estimated from session duration, not measured tokens — real
-                    usage tracking for this session was broken (RLS bug, fixed
-                    2026-08-03). Treat this number as directional.
+                    Estimated from session duration because no response token
+                    usage was recorded. Treat this number as directional.
                   </p>
                 ) : session.pricingVersion ? (
                   <p>
