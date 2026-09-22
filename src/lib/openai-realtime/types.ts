@@ -6,7 +6,14 @@
  * portable — it only needs a browser with WebRTC, not this app.
  */
 
-export type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
+/**
+ * `reconnecting`: the connection dropped mid-session and the client is
+ * automatically retrying with backoff. Distinct from `connecting` (the
+ * teacher pressed start) so the UI can say which one is happening — a
+ * teacher mid-class doesn't need to know it's "connecting", they need to
+ * know their previous session is trying to come back.
+ */
+export type RealtimeStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
 /** A tool call the model made, already unpacked from the wire event. */
 export type RealtimeToolCall = {
@@ -34,6 +41,13 @@ export type OpenAIRealtimeClientOptions = {
   onToolCall: (call: RealtimeToolCall) => string | Promise<string>;
   onStatusChange?: (status: RealtimeStatus) => void;
   onError?: (message: string) => void;
+  /**
+   * An automatic reconnect attempt is about to start, `attempt` seconds after
+   * the connection dropped. Purely informational — the client retries on its
+   * own either way — but lets the UI say "attempt 2 of 4" instead of just
+   * spinning.
+   */
+  onReconnectAttempt?: (attempt: number, maxAttempts: number) => void;
   /** Streaming text/audio-transcript deltas, for live captions. */
   onTranscriptDelta?: (delta: string) => void;
   /** A response finished generating. Carries usage for cost tracking. */

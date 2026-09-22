@@ -1,11 +1,15 @@
 import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArraysAgentDemo } from "@/features/arrays-agent/components/arrays-agent-demo";
 
 export default function Page() {
   const data = ["a", "b", "c", "d", "e"];
 
   return (
-    <div className="flex flex-1 flex-col gap-2  px-8 py-12">
-      <ArrayStrip
+    <div className="flex flex-1 flex-col gap-2  px-8 py-4">
+      
+      <ArraysAgentDemo />
+
+      {/* <ArrayStrip
         data={data}
         disabledElements={[0, 1, 3, 4]}
         name="Arr"
@@ -43,7 +47,7 @@ export default function Page() {
       <div className="flex items-center gap-4">
         <div className="size-10 rounded-sm bg-card"></div>
         <p>card</p>
-      </div>
+      </div> */}
     </div>
   );
 }

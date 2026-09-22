@@ -38,6 +38,8 @@ export function frame(
     found: overrides.found,
     marker: overrides.marker,
     held: overrides.held,
+    caret: overrides.caret,
+    gap: overrides.gap,
     note,
   };
 }

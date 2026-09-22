@@ -232,11 +232,19 @@ export function useArraysVoiceAgent({
     [scheduleLiveContext],
   );
 
-  const pushOverlay = useCallback((overlay: ArrayOverlay) => {
-    setOverlays((previous) =>
-      [...previous, { ...overlay, id: crypto.randomUUID() }].slice(-MAX_OVERLAYS),
-    );
-  }, []);
+  // Held until the board settles: "why did the elements shift?" arriving while
+  // they are still shifting explains something the class has not seen yet.
+  const { afterSettle } = player.controls;
+  const pushOverlay = useCallback(
+    (overlay: ArrayOverlay) => {
+      afterSettle(() =>
+        setOverlays((previous) =>
+          [...previous, { ...overlay, id: crypto.randomUUID() }].slice(-MAX_OVERLAYS),
+        ),
+      );
+    },
+    [afterSettle],
+  );
 
   // ── The tool context ─────────────────────────────────────────────────
   // Built once. `state` is a getter over the ref, so the tools always read

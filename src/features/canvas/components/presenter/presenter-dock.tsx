@@ -18,6 +18,12 @@ export type DockAction = {
   disabled?: boolean;
   /** Replaces the icon with short text, for the "HI" style button. */
   text?: string;
+  /**
+   * Something is happening that the teacher should notice: `busy` spins a
+   * ring around the button and breathes the icon (connecting); `live` adds a
+   * small green light (connected and listening).
+   */
+  status?: "busy" | "live";
 };
 
 type Props = {
@@ -132,13 +138,17 @@ function DockButton({
   return (
     <button
       type="button"
+      aria-busy={action.status === "busy" || undefined}
       onClick={action.onClick}
       disabled={action.disabled}
       aria-label={action.label}
       aria-pressed={action.active}
       title={action.label}
       className={cn(
-        "flex h-11 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        "relative flex h-11 shrink-0 items-center justify-center gap-2 rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        // Busy is disabled too, but it must not look dead — it is the one
+        // thing on screen that is actively working.
+        action.status === "busy" && "disabled:cursor-progress disabled:opacity-100",
         expanded ? "px-3.5" : "w-11",
         standalone
           ? "bg-neutral-950/95 shadow-lg ring-1 ring-white/10 dark:bg-neutral-900/95"
@@ -147,12 +157,30 @@ function DockButton({
         action.active && !danger && "bg-white/15 text-white",
       )}
     >
-      <span className="grid size-5 shrink-0 place-items-center">
+      {action.status === "busy" ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 animate-spin rounded-full border-2 border-sky-400/20 border-t-sky-400"
+        />
+      ) : null}
+      <span
+        className={cn(
+          "relative grid size-5 shrink-0 place-items-center",
+          action.status === "busy" && "animate-pulse text-sky-300",
+          action.status === "live" && "text-emerald-400",
+        )}
+      >
         {action.text ? (
           <span className="text-xs font-bold tracking-wide">{action.text}</span>
         ) : (
           action.icon
         )}
+        {action.status === "live" ? (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 size-2 rounded-full bg-emerald-400 ring-2 ring-neutral-950"
+          />
+        ) : null}
       </span>
       <AnimatePresence initial={false}>
         {expanded ? (

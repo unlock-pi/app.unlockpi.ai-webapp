@@ -109,7 +109,7 @@ export function ArraysAgentDemo() {
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 sm:px-8">
+    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 pb-10 sm:px-8">
       <header className="grid gap-1">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -129,10 +129,10 @@ export function ArraysAgentDemo() {
             {agent.status}
           </span>
         </div>
-        <p className="text-sm text-muted-foreground">
+        {/* <p className="text-sm text-muted-foreground">
           Every button below is a real spoken command and runs the exact tools the voice agent
           would call for it.
-        </p>
+        </p> */}
       </header>
 
       <div className="flex flex-wrap items-center gap-3">

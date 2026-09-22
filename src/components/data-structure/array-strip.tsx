@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -34,6 +34,16 @@ export type ArrayStripProps = {
   /** A labelled pointer under one cell, e.g. the quicksort pivot. */
   marker?: { index: number; label: string };
   /**
+   * A position pointer under the index row — "insert here", "remove this".
+   * Takes precedence over `marker`; both render as the same caret.
+   */
+  caret?: { index: number; label?: string };
+  /**
+   * An empty slot inside `data`. Drawn as a hole, and keyed as its own cell so
+   * the real elements slide around it instead of their values morphing.
+   */
+  gapIndex?: number;
+  /**
    * A value lifted OUT of the array — insertion sort's held element, merge
    * sort's buffered value. Shown as a chip above the strip so the duplicate
    * that in-place shifting creates reads as a copy rather than a glitch.
@@ -44,6 +54,26 @@ export type ArrayStripProps = {
 const EMPTY_DISABLED_ELEMENTS: number[] = [];
 const EMPTY_VISITED_INDICES: number[] = [];
 const EMPTY_INDICES: number[] = [];
+
+/**
+ * The strip's whole visual vocabulary. Each state means ONE thing everywhere:
+ *
+ * - idle     neutral plate. Almost every cell, almost all the time.
+ * - active   focus — the one cell the eye should be on (a pair in a sort).
+ * - visited  ruled out by a search or sort — dimmed.
+ * - settled  final — sorted into place, or a result.
+ * - found    the answer to a search.
+ *
+ * Focus is deliberately not the brand red: red reads as an error or a delete,
+ * and focus has to be calm enough to sit on a cell that is doing nothing wrong.
+ */
+const CELL_STATE_CLASS = {
+  found: "border-emerald-300 bg-emerald-500 text-white ring-2 ring-emerald-400/50",
+  settled: "border-emerald-600/50 bg-emerald-700 text-white",
+  active: "border-sky-300 bg-sky-500 text-white ring-2 ring-sky-400/40",
+  visited: "opacity-40",
+  idle: "",
+} as const;
 
 /**
  * Resolves one cell to a single visual state. Precedence matters: the answer
@@ -127,12 +157,18 @@ const VALUE_SPRING = {
 };
 
 // ── Stable key system ───────────────────────────────────────────────────
-// Detects push/pop/shift/unshift/set by diffing prev vs next data,
-// so each element keeps a stable motion key across array mutations.
-function useStableKeys(data: ArrayValue[]) {
+// Detects push/pop/shift/unshift/set by diffing prev vs next data, so each
+// element keeps a stable motion key across array mutations — which is what
+// lets a shifted element SLIDE to its new slot instead of its value morphing.
+//
+// A gap is an explicit hint: growing by one with a gap means "a new slot
+// opened exactly here", and shrinking by one after a gap means "that hole
+// closed" — no guessing from values, which duplicates would fool.
+function useStableKeys(data: ArrayValue[], gapIndex?: number) {
   const stateRef = useRef({
     ids: [] as number[],
     data: [] as ArrayValue[],
+    gap: undefined as number | undefined,
     next: 0,
   });
   const s = stateRef.current;
@@ -145,19 +181,38 @@ function useStableKeys(data: ArrayValue[]) {
   if (prev.length === 0 || Math.abs(diff) > 1) {
     ids = data.map(() => s.next++);
   } else if (diff === 0) {
-    ids = prevIds;
+    ids = swappedIds(prev, data, prevIds) ?? prevIds;
+  } else if (diff === 1) {
+    const point = gapIndex ?? findDiffPoint(prev, data, true);
+    ids = [...prevIds.slice(0, point), s.next++, ...prevIds.slice(point)];
   } else {
-    const point = findDiffPoint(prev, data, diff > 0);
-    if (diff === 1) {
-      ids = [...prevIds.slice(0, point), s.next++, ...prevIds.slice(point)];
-    } else {
-      ids = [...prevIds.slice(0, point), ...prevIds.slice(point + 1)];
-    }
+    const point = s.gap ?? findDiffPoint(prev, data, false);
+    ids = [...prevIds.slice(0, point), ...prevIds.slice(point + 1)];
   }
 
   s.ids = ids;
   s.data = [...data];
+  s.gap = gapIndex;
   return ids;
+}
+
+/**
+ * Two cells exchanged values — a sort's swap, or a gap stepping one slot. The
+ * ids trade places with them, so the cells physically cross over.
+ */
+function swappedIds(prev: ArrayValue[], next: ArrayValue[], ids: number[]) {
+  const changed: number[] = [];
+  for (let i = 0; i < next.length; i++) {
+    if (prev[i] !== next[i]) changed.push(i);
+    if (changed.length > 2) return null;
+  }
+  if (changed.length !== 2) return null;
+  const [a, b] = changed;
+  if (prev[a] !== next[b] || prev[b] !== next[a]) return null;
+  const swapped = [...ids];
+  swapped[a] = ids[b];
+  swapped[b] = ids[a];
+  return swapped;
 }
 
 function findDiffPoint(
@@ -193,6 +248,8 @@ export function ArrayStrip({
   settledIndices = EMPTY_INDICES,
   foundIndex,
   marker,
+  caret,
+  gapIndex,
   held,
 }: ArrayStripProps) {
   const isTraversing = traversalTarget !== undefined;
@@ -202,7 +259,9 @@ export function ArrayStrip({
     activeIndex === undefined ? activeIndices : [...activeIndices, activeIndex];
   const containerRef = useRef<HTMLDivElement>(null);
   const cellRefsMap = useRef(new Map<number, HTMLDivElement>());
-  const stableKeys = useStableKeys(data);
+  const stableKeys = useStableKeys(data, gapIndex);
+  const pointer = caret ?? marker;
+  const caretLayoutId = `${useId()}-caret`;
 
   const setCellRef = useCallback((index: number, el: HTMLDivElement | null) => {
     if (el) cellRefsMap.current.set(index, el);
@@ -249,12 +308,12 @@ export function ArrayStrip({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.9 }}
                 transition={VALUE_SPRING}
-                className="absolute -top-12 right-0 z-10 flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-500/10 px-2.5 py-1.5 backdrop-blur-sm"
+                className="absolute -top-12 right-0 z-10 flex items-center gap-2 rounded-lg border border-border bg-background/80 px-2.5 py-1.5 backdrop-blur-sm"
               >
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {held.label}
                 </span>
-                <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-amber-400/70 bg-amber-500 text-sm font-medium text-amber-950">
+                <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-sky-300 bg-sky-500 text-sm font-medium text-white">
                   {held.value}
                 </span>
               </motion.div>
@@ -344,6 +403,7 @@ export function ArrayStrip({
                   isTraversing && isVisited && !isTargetHit;
                 const isPlainActive = !isTraversing && isActive;
                 const shouldDim = dimElements && !isPlainActive && !isTargetHit;
+                const isGap = gapIndex === index;
                 // Traversal keeps its own colour rules (the Traverse button
                 // path); the agent's states only apply when no traversal is
                 // running, so the two never fight over the same cell.
@@ -360,11 +420,11 @@ export function ArrayStrip({
                   <motion.div
                     key={stableKeys[index]}
                     layout
-                    initial={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
                     transition={CELL_SPRING}
-                    className="flex flex-col items-center  "
+                    className="flex flex-col items-center"
                   >
                     <motion.div
                       ref={(el) => setCellRef(index, el)}
@@ -381,54 +441,35 @@ export function ArrayStrip({
                           "border-border bg-muted/50 text-muted-foreground opacity-40",
                         isTargetHit &&
                           "border-emerald-500/60 bg-emerald-500 text-white",
-                        isPlainActive &&
-                          "border-primary/50 bg-primary text-primary-foreground",
-                        agentState === "found" &&
-                          "border-emerald-400 bg-emerald-500 text-white ring-2 ring-emerald-400/50",
-                        agentState === "settled" &&
-                          "border-emerald-600/50 bg-emerald-700 text-white",
-                        agentState === "active" &&
-                          "border-amber-400/70 bg-amber-500 text-amber-950",
-                        agentState === "visited" &&
-                          "bg-muted/50 text-muted-foreground opacity-45",
+                        isPlainActive && CELL_STATE_CLASS.active,
+                        CELL_STATE_CLASS[agentState],
                         isDisabled && "opacity-30",
                         shouldDim && "opacity-40",
+                        // A hole, not a plate: the slot exists but holds nothing.
+                        isGap &&
+                          "border-2 border-dashed border-foreground/30 bg-transparent shadow-none ring-0",
                       )}
                     >
+                      {/*
+                        Only a genuine value change animates here — moves are
+                        handled by the cell's own layout animation. A value
+                        arrives from above and leaves upward, like being placed
+                        in and lifted out of the slot.
+                      */}
                       <AnimatePresence mode="popLayout" initial={false}>
-                        <motion.span
-                          key={String(item)}
-                          initial={{
-                            opacity: 0,
-                            scale: 0.7,
-                            filter: "blur(2px)",
-                          }}
-                          animate={{
-                            opacity: 1,
-                            scale: 1,
-                            filter: "blur(0px)",
-                          }}
-                          exit={{ opacity: 0, scale: 0.7, filter: "blur(2px)" }}
-                          transition={VALUE_SPRING}
-                          className="block max-w-full select-none truncate"
-                          title={String(item)}
-                        >
-                          {truncateCellValue(item)}
-                        </motion.span>
-                      </AnimatePresence>
-
-                      <AnimatePresence>
-                        {marker?.index === index ? (
+                        {isGap ? null : (
                           <motion.span
-                            initial={{ opacity: 0, y: -4 }}
+                            key={String(item)}
+                            initial={{ opacity: 0, y: -14 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.18 }}
-                            className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                            exit={{ opacity: 0, y: -14 }}
+                            transition={VALUE_SPRING}
+                            className="block max-w-full select-none truncate"
+                            title={String(item)}
                           >
-                            {marker.label}
+                            {truncateCellValue(item)}
                           </motion.span>
-                        ) : null}
+                        )}
                       </AnimatePresence>
                     </motion.div>
 
@@ -464,11 +505,14 @@ export function ArrayStrip({
 
                 return (
                   <motion.div
-                    key={stableKeys[index]}
+                    // Keyed by POSITION, not by element: index 2 stays index 2
+                    // while elements slide past it, which is exactly what an
+                    // index is.
+                    key={index}
                     layout
-                    initial={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     transition={CELL_SPRING}
                     className="canvas-array-strip-index flex w-[3.25rem] shrink-0 flex-col items-center sm:w-14 md:w-16"
                   >
@@ -515,13 +559,39 @@ export function ArrayStrip({
                         layout
                         transition={CELL_SPRING}
                         className={cn(
-                          "mt-1.5 text-xs font-medium tabular-nums text-muted-foreground transition-opacity duration-300 md:text-sm",
+                          "mt-1.5 text-xs font-medium tabular-nums text-muted-foreground transition-[color,opacity] duration-300 md:text-sm",
                           dimIndices && "opacity-35",
+                          pointer?.index === index &&
+                            "font-semibold text-sky-600 opacity-100 dark:text-sky-400",
                         )}
                       >
                         {index}
                       </motion.span>
                     ) : null}
+
+                    {/*
+                      Space for the caret is always reserved so its arrival
+                      never nudges the layout. One shared layoutId: the caret
+                      glides between indices rather than blinking.
+                    */}
+                    <div className="flex h-6 items-start justify-center">
+                      {pointer?.index === index ? (
+                        <motion.div
+                          layoutId={caretLayoutId}
+                          transition={RING_SPRING}
+                          className="flex flex-col items-center text-sky-600 dark:text-sky-400"
+                        >
+                          <span aria-hidden className="text-[10px] leading-none">
+                            ▲
+                          </span>
+                          {pointer.label ? (
+                            <span className="whitespace-nowrap text-[10px] font-semibold uppercase leading-tight tracking-wide">
+                              {pointer.label}
+                            </span>
+                          ) : null}
+                        </motion.div>
+                      ) : null}
+                    </div>
                   </motion.div>
                 );
               })}

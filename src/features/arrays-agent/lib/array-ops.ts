@@ -33,10 +33,7 @@ export function createArray(
   return {
     values: next,
     frames: [
-      frame(next, `Allocated ${name} with ${next.length} contiguous slots.`, {
-        active: next.map((_, index) => index),
-      }),
-      frame(next, "Each slot holds one value and is addressed by its index."),
+      frame(next, `Allocated ${name} with ${next.length} contiguous slots, addressed by index.`),
     ],
     summary:
       `Created ${name} = [${next.join(", ")}] with ${next.length} elements` +
@@ -54,9 +51,7 @@ export function createEmptyArray(length: number, name = "A"): ArrayOpResult {
   return {
     values: next,
     frames: [
-      frame(next, `Reserved ${size} empty slots for ${name}.`, {
-        active: next.map((_, index) => index),
-      }),
+      frame(next, `Reserved ${size} empty slots for ${name}.`),
     ],
     summary: `Created an empty array ${name} with ${size} slots. The slots exist but hold no values yet.`,
     complexity: COMPLEXITY.create_array,
@@ -77,11 +72,11 @@ export function accessArrayElement(
     values: [...values],
     frames: [
       frame(values, `${name}[${index}] — jump straight to index ${index}.`, {
-        active: [index],
+        caret: { index },
       }),
       frame(values, `${name}[${index}] is ${values[index]}.`, {
+        caret: { index },
         active: [index],
-        found: index,
       }),
     ],
     summary: `${name}[${index}] is ${values[index]}. Access is O(1) — the address is computed, not searched for.`,
@@ -252,10 +247,22 @@ export function updateMultidimensionalElement(
 // ── Insertion ───────────────────────────────────────────────────────────
 
 /**
- * The shared insertion engine. Everything the class needs to understand about
- * inserting lives here: the tail shifts right one slot at a time, and only
- * then is the new value written. Each shift is its own frame so "why did the
- * elements move?" has a visible answer rather than a verbal one.
+ * How a shift is drawn. By default the tail moves as ONE block — the class
+ * sees "these elements move right" in a single motion. `stepwise` shows every
+ * individual copy (the real memmove order) for slow mode, with the empty slot
+ * visibly travelling so each copy is a cell moving, not a value morphing.
+ */
+export type ShiftOptions = { stepwise?: boolean };
+
+/** Placeholder value of a gap slot. The strip draws `gap` as a hole, never this. */
+const GAP = "";
+
+/**
+ * The shared insertion engine. One focus point per beat:
+ *   1. the caret marks the index being inserted at,
+ *   2. the tail slides right, leaving a gap at that index,
+ *   3. the new value drops into the gap,
+ *   4. everything returns to neutral.
  */
 function insertAt(
   values: ArrayValue[],
@@ -264,6 +271,7 @@ function insertAt(
   name: string,
   complexityKey: keyof typeof COMPLEXITY,
   opening: string,
+  { stepwise = false }: ShiftOptions = {},
 ): ArrayOpResult {
   if (values.length >= MAX_ARRAY_LENGTH) {
     return refuse(
@@ -272,35 +280,57 @@ function insertAt(
     );
   }
 
-  const frames = [frame(values, opening, { active: [Math.min(index, values.length - 1)].filter((i) => i >= 0) })];
-  const working = [...values];
+  const shifted = values.length - index;
+  const caret = { index, label: "insert" };
+  const frames = [frame(values, opening, { caret })];
 
-  // Walk from the end backwards, copying each element one slot right. This is
-  // the real memmove order — going forwards would overwrite values not yet copied.
-  for (let slot = working.length; slot > index; slot--) {
-    working[slot] = working[slot - 1];
+  if (shifted === 0) {
     frames.push(
-      frame(working, `Copy ${working[slot]} from index ${slot - 1} to index ${slot}.`, {
-        active: [slot],
-        settled: Array.from({ length: index }, (_, i) => i),
+      frame([...values, GAP], `Index ${index} is free — nothing has to move.`, {
+        caret,
+        gap: index,
       }),
     );
+  } else if (!stepwise) {
+    frames.push(
+      frame(
+        [...values.slice(0, index), GAP, ...values.slice(index)],
+        `${shifted} element${shifted === 1 ? "" : "s"} shift one slot right to free index ${index}.`,
+        { caret, gap: index },
+      ),
+    );
+  } else {
+    // Real memmove order: grow by one slot, then copy from the end backwards —
+    // going forwards would overwrite values not yet copied. The gap walks left.
+    const working = [...values, GAP];
+    frames.push(
+      frame(working, `Grow ${name} by one slot at the end.`, { caret, gap: values.length }),
+    );
+    for (let slot = values.length; slot > index; slot--) {
+      working[slot] = working[slot - 1];
+      working[slot - 1] = GAP;
+      frames.push(
+        frame(working, `Copy ${working[slot]} from index ${slot - 1} to index ${slot}.`, {
+          caret,
+          gap: slot - 1,
+          active: [slot],
+        }),
+      );
+    }
   }
 
-  working[index] = value;
+  const next = [...values.slice(0, index), value, ...values.slice(index)];
   frames.push(
-    frame(working, `Index ${index} is free — write ${value} into it.`, {
-      active: [index],
-      found: index,
-    }),
+    frame(next, `Write ${value} into index ${index}.`, { caret: { index }, active: [index] }),
+    frame(next, `${name} is now [${next.join(", ")}].`),
   );
 
   return {
-    values: working,
+    values: next,
     frames,
-    summary: `Inserted ${value} at index ${index}. ${values.length - index} element(s) shifted right; ${name} is now [${working.join(", ")}].`,
+    summary: `Inserted ${value} at index ${index}. ${shifted} element(s) shifted right; ${name} is now [${next.join(", ")}].`,
     complexity: COMPLEXITY[complexityKey],
-    meta: { index, value, shifted: values.length - index },
+    meta: { index, value, shifted },
   };
 }
 
@@ -308,6 +338,7 @@ export function insertAtBeginning(
   values: ArrayValue[],
   value: string,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   return insertAt(
     values,
@@ -316,6 +347,7 @@ export function insertAtBeginning(
     name,
     "insert_at_beginning",
     `To put ${value} at index 0, every existing element must move right first.`,
+    options,
   );
 }
 
@@ -323,6 +355,7 @@ export function insertAtEnd(
   values: ArrayValue[],
   value: string,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   return insertAt(
     values,
@@ -330,7 +363,8 @@ export function insertAtEnd(
     value,
     name,
     "insert_at_end",
-    `Index ${values.length} is the next free slot — nothing has to move.`,
+    `${value} goes at index ${values.length}, the next free slot.`,
+    options,
   );
 }
 
@@ -339,6 +373,7 @@ export function insertAtIndex(
   index: number,
   value: string,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   if (!Number.isInteger(index) || index < 0 || index > values.length) {
     return refuse(
@@ -353,6 +388,7 @@ export function insertAtIndex(
     name,
     "insert_at_index",
     `${value} goes at index ${index}, so everything from there on shifts right.`,
+    options,
   );
 }
 
@@ -361,6 +397,7 @@ export function insertMultiple(
   index: number,
   newValues: Array<string | number>,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   const incoming = toDisplayValues(newValues);
   if (!Number.isInteger(index) || index < 0 || index > values.length) {
@@ -379,7 +416,7 @@ export function insertMultiple(
   let working = [...values];
   const frames = [
     frame(working, `Inserting ${incoming.length} values at index ${index}, one at a time.`, {
-      active: [Math.min(index, working.length - 1)].filter((i) => i >= 0),
+      caret: { index, label: "insert" },
     }),
   ];
 
@@ -391,6 +428,7 @@ export function insertMultiple(
       name,
       "insert_at_index",
       `Next up: ${value} at index ${index + offset}.`,
+      options,
     );
     working = step.values;
     frames.push(...step.frames);
@@ -412,6 +450,7 @@ export function sortedInsert(
   values: ArrayValue[],
   value: string,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   const numbers = toNumeric(values);
   const incoming = Number(value);
@@ -451,6 +490,7 @@ export function sortedInsert(
     name,
     "sorted_insert",
     `Make room at index ${slot}.`,
+    options,
   );
   if (inserted.rejected) return inserted;
 
@@ -465,8 +505,11 @@ export function sortedInsert(
 // ── Deletion ────────────────────────────────────────────────────────────
 
 /**
- * Mirror image of `insertAt`: the gap is closed by copying the tail LEFT, one
- * slot at a time, and only then is the final slot released.
+ * Mirror image of `insertAt`, one focus point per beat:
+ *   1. the caret and focus mark the element being removed,
+ *   2. it lifts out, leaving a gap,
+ *   3. the tail slides left as a block to close it (stepwise: one copy at a
+ *      time, the gap walking right), and the spare slot is released.
  */
 function deleteAt(
   values: ArrayValue[],
@@ -474,39 +517,59 @@ function deleteAt(
   name: string,
   complexityKey: keyof typeof COMPLEXITY,
   opening: string,
+  { stepwise = false }: ShiftOptions = {},
 ): ArrayOpResult {
   const error = indexError(index, values.length);
   if (error) return refuse(values, error);
 
   const removed = values[index];
-  const frames = [frame(values, opening, { active: [index] })];
+  const shifted = values.length - index - 1;
+  const caret = { index, label: "remove" };
   const working = [...values];
+  working[index] = GAP;
 
-  for (let slot = index; slot < working.length - 1; slot++) {
-    working[slot] = working[slot + 1];
-    frames.push(
-      frame(working, `Copy ${working[slot]} from index ${slot + 1} into index ${slot}.`, {
-        active: [slot],
-        settled: Array.from({ length: index }, (_, i) => i),
-      }),
-    );
+  const frames = [
+    frame(values, opening, { caret, active: [index] }),
+    frame(working, `Take ${removed} out — index ${index} is now empty.`, { caret, gap: index }),
+  ];
+
+  if (stepwise) {
+    for (let slot = index; slot < working.length - 1; slot++) {
+      working[slot] = working[slot + 1];
+      working[slot + 1] = GAP;
+      frames.push(
+        frame(working, `Copy ${working[slot]} from index ${slot + 1} into index ${slot}.`, {
+          gap: slot + 1,
+          active: [slot],
+        }),
+      );
+    }
   }
 
-  working.pop();
+  const next = values.filter((_, i) => i !== index);
   frames.push(
-    frame(working, `Release the last slot. ${name} now has ${working.length} elements.`),
+    frame(
+      next,
+      shifted === 0 || stepwise
+        ? `Release the spare slot. ${name} now has ${next.length} elements.`
+        : `${shifted} element${shifted === 1 ? "" : "s"} shift one slot left to close the gap.`,
+    ),
   );
 
   return {
-    values: working,
+    values: next,
     frames,
-    summary: `Removed ${removed} from index ${index}. ${values.length - index - 1} element(s) shifted left; ${name} is now [${working.join(", ")}].`,
+    summary: `Removed ${removed} from index ${index}. ${shifted} element(s) shifted left; ${name} is now [${next.join(", ")}].`,
     complexity: COMPLEXITY[complexityKey],
     meta: { index, removed },
   };
 }
 
-export function deleteFromBeginning(values: ArrayValue[], name = "A"): ArrayOpResult {
+export function deleteFromBeginning(
+  values: ArrayValue[],
+  name = "A",
+  options: ShiftOptions = {},
+): ArrayOpResult {
   if (values.length === 0) return refuse(values, `${name} is already empty.`);
   return deleteAt(
     values,
@@ -514,10 +577,15 @@ export function deleteFromBeginning(values: ArrayValue[], name = "A"): ArrayOpRe
     name,
     "delete_from_beginning",
     `Removing index 0 leaves a hole at the front — everything after it shifts left.`,
+    options,
   );
 }
 
-export function deleteFromEnd(values: ArrayValue[], name = "A"): ArrayOpResult {
+export function deleteFromEnd(
+  values: ArrayValue[],
+  name = "A",
+  options: ShiftOptions = {},
+): ArrayOpResult {
   if (values.length === 0) return refuse(values, `${name} is already empty.`);
   return deleteAt(
     values,
@@ -525,6 +593,7 @@ export function deleteFromEnd(values: ArrayValue[], name = "A"): ArrayOpResult {
     name,
     "delete_from_end",
     `The last element has nothing after it, so removing it shifts nothing.`,
+    options,
   );
 }
 
@@ -532,6 +601,7 @@ export function deleteAtIndex(
   values: ArrayValue[],
   index: number,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   return deleteAt(
     values,
@@ -539,6 +609,7 @@ export function deleteAtIndex(
     name,
     "delete_at_index",
     `Removing index ${index} leaves a hole — the tail shifts left to close it.`,
+    options,
   );
 }
 
@@ -546,6 +617,7 @@ export function deleteMultiple(
   values: ArrayValue[],
   indices: number[],
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   const targets = [...new Set(indices)].sort((left, right) => right - left);
   const invalid = targets.find((index) => indexError(index, values.length) !== null);
@@ -556,16 +628,21 @@ export function deleteMultiple(
 
   let working = [...values];
   const frames = [
-    frame(working, `Deleting indices ${[...targets].reverse().join(", ")} — highest first.`, {
-      active: targets,
-    }),
+    frame(working, `Deleting indices ${[...targets].reverse().join(", ")} — highest first.`),
     // Highest-first matters: deleting a low index would renumber every target
     // above it, so the teacher's second index would hit the wrong element.
     frame(working, "Working from the highest index down keeps the lower indices valid."),
   ];
 
   targets.forEach((index) => {
-    const step = deleteAt(working, index, name, "delete_at_index", `Now removing index ${index}.`);
+    const step = deleteAt(
+      working,
+      index,
+      name,
+      "delete_at_index",
+      `Now removing index ${index}.`,
+      options,
+    );
     working = step.values;
     frames.push(...step.frames);
   });
@@ -587,6 +664,7 @@ export function deleteByValue(
   value: string,
   removeAll: boolean,
   name = "A",
+  options: ShiftOptions = {},
 ): ArrayOpResult {
   const matches = values.reduce<number[]>((found, current, index) => {
     if (current === value) found.push(index);
@@ -606,7 +684,7 @@ export function deleteByValue(
     }),
   );
 
-  const removal = deleteMultiple(values, targets, name);
+  const removal = deleteMultiple(values, targets, name, options);
 
   return {
     values: removal.values,

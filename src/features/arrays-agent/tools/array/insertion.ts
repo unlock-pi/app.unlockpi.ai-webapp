@@ -17,6 +17,8 @@ const valueSchema = z.union([z.string(), z.number()]);
 
 export function createInsertionTools(ctx: ArrayToolContext) {
   const array = () => ctx.state.array;
+  /** Slow mode shows every individual copy; otherwise the tail moves as one block. */
+  const shift = () => ({ stepwise: ctx.state.teaching.speed === "slow" });
 
   return {
     insert_at_beginning: tool({
@@ -25,7 +27,7 @@ export function createInsertionTools(ctx: ArrayToolContext) {
       inputSchema: z.object({ value: valueSchema.describe("The value to insert.") }),
       execute: async ({ value }) => {
         ctx.patch({ topic: "array_insertion" });
-        return commit(ctx, insertAtBeginning(array().values, String(value), array().name));
+        return commit(ctx, insertAtBeginning(array().values, String(value), array().name, shift()));
       },
     }),
 
@@ -35,7 +37,7 @@ export function createInsertionTools(ctx: ArrayToolContext) {
       inputSchema: z.object({ value: valueSchema.describe("The value to append.") }),
       execute: async ({ value }) => {
         ctx.patch({ topic: "array_insertion" });
-        return commit(ctx, insertAtEnd(array().values, String(value), array().name));
+        return commit(ctx, insertAtEnd(array().values, String(value), array().name, shift()));
       },
     }),
 
@@ -52,7 +54,7 @@ export function createInsertionTools(ctx: ArrayToolContext) {
       }),
       execute: async ({ index, value }) => {
         ctx.patch({ topic: "array_insertion" });
-        return commit(ctx, insertAtIndex(array().values, index, String(value), array().name));
+        return commit(ctx, insertAtIndex(array().values, index, String(value), array().name, shift()));
       },
     }),
 
@@ -65,7 +67,7 @@ export function createInsertionTools(ctx: ArrayToolContext) {
       }),
       execute: async ({ index, values }) => {
         ctx.patch({ topic: "array_insertion" });
-        return commit(ctx, insertMultiple(array().values, index, values, array().name));
+        return commit(ctx, insertMultiple(array().values, index, values, array().name, shift()));
       },
     }),
 
@@ -75,7 +77,7 @@ export function createInsertionTools(ctx: ArrayToolContext) {
       inputSchema: z.object({ value: valueSchema.describe("The value to place in order.") }),
       execute: async ({ value }) => {
         ctx.patch({ topic: "sorted_insertion" });
-        return commit(ctx, sortedInsert(array().values, String(value), array().name));
+        return commit(ctx, sortedInsert(array().values, String(value), array().name, shift()));
       },
     }),
   };

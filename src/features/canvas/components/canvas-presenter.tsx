@@ -13,7 +13,6 @@ import {
   Grid2X2Icon,
   MicIcon,
   MicOffIcon,
-  PhoneOffIcon,
   PowerIcon,
   RotateCcwIcon,
   XIcon,
@@ -51,6 +50,7 @@ import {
   type RealtimeActivity,
   useCanvasRealtimeSession,
 } from "@/features/canvas/hooks/use-canvas-realtime-session";
+import { useChromeReveal } from "@/features/canvas/hooks/use-chrome-reveal";
 import { useCopilotPanel } from "@/features/canvas/hooks/use-copilot-panel";
 import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
 import { playCanvasActionSound } from "@/features/canvas/lib/canvas-action-sound";
@@ -191,7 +191,8 @@ export function CanvasPresenter({
   const [selectedMode, setSelectedMode] =
     useState<CanvasPresentationMode>(mode);
   const [hasLiveChanges, setHasLiveChanges] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(true);
+  // Closed by default: it is a diagnostic view, opened from the dock on demand.
+  const [activityOpen, setActivityOpen] = useState(false);
   const [zoomPercent, setZoomPercent] = useState(100);
   /** A one-off line in the dock's pill — "it is already talking", say. */
   const [transientHint, setTransientHint] = useState<string | null>(null);
@@ -481,9 +482,9 @@ export function CanvasPresenter({
   }, [remoteAudioStream]);
   const [captionsOn, setCaptionsOn] = useState(true);
 
-  // The dock and the status bar stay put now rather than auto-hiding: the dock
-  // IS the controls, and a teacher should never have to wave the mouse to find
-  // out whether the microphone is live.
+  // All chrome — title, end-class button, dock, footer — hides until wanted
+  // and comes back together: pointer at the top or bottom edge, or on any
+  // piece of it. It is held up while connecting so that state is never missed.
 
   // Give the AI sight: every time the visible frame changes — whether the
   // teacher navigated manually or the AI did — tell the model exactly what is
@@ -566,10 +567,24 @@ export function CanvasPresenter({
   const voiceConnected = isArraysMode
     ? arrays.agent.isConnected
     : realtimeSession.isConnected;
-  const voiceConnecting = isArraysMode
-    ? arrays.agent.status === "connecting"
-    : aiStatus === "connecting";
+  // `use-canvas-realtime-session` (the non-arrays modes) doesn't have an
+  // automatic-reconnect path yet, so it has no "reconnecting" status to check.
+  const voiceReconnecting = isArraysMode && arrays.agent.status === "reconnecting";
+  const voiceConnecting =
+    (isArraysMode ? arrays.agent.status === "connecting" : aiStatus === "connecting") ||
+    voiceReconnecting;
   const micLive = isArraysMode ? arrays.agent.micEnabled : !realtimeSession.isPaused;
+
+  const reveal = useChromeReveal({ hold: voiceConnecting });
+  /** Shared by every piece of chrome so they move as one. */
+  const chromeMotion = {
+    initial: false,
+    animate: { opacity: reveal.visible ? 1 : 0 },
+    transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const },
+    // Inert while hidden: an invisible button must not take clicks or focus.
+    inert: !reveal.visible,
+    ...reveal.pinHandlers,
+  };
 
   const flashHint = (message: string) => {
     setTransientHint(message);
@@ -590,14 +605,22 @@ export function CanvasPresenter({
       id: "power",
       label: voiceConnected
         ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
-        : voiceConnecting
-          ? "Connecting…"
-          : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
+        : voiceReconnecting
+          ? "Reconnecting…"
+          : voiceConnecting
+            ? "Connecting…"
+            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
+      status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
       disabled: selectedMode === "manual" || voiceConnecting,
       onClick: toggleVoice,
     },
+  ];
+
+  // Hidden for now — kept so it can come straight back.
+  // "Say hello" (greet):
+  const dockHidden: DockAction[] = [
     {
       id: "greet",
       label: "Say hello",
@@ -611,7 +634,13 @@ export function CanvasPresenter({
         if (!spoke) flashHint("It is already speaking — try again in a moment.");
       },
     },
-    {
+  ];
+  void dockHidden;
+
+  // Only when they mean something: the mic once a session is live, the
+  // activity panel toggle only in the mode that has one.
+  if (voiceConnected) {
+    dockPrimary.push({
       id: "mic",
       label: micLive ? "Mute your microphone" : "Unmute your microphone",
       icon: micLive ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />,
@@ -621,23 +650,18 @@ export function CanvasPresenter({
         if (isArraysMode) arrays.agent.toggleMic();
         else realtimeSession.togglePause();
       },
-    },
-    {
+    });
+  }
+  if (isArraysMode) {
+    dockPrimary.push({
       id: "activity",
       label: activityOpen ? "Hide agent activity" : "Show agent activity",
       icon: <ActivityIcon className="size-4" />,
       active: activityOpen,
-      disabled: !isArraysMode,
       onClick: () => setActivityOpen((open) => !open),
-    },
-    {
-      id: "end",
-      label: "End class",
-      icon: <PhoneOffIcon className="size-4" />,
-      tone: "danger",
-      onClick: endClass,
-    },
-  ];
+    });
+  }
+  // "End class" moved out of the dock to the ✕ at the top right.
 
   const dockSecondary: DockAction[] = publicView
     ? []
@@ -701,15 +725,20 @@ export function CanvasPresenter({
       ];
 
   const liveCaption = isArraysMode ? arrays.agent.caption : aiCaption;
+  // The pill above the dock (live transcript / keyboard hint) is hidden for
+  // now; the logic stays so it can be switched back on.
+  const SHOW_DOCK_HINT = false;
   const dockHint =
     transientHint ??
     (captionsOn && liveCaption
       ? liveCaption
       : selectedMode === "manual"
         ? "Manual mode · ← → to move between frames"
-        : voiceConnected
-          ? "Listening — just talk to change the board"
-          : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+        : voiceReconnecting
+          ? "Connection dropped — reconnecting automatically…"
+          : voiceConnected
+            ? "Listening — just talk to change the board"
+            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
 
   if (!activeFrame) {
     return (
@@ -791,20 +820,39 @@ export function CanvasPresenter({
             goTo(activeIndex + (distance < 0 ? 1 : -1));
           }}
         >
-          <div className="pointer-events-none absolute left-6 top-6 z-20 flex max-w-[60%] gap-3">
+          {/* A soft backing so the title never blends into frame content
+              sitting beneath it. Text is shown exactly as the author wrote it. */}
+          <motion.div
+            {...chromeMotion}
+            className="absolute left-6 top-6 z-20 flex max-w-[60%] gap-3 rounded-xl bg-background/80 py-2 pl-2.5 pr-4 backdrop-blur-md"
+          >
             <span
               aria-hidden="true"
-              className="mt-1 w-1 shrink-0 rounded-full bg-foreground/70"
+              className="w-1 shrink-0 rounded-full bg-foreground/70"
             />
             <div className="min-w-0">
-              <p className="truncate text-lg font-bold uppercase tracking-[0.06em] text-foreground">
+              <p className="truncate text-lg font-semibold tracking-tight text-foreground">
                 {title}
               </p>
+              {/* Frame subtitle hidden for now.
               <p className="truncate text-sm text-muted-foreground">
                 {activeFrame.title}
-              </p>
+              </p> */}
             </div>
-          </div>
+          </motion.div>
+
+          {publicView ? null : (
+            <motion.button
+              {...chromeMotion}
+              type="button"
+              onClick={endClass}
+              aria-label="End class"
+              title="End class"
+              className="absolute right-6 top-6 z-30 grid size-11 place-items-center rounded-full border border-border/60 bg-background/85 text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <XIcon className="size-5" />
+            </motion.button>
+          )}
 
           {aiConnected ? (
             // Anchored inside `main` (not the outer presenter) so it shares the
@@ -863,17 +911,6 @@ export function CanvasPresenter({
             </div>
           ) : null}
 
-          {/* A shared/embedded canvas has no AI session and no class to end. */}
-          {publicView ? null : (
-            <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30 flex justify-center px-4">
-              <PresenterDock
-                primary={dockPrimary}
-                secondary={dockSecondary}
-                hint={dockHint}
-              />
-            </div>
-          )}
-
           <FrameArrow
             direction="previous"
             disabled={activeIndex === 0}
@@ -912,29 +949,51 @@ export function CanvasPresenter({
         ) : null}
       </div>
 
-      {/* Outside Puck's animated render tree so it stays in the actual
-          presentation corner, rather than the bottom of a content block. */}
+      {/* The bottom chrome is ONE unit — dock sitting on the footer — spanning
+          the full presenter width, so the activity panel never shifts it. It
+          slides as a whole, so the dock never moves relative to the footer
+          and never slides out from under the pointer. */}
+      <motion.div
+        {...chromeMotion}
+        animate={{ opacity: reveal.visible ? 1 : 0, y: reveal.visible ? 0 : 24 }}
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex flex-col"
+      >
+        {/* A shared/embedded canvas has no AI session and no class to end. */}
+        {publicView ? null : (
+          <div className="flex justify-center px-4 pb-3">
+            <PresenterDock
+              primary={dockPrimary}
+              secondary={dockSecondary}
+              hint={SHOW_DOCK_HINT ? dockHint : undefined}
+            />
+          </div>
+        )}
+        <PresenterFooter
+          className="pointer-events-auto"
+          frameNumber={activeIndex + 1}
+          frameCount={frames.length}
+          onPrevious={() => goTo(activeIndex - 1)}
+          onNext={() => goTo(activeIndex + 1)}
+          zoomPercent={zoomPercent}
+          onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
+          onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
+          onZoomReset={() => setZoomPercent(100)}
+          canZoomIn={zoomPercent < MAX_ZOOM}
+          canZoomOut={zoomPercent > MIN_ZOOM}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => void toggleFullscreen()}
+        />
+      </motion.div>
 
-
-
-      <PresenterFooter
-        frameNumber={activeIndex + 1}
-        frameCount={frames.length}
-        onPrevious={() => goTo(activeIndex - 1)}
-        onNext={() => goTo(activeIndex + 1)}
-        zoomPercent={zoomPercent}
-        onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
-        onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
-        onZoomReset={() => setZoomPercent(100)}
-        canZoomIn={zoomPercent < MAX_ZOOM}
-        canZoomOut={zoomPercent > MIN_ZOOM}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={() => void toggleFullscreen()}
-      />
-
-      {realtimeSession.error ? (
+      {/*
+        Was `realtimeSession.error` only — arrays mode's own connection
+        errors (including "reconnecting gave up after 4 attempts") set
+        `arrays.agent.error` but nothing ever rendered it. A teacher whose
+        session silently gave up had no way to know why the board went quiet.
+      */}
+      {(isArraysMode ? arrays.agent.error : realtimeSession.error) ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
-          {realtimeSession.error}
+          {isArraysMode ? arrays.agent.error : realtimeSession.error}
         </div>
       ) : null}
 

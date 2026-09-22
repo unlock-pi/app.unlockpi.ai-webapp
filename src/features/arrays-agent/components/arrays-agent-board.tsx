@@ -36,6 +36,8 @@ export function ArraysAgentBoard({ view, name, showIndices, className }: Props) 
             visitedIndices={view.visited}
             foundIndex={view.found}
             marker={view.marker}
+            caret={view.caret}
+            gapIndex={view.gap}
             held={view.held}
             className="max-w-none"
           />

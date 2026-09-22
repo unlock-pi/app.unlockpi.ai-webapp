@@ -35,16 +35,35 @@ export type Complexity = {
  */
 export type ArrayFrame = {
   values: ArrayValue[];
-  /** Cells under active examination — the compared pair, the probe, the slot. */
+  /**
+   * The ONE cell the eye should be on (two only when a sort compares a pair).
+   * Never more: a beat that lights up several cells gives the class nowhere
+   * to look.
+   */
   active: number[];
-  /** Cells already looked at and rejected — rendered dim. */
+  /** Cells ruled out by a search or sort — rendered dim. Nothing else uses it. */
   visited: number[];
-  /** Cells proven to be in final position — rendered settled. */
+  /**
+   * Cells that are final: sorted into place, or a result. Never used to mean
+   * "untouched" — an insert's prefix is simply left neutral.
+   */
   settled: number[];
-  /** The cell that answers the question: a search hit, the inserted slot. */
+  /** The cell that answers the question: a search hit. Rendered green. */
   found?: number;
   /** A labelled pointer under one cell, e.g. `{ index: 3, label: "pivot" }`. */
   marker?: { index: number; label: string };
+  /**
+   * A POSITION rather than a value: "insert here", "remove this one". Drawn
+   * under the index row, because the question an insert or delete answers is
+   * which index, not which value happens to be sitting there.
+   */
+  caret?: { index: number; label?: string };
+  /**
+   * An empty slot inside `values` (its value is a placeholder). The strip
+   * draws it as a hole and keys it as a new cell, so the real elements slide
+   * around it instead of their values morphing in place.
+   */
+  gap?: number;
   /**
    * A value currently lifted OUT of the array — insertion sort's held element,
    * or merge sort's buffered value. Without this the strip briefly shows the

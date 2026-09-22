@@ -348,7 +348,7 @@ function SlideBlock({
       <section
         aria-label={`${label}: ${title}`}
         title={`${label}: ${title}`}
-        className="relative flex min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
+        className="relative flex border-none! min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
       >
         <ScrollArea fill className="min-h-0 flex-1 rounded-md border">
           <Content
@@ -367,7 +367,7 @@ function SlideBlock({
               "CheckpointBlock",
               "SketchBlock",
             ]}
-            className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border border-dashed border-border/70 bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
+            className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
           />
         </ScrollArea>
         <div className="canvas-frame-watermark pointer-events-none absolute bottom-right-8 z-10 flex items-center gap-1.5 rounded-md bg-background/75 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 backdrop-blur-sm lg:bottom-9 lg:right-9">
@@ -460,6 +460,8 @@ function ArrayBlock({
           visitedIndices={agent.view.visited}
           foundIndex={agent.view.found}
           marker={agent.view.marker}
+          caret={agent.view.caret}
+          gapIndex={agent.view.gap}
           held={agent.view.held}
         />
         {agent.isAnimating && agent.view.note ? (

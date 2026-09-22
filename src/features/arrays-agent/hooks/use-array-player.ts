@@ -12,7 +12,11 @@ import type { AnimationSpeed, ArrayFrame } from "@/features/arrays-agent/lib/arr
  */
 const NORMAL_TARGET_MS = 12_000;
 const NORMAL_MIN_BEAT_MS = 150;
-const NORMAL_MAX_BEAT_MS = 650;
+/**
+ * Long enough for a cell's slide to finish before the next beat starts — a
+ * beat that begins mid-motion is two things moving at once.
+ */
+const NORMAL_MAX_BEAT_MS = 850;
 
 /**
  * "Slow" gives each beat a readable amount of time rather than dividing a
@@ -23,9 +27,6 @@ const NORMAL_MAX_BEAT_MS = 650;
 const SLOW_BEAT_MS = 1_100;
 const SLOW_MIN_BEAT_MS = 600;
 const SLOW_MAX_TOTAL_MS = 75_000;
-
-/** Below this, per-beat sound cues become a machine-gun rattle. */
-const AUDIBLE_BEAT_MS = 280;
 
 export function beatDurationMs(speed: AnimationSpeed, frameCount: number): number {
   if (speed === "instant") return 0;
@@ -49,6 +50,18 @@ export function useArrayPlayer() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSettleRef = useRef<((final: ArrayFrame) => void) | null>(null);
   const framesRef = useRef<ArrayFrame[]>([]);
+  /**
+   * Work that must wait for the board to finish — the explanation card, for
+   * one. Showing it while cells are still moving splits the class's attention
+   * between two things at once.
+   */
+  const afterSettleRef = useRef<Array<() => void>>([]);
+
+  const flushAfterSettle = useCallback(() => {
+    const pending = afterSettleRef.current;
+    afterSettleRef.current = [];
+    pending.forEach((run) => run());
+  }, []);
 
   const stop = useCallback(() => {
     if (timerRef.current) {
@@ -68,10 +81,11 @@ export function useArrayPlayer() {
       if (!final) return;
       setFrame(final);
       setProgress(null);
-      playCue("bloom");
+      playCue(frames.some((beat) => beat.found !== undefined) ? "success" : "bloom");
       onSettleRef.current?.(final);
+      flushAfterSettle();
     },
-    [stop],
+    [flushAfterSettle, stop],
   );
 
   /**
@@ -98,7 +112,9 @@ export function useArrayPlayer() {
       }
 
       const beatMs = beatDurationMs(speed, frames.length);
-      const audible = beatMs >= AUDIBLE_BEAT_MS;
+      // One sound per operation, at the end — per-beat ticks were one more
+      // thing competing with the board for attention.
+      const cue = frames.some((beat) => beat.found !== undefined) ? "success" : "bloom";
 
       let index = 0;
       setIsPlaying(true);
@@ -108,16 +124,14 @@ export function useArrayPlayer() {
         setFrame(beat);
         setProgress({ index: index + 1, total: frames.length });
 
-        if (beat.found !== undefined) playCue("success");
-        else if (audible) playCue("tick");
-
         index++;
         if (index >= frames.length) {
-          playCue("bloom");
+          playCue(cue);
           setIsPlaying(false);
           setProgress(null);
           timerRef.current = null;
           onSettleRef.current?.(beat);
+          flushAfterSettle();
           return;
         }
         timerRef.current = setTimeout(step, beatMs);
@@ -125,8 +139,14 @@ export function useArrayPlayer() {
 
       step();
     },
-    [finish, stop],
+    [finish, flushAfterSettle, stop],
   );
+
+  /** Run `task` once the board is at rest — now, if nothing is playing. */
+  const afterSettle = useCallback((task: () => void) => {
+    if (timerRef.current) afterSettleRef.current.push(task);
+    else task();
+  }, []);
 
   /** Jump to the end of whatever is playing — "skip it", or a rapid follow-up. */
   const skip = useCallback(() => {
@@ -135,6 +155,7 @@ export function useArrayPlayer() {
 
   const clear = useCallback(() => {
     stop();
+    afterSettleRef.current = [];
     framesRef.current = [];
     setFrame(null);
     setProgress(null);
@@ -147,8 +168,8 @@ export function useArrayPlayer() {
    * every frame and rebuild all the tools dozens of times per animation.
    */
   const controls = useMemo(
-    () => ({ play, skip, stop, clear }),
-    [play, skip, stop, clear],
+    () => ({ play, skip, stop, clear, afterSettle }),
+    [play, skip, stop, clear, afterSettle],
   );
 
   return { frame, isPlaying, progress, controls };

@@ -15,6 +15,8 @@ import {
 
 export function createDeletionTools(ctx: ArrayToolContext) {
   const array = () => ctx.state.array;
+  /** Slow mode shows every individual copy; otherwise the tail moves as one block. */
+  const shift = () => ({ stepwise: ctx.state.teaching.speed === "slow" });
 
   return {
     delete_from_beginning: tool({
@@ -23,7 +25,7 @@ export function createDeletionTools(ctx: ArrayToolContext) {
       inputSchema: z.object({}),
       execute: async () => {
         ctx.patch({ topic: "array_deletion" });
-        return commit(ctx, deleteFromBeginning(array().values, array().name));
+        return commit(ctx, deleteFromBeginning(array().values, array().name, shift()));
       },
     }),
 
@@ -33,7 +35,7 @@ export function createDeletionTools(ctx: ArrayToolContext) {
       inputSchema: z.object({}),
       execute: async () => {
         ctx.patch({ topic: "array_deletion" });
-        return commit(ctx, deleteFromEnd(array().values, array().name));
+        return commit(ctx, deleteFromEnd(array().values, array().name, shift()));
       },
     }),
 
@@ -45,7 +47,7 @@ export function createDeletionTools(ctx: ArrayToolContext) {
       }),
       execute: async ({ index }) => {
         ctx.patch({ topic: "array_deletion" });
-        return commit(ctx, deleteAtIndex(array().values, index, array().name));
+        return commit(ctx, deleteAtIndex(array().values, index, array().name, shift()));
       },
     }),
 
@@ -57,7 +59,7 @@ export function createDeletionTools(ctx: ArrayToolContext) {
       }),
       execute: async ({ indices }) => {
         ctx.patch({ topic: "array_deletion" });
-        return commit(ctx, deleteMultiple(array().values, indices, array().name));
+        return commit(ctx, deleteMultiple(array().values, indices, array().name, shift()));
       },
     }),
 
@@ -75,7 +77,7 @@ export function createDeletionTools(ctx: ArrayToolContext) {
         ctx.patch({ topic: "array_deletion" });
         return commit(
           ctx,
-          deleteByValue(array().values, String(value), Boolean(all), array().name),
+          deleteByValue(array().values, String(value), Boolean(all), array().name, shift()),
         );
       },
     }),

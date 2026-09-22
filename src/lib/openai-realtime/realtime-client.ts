@@ -19,13 +19,49 @@ import type {
  * That's the entire mechanism the Realtime API is built around. If you want
  * to lift this into its own package later, this file plus types.ts is the
  * whole "SDK" — everything else in this app just calls it.
+ *
+ * It also owns its own resilience: a WebRTC `connectionState` of
+ * "disconnected" is often a few seconds of bad wifi that clears up on its
+ * own, not a dead session, so that state gets a grace period rather than an
+ * instant teardown. If the connection really is gone — grace period expires,
+ * or the state is "failed" — it retries `connect()` itself with capped
+ * exponential backoff, and gives up (reporting `onError`) only after
+ * `MAX_RECONNECT_ATTEMPTS`. `navigator.onLine`/`offline` feed the same path:
+ * `offline` is a faster signal than waiting out an ICE timeout, and `online`
+ * short-circuits whatever backoff delay was queued for "probably still
+ * offline".
  */
+
+/** How many automatic reconnect attempts before giving up and surfacing an error. */
+const MAX_RECONNECT_ATTEMPTS = 4;
+/** Backoff schedule: 1s, 2s, 4s, 8s (capped), each with a little jitter. */
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 15_000;
+const RECONNECT_JITTER_MS = 300;
+/**
+ * How long a WebRTC `connectionState` of "disconnected" is given to recover
+ * on its own before it's treated as a real loss. ICE reports "disconnected"
+ * on ordinary packet loss blips; tearing the session down on every one of
+ * those would end class over nothing.
+ */
+const DISCONNECT_GRACE_MS = 4_000;
+
 export class OpenAIRealtimeClient {
   private peerConnection: RTCPeerConnection | null = null;
   private dataChannel: RTCDataChannel | null = null;
   private localStream: MediaStream | null = null;
   private handledCallIds = new Set<string>();
   private status: RealtimeStatus = "idle";
+
+  // ── Reconnection ─────────────────────────────────────────────────────
+  /** Set only by the public `disconnect()` — distinguishes "the teacher left" from "the network dropped". */
+  private intentionalDisconnect = false;
+  /** True from the first automatic retry until it succeeds or gives up. */
+  private autoReconnecting = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private disconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  private networkListenersBound = false;
 
   // ── Turn bookkeeping ─────────────────────────────────────────────────
   // The API rejects `response.create` while a response is still running
@@ -67,9 +103,30 @@ export class OpenAIRealtimeClient {
       return;
     }
 
-    this.setStatus("connecting");
+    // A fresh call to `connect()` — whether the teacher pressed start or this
+    // is a retry the class itself scheduled — means we're no longer walking
+    // away from the session on purpose.
+    this.intentionalDisconnect = false;
+    this.clearDisconnectGrace();
+    this.bindNetworkListeners();
+    // Preserve "reconnecting" through a retry attempt itself; only a
+    // teacher-initiated connect (autoReconnecting false) shows "connecting".
+    this.setStatus(this.autoReconnecting ? "reconnecting" : "connecting");
 
     try {
+      // Step 0: `navigator.mediaDevices` is only defined in a secure context
+      // (https, or literally the hostname "localhost") and can be withheld
+      // entirely by an embedding page's Permissions-Policy. Both leave it
+      // `undefined` rather than throwing, so the previous code's first sign
+      // of trouble was a bare "Cannot read properties of undefined (reading
+      // 'getUserMedia')" — accurate, but useless to a teacher. Check for it
+      // before touching the network at all, and say what to actually do.
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          "This browser isn't allowing microphone access here — the page needs to be loaded over https:// (or http://localhost) with microphone permission allowed, not opened inside an embedded preview.",
+        );
+      }
+
       // Step 1: get a short-lived secret from our own server. This is the
       // only network call that needs a real API key, and it never leaves
       // our server.
@@ -92,13 +149,18 @@ export class OpenAIRealtimeClient {
       const peerConnection = new RTCPeerConnection();
       this.peerConnection = peerConnection;
       peerConnection.addEventListener("connectionstatechange", () => {
-        if (
-          peerConnection.connectionState === "failed" ||
-          peerConnection.connectionState === "disconnected"
-        ) {
-          this.disconnect();
-          this.setStatus("error");
-          this.options.onError?.("The realtime connection was interrupted.");
+        const state = peerConnection.connectionState;
+        if (state === "connected") {
+          // Recovered on its own — cancel any grace timer still counting down.
+          this.clearDisconnectGrace();
+          return;
+        }
+        if (state === "failed") {
+          this.handleConnectionLoss();
+          return;
+        }
+        if (state === "disconnected") {
+          this.scheduleDisconnectGrace();
         }
       });
 
@@ -129,7 +191,14 @@ export class OpenAIRealtimeClient {
           // Ignore malformed/unrecognized events rather than crashing the session.
         }
       });
-      dataChannel.addEventListener("open", () => this.setStatus("connected"));
+      dataChannel.addEventListener("open", () => {
+        // A live data channel is the actual "it's working" signal — reset the
+        // retry count so the NEXT drop gets the full set of attempts again,
+        // rather than inheriting a count left over from this recovery.
+        this.reconnectAttempts = 0;
+        this.autoReconnecting = false;
+        this.setStatus("connected");
+      });
 
       // Step 4: classic WebRTC offer/answer, just sent over plain HTTPS
       // instead of a signaling server — OpenAI's endpoint *is* the signaling
@@ -157,15 +226,32 @@ export class OpenAIRealtimeClient {
         sdp: await sdpResponse.text(),
       });
     } catch (error) {
-      this.disconnect();
+      this.teardownConnection();
+      const message =
+        error instanceof Error ? error.message : "The realtime session could not connect.";
+
+      // This attempt failed WHILE auto-retrying (the token fetch or SDP
+      // exchange hit the same bad network that dropped the last one) — that
+      // is exactly what the backoff loop exists for. Queue the next attempt
+      // instead of surfacing an error after one failed retry out of four.
+      if (this.autoReconnecting && !this.intentionalDisconnect) {
+        this.attemptReconnect();
+        return;
+      }
+
       this.setStatus("error");
-      this.options.onError?.(
-        error instanceof Error ? error.message : "The realtime session could not connect.",
-      );
+      this.options.onError?.(message);
     }
   }
 
-  disconnect(): void {
+  /**
+   * Everything about the CURRENT connection — peer connection, data channel,
+   * mic tracks, per-session bookkeeping. Does not touch `status` or the
+   * retry counters, because it's used by both the intentional `disconnect()`
+   * (which then resets those) and an automatic reconnect (which needs them
+   * to survive into the next attempt).
+   */
+  private teardownConnection(): void {
     this.dataChannel?.close();
     this.dataChannel = null;
     this.peerConnection?.getSenders().forEach((sender) => sender.track?.stop());
@@ -181,7 +267,116 @@ export class OpenAIRealtimeClient {
     this.userSpeaking = false;
     this.awaitingFirstOutput = false;
     this.options.onRemoteStream?.(null);
+  }
+
+  disconnect(): void {
+    // The one place this is set true: everything else on this page treats a
+    // dropped connection as something to fix, so this is what tells that
+    // machinery "no, actually stop."
+    this.intentionalDisconnect = true;
+    this.autoReconnecting = false;
+    this.reconnectAttempts = 0;
+    this.clearDisconnectGrace();
+    this.clearReconnectTimer();
+    this.unbindNetworkListeners();
+    this.teardownConnection();
     this.setStatus("idle");
+  }
+
+  // ── Reconnection machinery ───────────────────────────────────────────
+
+  /** The connection is confirmed gone (ICE failed, or "disconnected" outlasted its grace period). */
+  private handleConnectionLoss(): void {
+    if (this.intentionalDisconnect || this.status === "reconnecting") return;
+    this.clearDisconnectGrace();
+    this.teardownConnection();
+    this.attemptReconnect();
+  }
+
+  private scheduleDisconnectGrace(): void {
+    if (this.disconnectGraceTimer) return;
+    this.disconnectGraceTimer = setTimeout(() => {
+      this.disconnectGraceTimer = null;
+      if (this.peerConnection?.connectionState !== "connected") {
+        this.handleConnectionLoss();
+      }
+    }, DISCONNECT_GRACE_MS);
+  }
+
+  private clearDisconnectGrace(): void {
+    if (this.disconnectGraceTimer) {
+      clearTimeout(this.disconnectGraceTimer);
+      this.disconnectGraceTimer = null;
+    }
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /** Queue the next retry, or give up once `MAX_RECONNECT_ATTEMPTS` is spent. */
+  private attemptReconnect(): void {
+    if (this.intentionalDisconnect) return;
+
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.autoReconnecting = false;
+      this.reconnectAttempts = 0;
+      this.setStatus("error");
+      this.options.onError?.(
+        "The realtime connection was lost and could not be restored. Check your connection and start again.",
+      );
+      return;
+    }
+
+    this.autoReconnecting = true;
+    this.reconnectAttempts++;
+    this.setStatus("reconnecting");
+    this.options.onReconnectAttempt?.(this.reconnectAttempts, MAX_RECONNECT_ATTEMPTS);
+
+    const delay =
+      Math.min(
+        RECONNECT_BASE_DELAY_MS * 2 ** (this.reconnectAttempts - 1),
+        RECONNECT_MAX_DELAY_MS,
+      ) + Math.random() * RECONNECT_JITTER_MS;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.connect();
+    }, delay);
+  }
+
+  // ── Browser network signal ───────────────────────────────────────────
+  // Faster and cheaper than waiting on WebRTC to notice: `offline` fires the
+  // instant the OS reports no network, and `online` cuts short whatever
+  // backoff delay was queued on the assumption we were still offline.
+
+  private readonly handleOffline = () => {
+    if (this.status !== "connected" && this.status !== "reconnecting") return;
+    this.handleConnectionLoss();
+  };
+
+  private readonly handleOnline = () => {
+    if (this.status === "reconnecting" && this.reconnectTimer) {
+      this.clearReconnectTimer();
+      void this.connect();
+    }
+  };
+
+  private bindNetworkListeners(): void {
+    if (this.networkListenersBound) return;
+    this.networkListenersBound = true;
+    window.addEventListener("offline", this.handleOffline);
+    window.addEventListener("online", this.handleOnline);
+  }
+
+  private unbindNetworkListeners(): void {
+    if (!this.networkListenersBound) return;
+    this.networkListenersBound = false;
+    window.removeEventListener("offline", this.handleOffline);
+    window.removeEventListener("online", this.handleOnline);
   }
 
   /**
@@ -255,6 +450,9 @@ export class OpenAIRealtimeClient {
   }
 
   private setStatus(status: RealtimeStatus) {
+    // Each retry re-announces "reconnecting" (attemptReconnect, then connect()
+    // itself) — skip the no-op so onStatusChange fires once per real change.
+    if (status === this.status) return;
     this.status = status;
     this.options.onStatusChange?.(status);
   }

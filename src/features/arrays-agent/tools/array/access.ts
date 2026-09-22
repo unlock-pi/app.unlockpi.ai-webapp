@@ -54,9 +54,10 @@ export function createAccessTools(ctx: ArrayToolContext) {
           frames: [
             {
               values,
-              active: [index],
+              active: [],
               visited: [],
               settled: [],
+              caret: { index },
               note: `${name}[${index}] currently holds ${previous}.`,
             },
             {
@@ -64,7 +65,7 @@ export function createAccessTools(ctx: ArrayToolContext) {
               active: [index],
               visited: [],
               settled: [],
-              found: index,
+              caret: { index },
               note: `Write ${value} straight into the slot — no elements move.`,
             },
           ],

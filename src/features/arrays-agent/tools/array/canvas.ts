@@ -90,8 +90,8 @@ export function createCanvasTools(ctx: ArrayToolContext) {
         ctx.play({
           values: next,
           frames: [
-            frame(values, `Watch index ${from}.`, { active: [from] }),
-            frame(next, note, { active: [from, to], found: to }),
+            frame(values, `Watch index ${from}.`, { caret: { index: from }, active: [from] }),
+            frame(next, note, { caret: { index: to }, active: [to] }),
           ],
           summary: note,
         });
