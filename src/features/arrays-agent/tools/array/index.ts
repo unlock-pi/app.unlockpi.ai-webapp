@@ -6,6 +6,7 @@ import { createCanvasTools } from "@/features/arrays-agent/tools/array/canvas";
 import { createCombineTools } from "@/features/arrays-agent/tools/array/combine";
 import { createCreationTools } from "@/features/arrays-agent/tools/array/creation";
 import { createDeletionTools } from "@/features/arrays-agent/tools/array/deletion";
+import { createHandoffTools } from "@/features/arrays-agent/tools/array/handoff";
 import { createInsertionTools } from "@/features/arrays-agent/tools/array/insertion";
 import { createMultidimensionalTools } from "@/features/arrays-agent/tools/array/multidimensional";
 import { createSearchTools } from "@/features/arrays-agent/tools/array/search";
@@ -38,6 +39,7 @@ export function createArrayTools(ctx: ArrayToolContext) {
     ...createCanvasTools(ctx),
     ...createAnimationTools(ctx),
     ...createTeachingTools(ctx),
+    ...createHandoffTools(ctx),
     ...createPresentationTools(ctx),
     ...createBlockTools(ctx),
   };

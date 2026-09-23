@@ -12,6 +12,18 @@
 export type ArrayValue = string;
 
 /**
+ * Which structure the shared engine is driving.
+ *
+ * Arrays and stacks are the same cells with different rules about which of
+ * them you are allowed to touch, so one engine, one player and one canvas
+ * bridge serve both — only the tools and the tutor's persona change.
+ */
+export type StructureKind = "array" | "stack";
+
+/** A stack's own bucket, or an array strip used as one. */
+export type StackView = "bucket" | "array";
+
+/**
  * How an operation plays out.
  *
  * `normal` paces the whole operation into a classroom-sized moment, which
@@ -125,6 +137,24 @@ export type ArrayAgentState = {
   activeCanvasId: string | null;
   /** Frame (slide) the array block currently lives on. */
   activeFrameId: string | null;
+  /**
+   * Which structure the agent is teaching right now.
+   *
+   * A stack is an array with both ends closed except the last one, so it runs
+   * on this same state and this same engine: `array.values` holds the cells
+   * bottom-to-top, and the stack rules live in the stack tools that write
+   * them. Switching is what the teacher hears as one tutor handing over to
+   * the other.
+   */
+  structure: StructureKind;
+  /**
+   * How a stack is drawn: its own bucket, or an array strip being used AS a
+   * stack — the "an array is underneath all of this" lesson. Ignored while
+   * the structure is an array.
+   */
+  stackView: StackView;
+  /** A fixed-size stack refuses a push when full. Null means it grows. */
+  capacity: { size: number } | null;
   array: {
     /** Canvas block id, null until a block exists. */
     id: string | null;
@@ -145,10 +175,14 @@ export type ArrayAgentState = {
 
 export function createInitialAgentState(
   canvasId: string | null = null,
+  structure: StructureKind = "array",
 ): ArrayAgentState {
   return {
     activeCanvasId: canvasId,
     activeFrameId: null,
+    structure,
+    stackView: "bucket",
+    capacity: null,
     array: {
       id: null,
       name: "A",
@@ -170,6 +204,7 @@ export function createInitialAgentState(
  */
 export function describeAgentState(state: ArrayAgentState): string {
   const { array } = state;
+  if (state.structure === "stack") return describeStackState(state);
   if (array.values.length === 0) return "No array on the board.";
 
   const grid =
@@ -179,4 +214,22 @@ export function describeAgentState(state: ArrayAgentState): string {
   const selected =
     array.selectedIndex === null ? "" : `, index ${array.selectedIndex} selected`;
   return `${array.name} = [${array.values.join(", ")}] (${array.values.length} elements${grid}${selected})`;
+}
+
+
+/**
+ * The same one-liner for a stack.
+ *
+ * Says what a teacher would say out loud — how many items, what is on top,
+ * and whether the next push has anywhere to go — because "top" is the only
+ * position a stack lets anyone touch.
+ */
+function describeStackState(state: ArrayAgentState): string {
+  const { values, name } = state.array;
+  const room = state.capacity ? ` of ${state.capacity.size}` : "";
+  const drawn = state.stackView === "array" ? ", drawn as an array" : "";
+  if (values.length === 0) {
+    return `${name} is empty${state.capacity ? ` (capacity ${state.capacity.size})` : ""}${drawn}.`;
+  }
+  return `${name} = [${values.join(", ")}] bottom to top — ${values.length}${room} item(s), top is ${values[values.length - 1]}${drawn}.`;
 }

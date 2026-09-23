@@ -97,7 +97,7 @@ export function createBlockTools(ctx: ArrayToolContext) {
         "Remove one block from the frame now showing. Use for 'delete the subheading', 'take the code block off this slide'. Only use when the teacher clearly asks to remove something.",
       inputSchema: z.object({
         target: z
-          .enum(["heading", "subheading", "body", "code", "array"])
+          .enum(["heading", "subheading", "body", "code", "array", "stack"])
           .describe("Which block to remove from the current frame."),
       }),
       execute: async ({ target }) => {
@@ -105,7 +105,7 @@ export function createBlockTools(ctx: ArrayToolContext) {
         const message = ctx.blocks.remove(target);
         // Without this the agent would keep describing — and editing — an
         // array that is no longer on the frame.
-        if (target === "array") ctx.clearCanvas();
+        if (target === "array" || target === "stack") ctx.clearCanvas();
         return report(ctx, message);
       },
     }),

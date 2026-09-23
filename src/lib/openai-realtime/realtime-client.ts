@@ -35,6 +35,15 @@ export class OpenAIRealtimeClient {
   // stalled after "let me check". The follow-up is now requested once, after
   // the response is done AND every tool result from it has been sent.
   private responseActive = false;
+  /**
+   * The response currently being generated.
+   *
+   * Kept past `response.done` and cleared only when the next one starts,
+   * because tool calls are dispatched FROM `response.done` — clearing it
+   * there would leave every such call unattributed to the response that
+   * paid for it.
+   */
+  private currentResponseId: string | null = null;
   private pendingCallIds = new Set<string>();
   private followUpNeeded = false;
   private userSpeaking = false;
@@ -49,10 +58,38 @@ export class OpenAIRealtimeClient {
     return this.status;
   }
 
+  /**
+   * The response a tool call is being made inside, for cost attribution.
+   * Null before the first response of a session.
+   */
+  getCurrentResponseId(): string | null {
+    return this.currentResponseId;
+  }
+
   /** Push new instructions to an already-connected session (e.g. "here is the next question"). */
   updateInstructions(instructions: string): void {
     // `type` is required on session.update for GA Realtime sessions.
     this.sendEvent({ type: "session.update", session: { type: "realtime", instructions } });
+  }
+
+  /**
+   * Swap the persona AND the tool list on a live session.
+   *
+   * This is what lets one connection carry two tutors: the microphone, the
+   * audio track and the conversation so far all survive, while what the model
+   * is and what it can do change together. Sending them in one update matters
+   * — a session that had the new instructions but the old tools would be told
+   * to teach stacks with only array tools to do it with.
+   */
+  updateSession(update: { instructions?: string; tools?: unknown[] }): void {
+    this.sendEvent({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        ...(update.instructions ? { instructions: update.instructions } : {}),
+        ...(update.tools ? { tools: update.tools, tool_choice: "auto" } : {}),
+      },
+    });
   }
 
   sendEvent(event: Record<string, unknown>): void {
@@ -404,6 +441,8 @@ export class OpenAIRealtimeClient {
     }
 
     if (type === "response.created") {
+      this.currentResponseId =
+        (event.response as { id?: string } | undefined)?.id ?? null;
       this.responseActive = true;
       this.awaitingFirstOutput = true;
       this.options.onResponseCreated?.();

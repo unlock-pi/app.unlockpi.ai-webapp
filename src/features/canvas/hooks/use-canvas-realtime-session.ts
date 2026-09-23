@@ -7,6 +7,7 @@ import {
   type CanvasPresentationFrame,
 } from "@/features/canvas/lib/canvas-presentation";
 import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
+import { trackAgentToolCall } from "@/features/realtime/lib/agent-usage-client";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -128,6 +129,13 @@ export function useCanvasRealtimeSession({
   const modeRef = useRef(mode);
   const framesRef = useRef(frames);
   const usageSessionIdRef = useRef<string | null>(null);
+  /** Tool calls in flight, so the admin panel can be told how long each took. */
+  const toolStartsRef = useRef(new Map<string, { name: string; at: number }>());
+  /**
+   * The response being generated. OpenAI bills per response, so this is what
+   * lets a tool call be priced rather than merely counted.
+   */
+  const currentResponseIdRef = useRef<string | null>(null);
   const captionBufferRef = useRef("");
   const captionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True between output_audio_buffer.started and .stopped — i.e. while the AI's
@@ -227,6 +235,29 @@ export function useCanvasRealtimeSession({
         return;
       }
 
+      // Every branch of handleFunctionCall ends here exactly once, which makes
+      // this the one honest place to book the call: the output says whether it
+      // worked, and the start time says how long it took.
+      const started = toolStartsRef.current.get(callId);
+      if (started) {
+        toolStartsRef.current.delete(callId);
+        let ok = true;
+        try {
+          ok = (JSON.parse(output) as { ok?: boolean }).ok !== false;
+        } catch {
+          // A non-JSON output is still a completed call.
+        }
+        trackAgentToolCall({
+          usageSessionId: usageSessionIdRef.current,
+          callId,
+          responseId: currentResponseIdRef.current,
+          agent: "canvas-copilot",
+          toolName: started.name,
+          ok,
+          durationMs: performance.now() - started.at,
+        });
+      }
+
       sendEvent({
         type: "conversation.item.create",
         item: {
@@ -317,6 +348,12 @@ export function useCanvasRealtimeSession({
         return;
       }
       handledCallIdsRef.current.add(callKey);
+      if (call.call_id) {
+        toolStartsRef.current.set(call.call_id, {
+          name: call.name,
+          at: performance.now(),
+        });
+      }
 
       if (call.name === "control_canvas") {
         try {
@@ -592,6 +629,11 @@ export function useCanvasRealtimeSession({
         // tracking entirely — a session could burn real money and record
         // nothing, with no trace anywhere. Usage capture must never sit
         // downstream of code that can fail.
+        if (parsed.type === "response.created") {
+          currentResponseIdRef.current =
+            (parsed.response as { id?: string } | undefined)?.id ?? null;
+        }
+
         if (parsed.type === "response.done") {
           try {
             trackRealtimeResponse(usageSessionIdRef.current, parsed.response);

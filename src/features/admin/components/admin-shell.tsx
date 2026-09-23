@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   UsersIcon,
+  WrenchIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/users", label: "Users", icon: UsersIcon },
   { href: "/admin/sessions", label: "AI sessions", icon: AudioWaveformIcon },
   { href: "/admin/spend", label: "Spend", icon: CoinsIcon },
+  { href: "/admin/tools", label: "Agent tools", icon: WrenchIcon },
 ];
 
 export type AdminShellUser = {

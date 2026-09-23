@@ -273,6 +273,19 @@ export type CanvasAiAction =
     isFixed?: boolean;
     stackSize?: number;
   }
+  | {
+      /**
+       * Replace a stack's contents outright, bottom-to-top.
+       *
+       * Push and pop move one value at a time, which is right for a click or
+       * a spoken "push 5". The stacks agent animates a whole operation and
+       * then writes the settled result once, and a sequence of pushes and
+       * pops cannot express, say, a reversal.
+       */
+      action: "set_stack_values";
+      componentId?: string;
+      values: string[];
+    }
   | { action: "push_stack_value"; componentId?: string; value?: string }
   | { action: "pop_stack_value"; componentId?: string }
   | { action: "add_queue_block"; title?: string; values?: string[] }

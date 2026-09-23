@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { buildAgentToolCallRow } from "@/features/realtime/lib/agent-usage-server";
 import {
   estimateSessionFromDuration,
   getRealtimeUsageRecord,
@@ -20,6 +21,21 @@ type UsageRequest =
       action: "finish";
       usageSessionId: string;
       status?: "completed" | "failed";
+    }
+  | {
+      /**
+       * One tool call an agent made. Carries no money — the response it
+       * happened inside is what gets priced, and the admin panel splits that
+       * bill across the calls it contained.
+       */
+      action: "tool";
+      usageSessionId: string;
+      callId: string;
+      responseId?: string | null;
+      agent?: string;
+      toolName: string;
+      ok?: boolean;
+      durationMs?: number;
     };
 
 export async function POST(request: NextRequest) {
@@ -67,6 +83,47 @@ export async function POST(request: NextRequest) {
       // tracking can silently stop with zero visible symptoms.
       console.error(
         "[realtime usage] failed to record response cost — check that all migrations under supabase/migrations have been applied:",
+        error,
+      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "tool") {
+    if (!body.callId || !body.toolName) {
+      return NextResponse.json({ error: "Invalid tool call event" }, { status: 400 });
+    }
+
+    // Ownership is checked against the session, not taken from the body, so a
+    // client cannot attribute its calls to someone else's lesson.
+    const { data: usageSession, error: sessionError } = await supabase
+      .from("ai_realtime_sessions")
+      .select("id")
+      .eq("id", body.usageSessionId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (sessionError || !usageSession) {
+      return NextResponse.json(
+        { error: sessionError?.message ?? "Realtime session not found" },
+        { status: sessionError ? 400 : 404 },
+      );
+    }
+
+    const { error } = await supabase
+      .from("ai_agent_tool_calls")
+      .upsert(buildAgentToolCallRow(body, user.id), {
+        onConflict: "usage_session_id,call_id",
+        ignoreDuplicates: true,
+      });
+
+    if (error) {
+      // Same reasoning as the response insert below: the client sends this
+      // fire-and-forget, so this log is the only place a missing migration
+      // will ever surface.
+      console.error(
+        "[agent usage] failed to record a tool call — check that supabase/migrations/20260919_agent_tool_calls.sql has been applied:",
         error,
       );
       return NextResponse.json({ error: error.message }, { status: 400 });

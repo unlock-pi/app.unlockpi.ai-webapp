@@ -65,3 +65,51 @@ export type AdminDashboardData = {
   visualsSpend: AdminVisualSpend;
 };
 
+/**
+ * One tool call an agent made, as recorded by ai_agent_tool_calls.
+ *
+ * This is the row the credits question is answered from: what ran, which
+ * tutor ran it, whether it worked, and which response it was billed inside.
+ */
+export type AdminAgentToolCall = {
+  id: string;
+  usageSessionId: string;
+  ownerId: string;
+  /** The response this call happened inside; null when the surface could not say. */
+  responseId: string | null;
+  agent: string;
+  toolName: string;
+  ok: boolean;
+  durationMs: number;
+  createdAt: string;
+};
+
+/** What one response cost, from ai_realtime_responses. */
+export type AdminResponseCost = {
+  usageSessionId: string;
+  responseId: string;
+  inputTokens: number;
+  outputTokens: number;
+  /** Null when the model had no rate card — unknown, not free. */
+  costUsd: number | null;
+};
+
+/** A tool call with its share of the response it was billed inside. */
+export type AdminToolAttribution = AdminAgentToolCall & {
+  costUsd: number | null;
+  tokens: number | null;
+  /** How many other calls shared this response's bill. */
+  sharedWith: number;
+};
+
+export type AdminToolRollup = {
+  key: string;
+  calls: number;
+  failures: number;
+  costUsd: number;
+  tokens: number;
+  /** Calls in this group whose cost could not be determined. */
+  unpriced: number;
+  totalDurationMs: number;
+  averageDurationMs: number;
+};

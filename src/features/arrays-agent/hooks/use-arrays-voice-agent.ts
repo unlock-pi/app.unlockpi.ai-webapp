@@ -27,8 +27,20 @@ import {
   type ArrayFrame,
   type ArrayOpResult,
   type ArrayValue,
+  type StructureKind,
 } from "@/features/arrays-agent/lib/array-types";
+import {
+  buildArraysAgentInstructions,
+  getArrayRealtimeTools,
+} from "@/features/arrays-agent/lib/agent-identity";
+import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
 import { createArrayTools } from "@/features/arrays-agent/tools/array";
+import {
+  buildStacksAgentInstructions,
+  getStackRealtimeTools,
+} from "@/features/stacks-agent/lib/agent-identity";
+import { STACKS_AGENT_NAME } from "@/features/stacks-agent/lib/agent-name";
+import { createStackTools } from "@/features/stacks-agent/tools/stack";
 import type {
   ArrayOverlay,
   ArrayToolContext,
@@ -36,6 +48,7 @@ import type {
   CombineControls,
   PresentationControls,
 } from "@/features/arrays-agent/tools/tool-context";
+import { trackAgentToolCall } from "@/features/realtime/lib/agent-usage-client";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -67,7 +80,11 @@ type UseArraysVoiceAgentArgs = {
    * responsible for making a place for it (on the canvas, that means adding a
    * frame when the current one is full).
    */
-  onEnsureArray?: (values: ArrayValue[], name: string) => void;
+  onEnsureArray?: (
+    values: ArrayValue[],
+    name: string,
+    state: ArrayAgentState,
+  ) => void;
   /** Called when the agent clears the board. */
   onClear?: () => void;
   /**
@@ -79,6 +96,18 @@ type UseArraysVoiceAgentArgs = {
   blocks?: BlockControls;
   /** Multi-array operations, when running on a canvas. */
   combine?: CombineControls;
+  /**
+   * Which tutor starts: the arrays one, or the stacks one.
+   *
+   * They share this whole runtime — the state, the player, the memory, the
+   * activity log and the connection — because a stack IS an array with one
+   * end closed. What differs is the tool set the model is offered and the
+   * persona it is given, and `switchStructure` swaps both on the live
+   * session without dropping the call.
+   */
+  structure?: StructureKind;
+  /** Told when the tutors hand over, so the host can follow along in its UI. */
+  onStructureChange?: (structure: StructureKind) => void;
 };
 
 /** How many overlays stay on the board before the oldest is dropped. */
@@ -95,6 +124,8 @@ export function useArraysVoiceAgent({
   presentation,
   blocks,
   combine,
+  structure: initialStructure = "array",
+  onStructureChange,
 }: UseArraysVoiceAgentArgs = {}) {
   const [status, setStatus] = useState<RealtimeStatus | "paused">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -125,8 +156,16 @@ export function useArraysVoiceAgent({
 
   // Built once, then handed to both the ref and the first snapshot so neither
   // has to read the other during render.
+  /**
+   * Which tutor is on. A state as well as a ref: the tool set is derived from
+   * it and has to be rebuilt when it changes, while tools running mid-burst
+   * read the ref.
+   */
+  const [structure, setStructure] = useState<StructureKind>(initialStructure);
+
   const [initialState] = useState<ArrayAgentState>(() => {
-    const initial = createInitialAgentState(canvasId);
+    const initial = createInitialAgentState(canvasId, initialStructure);
+    if (initialStructure === "stack") initial.array.name = "S";
     initial.array.values = toDisplayValues(initialValues);
     initial.array.dimensions = [initial.array.values.length];
     return initial;
@@ -174,6 +213,11 @@ export function useArraysVoiceAgent({
   const presentationRef = useRef(presentation);
   const blocksRef = useRef(blocks);
   const combineRef = useRef(combine);
+  const onStructureChangeRef = useRef(onStructureChange);
+
+  useEffect(() => {
+    onStructureChangeRef.current = onStructureChange;
+  }, [onStructureChange]);
 
   useEffect(() => {
     onCommitRef.current = onCommit;
@@ -238,6 +282,71 @@ export function useArraysVoiceAgent({
     );
   }, []);
 
+  /**
+   * Hand the class from one tutor to the other, mid-call.
+   *
+   * Everything the teacher can see and hear stays: the same WebRTC session,
+   * the same microphone, the same canvas, the same frames. What changes is
+   * the persona, the tool list and the board the agent draws into — sent to
+   * OpenAI as ONE session update so the model is never the new tutor holding
+   * the old tutor's tools.
+   *
+   * The other tutor's working notes are deliberately dropped: what the
+   * arrays tutor remembers doing to an array is not something the stacks
+   * tutor should carry on referring to.
+   */
+  const switchStructure = useCallback(
+    (kind: StructureKind, seed?: ArrayValue[]) => {
+      const state = stateRef.current;
+      const arriving = kind === "stack" ? STACKS_AGENT_NAME : ARRAYS_AGENT_NAME;
+      if (state.structure === kind) {
+        return `${arriving} is already the one teaching.`;
+      }
+
+      const carried = seed?.length ? [...seed] : [];
+      state.structure = kind;
+      state.stackView = "bucket";
+      state.capacity = null;
+      state.array.name = kind === "stack" ? "S" : "A";
+      state.array.values = carried;
+      state.array.id = carried.length ? crypto.randomUUID() : null;
+      state.array.dimensions = [carried.length];
+      state.array.selectedIndex = null;
+      state.teaching.topic = null;
+      state.teaching.algorithm = null;
+      bumpState();
+      setStructure(kind);
+
+      player.controls.clear();
+      setOverlays([]);
+      lastPlayedRef.current = null;
+      memoryRef.current = [];
+      // Let go of the block the other tutor was driving; the next operation
+      // creates the right kind of block for this one.
+      onClearRef.current?.();
+      if (carried.length) {
+        onEnsureArrayRef.current?.(carried, state.array.name, state);
+      }
+
+      clientRef.current?.updateSession({
+        instructions:
+          kind === "stack"
+            ? buildStacksAgentInstructions({ lessonTitle, speaks: responseMode !== "silent" })
+            : buildArraysAgentInstructions({ lessonTitle, speaks: responseMode !== "silent" }),
+        tools: kind === "stack" ? getStackRealtimeTools() : getArrayRealtimeTools(),
+      });
+
+      onStructureChangeRef.current?.(kind);
+      logEvent({ kind: "status", at: Date.now(), text: `${arriving} took over` });
+      scheduleLiveContext();
+
+      return kind === "stack"
+        ? `${arriving} is taking over for stacks.${carried.length ? ` The values ${carried.join(", ")} came across as a stack, ${carried[carried.length - 1]} on top.` : " The board is clear and ready for a stack."} Only push, pop and peek from here.`
+        : `${arriving} is taking over for arrays.${carried.length ? ` ${carried.join(", ")} came across as an array.` : " The board is clear and ready for an array."} Indexing, inserting and sorting are available again.`;
+    },
+    [bumpState, lessonTitle, logEvent, player.controls, responseMode, scheduleLiveContext],
+  );
+
   // ── The tool context ─────────────────────────────────────────────────
   // Built once. `state` is a getter over the ref, so the tools always read
   // current truth without the context itself ever going stale.
@@ -257,6 +366,7 @@ export function useArraysVoiceAgent({
       get combine() {
         return combineRef.current;
       },
+      switchStructure,
       play(result: ArrayOpResult) {
         if (!result.rejected) {
           const array = stateRef.current.array;
@@ -307,7 +417,7 @@ export function useArraysVoiceAgent({
         array.selectedIndex = null;
         if (name) array.name = name;
         bumpState();
-        onEnsureArrayRef.current?.(array.values, array.name);
+        onEnsureArrayRef.current?.(array.values, array.name, stateRef.current);
       },
       patch(partial) {
         const { array, teaching } = stateRef.current;
@@ -318,6 +428,8 @@ export function useArraysVoiceAgent({
         if (partial.topic !== undefined) teaching.topic = partial.topic;
         if (partial.algorithm !== undefined) teaching.algorithm = partial.algorithm;
         if (partial.speed !== undefined) teaching.speed = partial.speed;
+        if (partial.capacity !== undefined) stateRef.current.capacity = partial.capacity;
+        if (partial.stackView !== undefined) stateRef.current.stackView = partial.stackView;
         bumpState();
       },
       overlay: pushOverlay,
@@ -342,7 +454,7 @@ export function useArraysVoiceAgent({
     }),
     // `player.controls` — not `player` — so an animation beat does not
     // rebuild the context and, with it, every tool.
-    [bumpState, player.controls, pushOverlay],
+    [bumpState, player.controls, pushOverlay, switchStructure],
   );
 
   // `ctx` exposes `state` as a getter over the ref, so the linter treats this
@@ -350,12 +462,41 @@ export function useArraysVoiceAgent({
   // `ctx` inside each tool's `execute`, which runs when the model calls a
   // tool — never during render. That live read is the whole point, since a
   // snapshot captured here would be stale by the second call in a burst.
+  // Which tutor's vocabulary the model is offered. The two sets deliberately
+  // do not overlap where it matters: there is no insert_at_index on a stack.
+  const createTools =
+    structure === "stack"
+      ? (createStackTools as unknown as typeof createArrayTools)
+      : createArrayTools;
   // eslint-disable-next-line react-hooks/refs
-  const tools = useMemo(() => createArrayTools(ctx), [ctx]);
+  const tools = useMemo(() => createTools(ctx), [createTools, ctx]);
+
+  /**
+   * Book the tool call against this session, for the admin credits view.
+   *
+   * The response id comes from the live client because OpenAI bills per
+   * response: without it the call is recorded but cannot be priced, which
+   * the admin panel reports as unpriced rather than free.
+   */
+  const recordToolCall = useCallback(
+    (tool: string, callId: string | undefined, ok: boolean, durationMs: number) => {
+      if (!callId) return;
+      trackAgentToolCall({
+        usageSessionId: usageSessionIdRef.current,
+        callId,
+        responseId: clientRef.current?.getCurrentResponseId() ?? null,
+        agent: stateRef.current.structure === "stack" ? "stacks" : "arrays",
+        toolName: tool,
+        ok,
+        durationMs,
+      });
+    },
+    [],
+  );
 
   // ── Dispatch ─────────────────────────────────────────────────────────
   const runTool = useCallback(
-    async (name: string, argumentsJson: string): Promise<string> => {
+    async (name: string, argumentsJson: string, callId?: string): Promise<string> => {
       const tool = tools[name as keyof typeof tools] as
         | { execute?: (input: unknown, options: unknown) => unknown }
         | undefined;
@@ -363,7 +504,10 @@ export function useArraysVoiceAgent({
       if (!tool?.execute) {
         return JSON.stringify({
           ok: false,
-          error: `${name} is not a tool this agent has. Use one of the array tools.`,
+          error:
+            stateRef.current.structure === "stack"
+              ? `${name} is not something a stack can do. A stack has push, pop and peek — nothing that reaches into the middle. Say so, and offer one of those instead.`
+              : `${name} is not a tool this agent has. Use one of the array tools.`,
         });
       }
 
@@ -404,11 +548,13 @@ export function useArraysVoiceAgent({
           slowestToolMs: Math.max(previous.slowestToolMs ?? 0, durationMs),
         }));
         remember(name, outcome?.ok !== false, outcome?.summary ?? "");
+        recordToolCall(name, callId, outcome?.ok !== false, durationMs);
         return JSON.stringify(outcome);
       } catch (thrown) {
         // Never let a tool bug hang the model's turn — report it as a failed
         // call so the agent can tell the teacher something went wrong.
         console.error(`[arrays-agent] ${name} threw:`, thrown);
+        recordToolCall(name, callId, false, performance.now() - startedAt);
         logEvent({
           kind: "error",
           at: Date.now(),
@@ -421,8 +567,21 @@ export function useArraysVoiceAgent({
         });
       }
     },
-    [logEvent, remember, tools],
+    [logEvent, recordToolCall, remember, tools],
   );
+
+  /**
+   * Dispatch through a ref, not the closure.
+   *
+   * The client is built once per connection, but the tool set is rebuilt
+   * whenever the tutors hand over. Capturing `runTool` directly would leave a
+   * live session calling the previous tutor's tools — every stack command
+   * answered with "that is not a tool this agent has".
+   */
+  const runToolRef = useRef(runTool);
+  useEffect(() => {
+    runToolRef.current = runTool;
+  }, [runTool]);
 
   // ── Session lifecycle ────────────────────────────────────────────────
   const disconnect = useCallback(() => {
@@ -451,9 +610,13 @@ export function useArraysVoiceAgent({
 
     setError(null);
     const client = new OpenAIRealtimeClient({
-      tokenEndpoint: "/api/openai/realtime/arrays-agent",
+      tokenEndpoint:
+        structure === "stack"
+          ? "/api/openai/realtime/stacks-agent"
+          : "/api/openai/realtime/arrays-agent",
       tokenBody: { canvasId, lessonTitle, responseMode },
-      onToolCall: (call) => runTool(call.name, call.argumentsJson),
+      onToolCall: (call) =>
+        runToolRef.current(call.name, call.argumentsJson, call.callId),
       onStatusChange: (next) => {
         setStatus(next);
         logEvent({ kind: "status", at: Date.now(), text: next });
@@ -530,7 +693,7 @@ export function useArraysVoiceAgent({
 
     clientRef.current = client;
     await client.connect();
-  }, [canvasId, lessonTitle, logEvent, pushLiveContext, responseMode, runTool, status]);
+  }, [canvasId, lessonTitle, logEvent, pushLiveContext, responseMode, status, structure]);
 
   /** Push the current board into the model's context without making it speak. */
   const syncBoard = scheduleLiveContext;
@@ -617,6 +780,11 @@ export function useArraysVoiceAgent({
   return {
     /** Immutable snapshot — safe to read in render and to use as a dependency. */
     agentState: snapshot,
+    /** Which tutor is teaching right now. */
+    structure,
+    /** The tutor's name, for the dock and the activity panel. */
+    agentName: structure === "stack" ? STACKS_AGENT_NAME : ARRAYS_AGENT_NAME,
+    switchStructure,
     caption,
     connect,
     disconnect,

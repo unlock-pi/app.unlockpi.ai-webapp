@@ -2,7 +2,11 @@ import {
   createInitialAgentState,
   describeAgentState,
 } from "@/features/arrays-agent/lib/array-types";
-import type { AnimationSpeed } from "@/features/arrays-agent/lib/array-types";
+import type {
+  AnimationSpeed,
+  StackView,
+  StructureKind,
+} from "@/features/arrays-agent/lib/array-types";
 import type {
   ArrayAgentState,
   ArrayOpResult,
@@ -52,7 +56,20 @@ export type ArrayToolContext = {
     topic?: string | null;
     algorithm?: string | null;
     speed?: AnimationSpeed;
+    /** A fixed-size stack, or null for one that grows. */
+    capacity?: { size: number } | null;
+    /** Whether a stack is drawn as its own bucket or as an array strip. */
+    stackView?: StackView;
   }) => void;
+  /**
+   * Hand the class over to the other tutor — arrays to stacks, or back.
+   *
+   * The same session, engine and board carry on; the tool set, the persona
+   * and the block the agent draws into are what change. Returns a line the
+   * model can say while the handover happens, or a refusal when the host has
+   * no second tutor (the demo board runs one structure only).
+   */
+  switchStructure?: (kind: StructureKind, seed?: ArrayValue[]) => string;
   /** Show supporting material beside the strip. */
   overlay: (overlay: ArrayOverlay) => void;
   /** Clear highlights and overlays, keeping the array. */
@@ -112,7 +129,9 @@ export type BlockControls = {
     target: "heading" | "subheading" | "body" | "frame_title",
     text: string,
   ) => string;
-  remove: (target: "heading" | "subheading" | "body" | "code" | "array") => string;
+  remove: (
+    target: "heading" | "subheading" | "body" | "code" | "array" | "stack",
+  ) => string;
   /** Add a code block mirroring the array, and keep it in sync from now on. */
   linkCode: (language: string) => string;
   /** Read an array literal back out of the frame's code block. */

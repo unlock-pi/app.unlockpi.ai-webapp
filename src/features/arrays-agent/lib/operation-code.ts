@@ -109,13 +109,13 @@ function javascriptOperation(
     case "delete_by_value":
       return args.all
         ? {
-            line: `${name} = ${name}.filter((x) => x !== ${literal(args.value)})`,
-            explanation: "Keep everything that is not that value.",
-          }
+          line: `${name} = ${name}.filter((x) => x !== ${literal(args.value)})`,
+          explanation: "Keep everything that is not that value.",
+        }
         : {
-            line: `${name}.splice(${name}.indexOf(${literal(args.value)}), 1)`,
-            explanation: "Find the first match, then remove one element there.",
-          };
+          line: `${name}.splice(${name}.indexOf(${literal(args.value)}), 1)`,
+          explanation: "Find the first match, then remove one element there.",
+        };
 
     // Search.
     case "linear_search":

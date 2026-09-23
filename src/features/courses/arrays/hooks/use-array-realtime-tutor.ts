@@ -1,5 +1,6 @@
 "use client";
 
+import { trackAgentToolCall } from "@/features/realtime/lib/agent-usage-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -70,6 +71,8 @@ export function useArrayRealtimeTutor({
   const onUiActionRef = useRef(onUiAction);
   const connectionModeRef = useRef<ArrayRealtimeConnectionMode | null>(null);
   const usageSessionIdRef = useRef<string | null>(null);
+  /** The response currently being generated, for per-tool cost attribution. */
+  const currentResponseIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     onUiActionRef.current = onUiAction;
@@ -176,6 +179,22 @@ export function useArrayRealtimeTutor({
       }
       handledCallIdsRef.current.add(callKey);
 
+      // Booked for the admin credits view. The response id is what makes the
+      // call priceable: OpenAI bills per response, not per tool call.
+      const startedAt = performance.now();
+      const book = (ok: boolean, tool: string) => {
+        if (!callId) return;
+        trackAgentToolCall({
+          usageSessionId: usageSessionIdRef.current,
+          callId,
+          responseId: currentResponseIdRef.current,
+          agent: "course-arrays",
+          toolName: tool,
+          ok,
+          durationMs: performance.now() - startedAt,
+        });
+      };
+
       try {
         const parsed = JSON.parse(rawArguments) as ArrayRealtimeUiAction;
         const screenContext = onUiActionRef.current(parsed);
@@ -189,8 +208,12 @@ export function useArrayRealtimeTutor({
           }),
           connectionModeRef.current === "audio"
         );
+        // Named by the action it carried, so the admin table shows what the
+        // lesson actually did rather than one row called control_array_lesson.
+        book(true, `${name}:${parsed.action}`);
       } catch {
         sendToolOutput(callId, JSON.stringify({ ok: false, error: "Invalid UI action JSON." }));
+        book(false, name);
       }
     },
     [sendToolOutput, syncScreenContext]
@@ -211,6 +234,10 @@ export function useArrayRealtimeTutor({
           handleFunctionCall(item.name, item.arguments, item.call_id);
         }
       });
+
+      if (event.type === "response.created") {
+        currentResponseIdRef.current = event.response?.id ?? null;
+      }
 
       if (event.type === "response.done") {
         trackRealtimeResponse(usageSessionIdRef.current, event.response);

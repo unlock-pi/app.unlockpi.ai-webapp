@@ -16,6 +16,23 @@ export function arrayNameFromTitle(title?: string): string {
   return isIdentifier(last) ? last : DEFAULT_ARRAY_NAME;
 }
 
+export const DEFAULT_STACK_NAME = "S";
+
+/**
+ * The same, for a stack.
+ *
+ * Only the fallback differs: an untitled array is A and an untitled stack is
+ * S, which is what the textbooks and the generated code both use.
+ */
+export function stackNameFromTitle(title?: string): string {
+  const raw = (title ?? "").trim();
+  if (!raw) return DEFAULT_STACK_NAME;
+  const derived = arrayNameFromTitle(raw);
+  return derived === DEFAULT_ARRAY_NAME && !/^a$/i.test(raw) && !/\ba\b/i.test(raw)
+    ? DEFAULT_STACK_NAME
+    : derived;
+}
+
 /** A, then B, then C… skipping any name already on the frame. */
 export function nextArrayName(existing: string[]): string {
   const taken = new Set(existing.map((name) => name.toUpperCase()));

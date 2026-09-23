@@ -6,6 +6,7 @@ import {
   BotIcon,
   BracketsIcon,
   DoorOpenIcon,
+  LayersIcon,
   MicIcon,
   MoonIcon,
   PanelRightIcon,
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import { STACKS_AGENT_NAME } from "@/features/stacks-agent/lib/agent-name";
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
@@ -118,6 +120,12 @@ const classModes: Array<{
     icon: BracketsIcon,
     title: ARRAYS_AGENT_NAME,
     tagline: "Teaches arrays — builds, sorts and searches on the board",
+  },
+  {
+    mode: "stacks",
+    icon: LayersIcon,
+    title: STACKS_AGENT_NAME,
+    tagline: "Teaches stacks — push, pop and what they are for",
   },
 ];
 

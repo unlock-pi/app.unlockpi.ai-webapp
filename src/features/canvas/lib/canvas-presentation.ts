@@ -14,6 +14,7 @@ export const CANVAS_PRESENTATION_MODES = [
   "voice",
   "companion",
   "arrays",
+  "stacks",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];

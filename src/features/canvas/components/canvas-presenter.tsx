@@ -11,6 +11,7 @@ import {
   ChevronRightIcon,
   CircleStopIcon,
   Grid2X2Icon,
+  LayersIcon,
   MicIcon,
   MicOffIcon,
   PhoneOffIcon,
@@ -36,6 +37,8 @@ import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-a
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import type { StructureKind } from "@/features/arrays-agent/lib/array-types";
+import { STACKS_AGENT_NAME } from "@/features/stacks-agent/lib/agent-name";
 import {
   PresenterDock,
   type DockAction,
@@ -450,6 +453,19 @@ export function CanvasPresenter({
     };
   }, []);
 
+  /**
+   * Keep the dock in step when the tutors hand over by voice.
+   *
+   * "Let us do stacks" is a handover the teacher never touched a button for,
+   * so the mode has to follow the agent rather than the other way round.
+   */
+  const handleStructureChange = useCallback(
+    (structure: StructureKind) => {
+      setSelectedMode(structure === "stack" ? "stacks" : "arrays");
+    },
+    [setSelectedMode],
+  );
+
   const arrays = useArraysAgentOnCanvas({
     canvasId,
     canvasTitle: title,
@@ -458,10 +474,31 @@ export function CanvasPresenter({
     applyDocument: applyArraysDocument,
     presentation: arraysPresentation,
     activeFrameId: activeFrame?.id ?? null,
-    enabled: selectedMode === "arrays",
+    enabled: selectedMode === "arrays" || selectedMode === "stacks",
+    structure: selectedMode === "stacks" ? "stack" : "array",
+    onStructureChange: handleStructureChange,
   });
 
-  const isArraysMode = selectedMode === "arrays";
+  /** One agent, two tutors — either mode means it is the one driving. */
+  const isArraysMode = selectedMode === "arrays" || selectedMode === "stacks";
+
+  /**
+   * Picking a tutor from the dock goes through the same handover the voice
+   * command uses, so a live session swaps persona and tools instead of being
+   * torn down and rebuilt.
+   */
+  const selectTutor = useCallback(
+    (structure: StructureKind) => {
+      // Coming from a copilot mode, that session has to let go of the
+      // microphone first; coming from the other tutor, nothing is torn down.
+      if (selectedMode !== "arrays" && selectedMode !== "stacks") {
+        realtimeSession.disconnect();
+      }
+      setSelectedMode(structure === "stack" ? "stacks" : "arrays");
+      arrays.agent.switchStructure(structure);
+    },
+    [arrays.agent, realtimeSession, selectedMode],
+  );
   const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
@@ -589,10 +626,10 @@ export function CanvasPresenter({
     {
       id: "power",
       label: voiceConnected
-        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
+        ? `Stop ${isArraysMode ? arrays.agent.agentName : "the AI"}`
         : voiceConnecting
           ? "Connecting…"
-          : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
+          : `Start ${isArraysMode ? arrays.agent.agentName : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       disabled: selectedMode === "manual" || voiceConnecting,
@@ -667,8 +704,15 @@ export function CanvasPresenter({
           id: "mode-arrays",
           label: ARRAYS_AGENT_NAME,
           icon: <BracketsIcon className="size-4" />,
-          active: isArraysMode,
-          onClick: () => selectMode("arrays"),
+          active: selectedMode === "arrays",
+          onClick: () => selectTutor("array"),
+        },
+        {
+          id: "mode-stacks",
+          label: STACKS_AGENT_NAME,
+          icon: <LayersIcon className="size-4" />,
+          active: selectedMode === "stacks",
+          onClick: () => selectTutor("stack"),
         },
         {
           id: "overview",
@@ -709,7 +753,7 @@ export function CanvasPresenter({
         ? "Manual mode · ← → to move between frames"
         : voiceConnected
           ? "Listening — just talk to change the board"
-          : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+          : `Press power to start ${isArraysMode ? arrays.agent.agentName : "the AI"}`);
 
   if (!activeFrame) {
     return (

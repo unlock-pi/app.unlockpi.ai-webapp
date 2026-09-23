@@ -13,12 +13,16 @@ import {
   codeForOperation,
   type OperationRequest,
 } from "@/features/arrays-agent/lib/operation-code";
+import { codeForStackOperation } from "@/features/stacks-agent/lib/stack-code";
 import {
   arrayNameFromTitle,
   DEFAULT_ARRAY_NAME,
   nextArrayName,
 } from "@/features/arrays-agent/lib/array-name";
-import type { ArrayValue } from "@/features/arrays-agent/lib/array-types";
+import type {
+  ArrayValue,
+  StructureKind,
+} from "@/features/arrays-agent/lib/array-types";
 import type {
   BlockControls,
   CombineControls,
@@ -78,9 +82,19 @@ function slidesOf(document: CanvasDocument): SlideLike[] {
 function findArrayBlockOnFrame(
   document: CanvasDocument,
   frameId: string | null,
+  blockType: VisualBlockType = "ArrayBlock",
 ): string | null {
-  return readArrayFromFrame(document, frameId)?.blockId ?? null;
+  return readArrayFromFrame(document, frameId, blockType)?.blockId ?? null;
 }
+
+/**
+ * The two blocks this bridge drives.
+ *
+ * A stack normally lives in its own bucket, but the same stack can be drawn
+ * on the array strip to show what is underneath it — so which block is being
+ * driven is a property of the moment, not of the agent.
+ */
+export type VisualBlockType = "ArrayBlock" | "StackBlock";
 
 /**
  * Read the array already authored on a frame.
@@ -93,10 +107,11 @@ function findArrayBlockOnFrame(
 export function readArrayFromFrame(
   document: CanvasDocument,
   frameId: string | null,
+  blockType: VisualBlockType = "ArrayBlock",
 ): FrameArraySnapshot | null {
   const slide = slidesOf(document).find((item) => item.props.id === frameId);
   const arrays = (slide?.props.content ?? []).filter(
-    (item) => item.type === "ArrayBlock",
+    (item) => item.type === blockType,
   );
   const block = arrays[arrays.length - 1];
   if (!block) return null;
@@ -192,15 +207,16 @@ export function useArraysCanvasBridge({
    * teacher running out of board space would do anyway.
    */
   const ensureArrayBlock = useCallback(
-    (values: ArrayValue[], title?: string) => {
+    (values: ArrayValue[], title?: string, blockType: VisualBlockType = "ArrayBlock") => {
       const document = getDocument();
       const frameId = getActiveFrameId();
-      const existing = findArrayBlockOnFrame(document, frameId);
+      const isStack = blockType === "StackBlock";
+      const existing = findArrayBlockOnFrame(document, frameId, blockType);
 
       if (existing) {
         setTarget(existing);
         const result = applyCanvasAction(document, frameId, {
-          action: "set_array_values",
+          action: isStack ? "set_stack_values" : "set_array_values",
           componentId: existing,
           values,
         });
@@ -208,26 +224,26 @@ export function useArraysCanvasBridge({
         return existing;
       }
 
-      let result = applyCanvasAction(document, frameId, {
-        action: "add_array_block",
-        title,
-        values,
-      });
+      // Deliberately additive: a frame may hold a teacher's array AND the
+      // stack being built from it. Swapping one picture for another is an
+      // explicit request (show_stack_as_array), and that tool removes the old
+      // block itself — guessing it here would delete work nobody asked to
+      // lose.
+      const addBlock: CanvasAiAction = isStack
+        ? { action: "add_stack_block", title, values }
+        : { action: "add_array_block", title, values };
+      let result = applyCanvasAction(document, frameId, addBlock);
 
       if (result.message === FRAME_CONTENT_LIMIT_MESSAGE) {
         const withFrame = applyCanvasAction(document, frameId, {
           action: "add_frame",
-          title: title ?? "Array",
+          title: title ?? (isStack ? "Stack" : "Array"),
         });
-        result = applyCanvasAction(withFrame.document, withFrame.activeSlideId, {
-          action: "add_array_block",
-          title,
-          values,
-        });
+        result = applyCanvasAction(withFrame.document, withFrame.activeSlideId, addBlock);
       }
 
       applyDocument(result.document, result.activeSlideId);
-      const created = findArrayBlockOnFrame(result.document, result.activeSlideId);
+      const created = findArrayBlockOnFrame(result.document, result.activeSlideId, blockType);
       setTarget(created);
       return created;
     },
@@ -248,19 +264,32 @@ export function useArraysCanvasBridge({
 
   /** Write settled values into the document — called when an animation ends. */
   const commitValues = useCallback(
-    (values: ArrayValue[], arrayName = "A", operation?: OperationRequest | null) => {
+    (
+      values: ArrayValue[],
+      arrayName = "A",
+      operation?: OperationRequest | null,
+      structure: StructureKind = "array",
+    ) => {
       const document = getDocument();
       const frameId = getActiveFrameId();
-      const blockId = targetBlockIdRef.current ?? findArrayBlockOnFrame(document, frameId);
+      const blockId =
+        targetBlockIdRef.current ??
+        findArrayBlockOnFrame(document, frameId, "ArrayBlock") ??
+        findArrayBlockOnFrame(document, frameId, "StackBlock");
 
       if (!blockId) {
         // Nothing to write into yet — the next ensureArrayBlock will create it.
         return;
       }
 
+      // A stack drawn on the array strip is still a stack, so the block type
+      // decides how the values are written and the structure decides how the
+      // operation is written as code.
+      const inBucket = blockId === findArrayBlockOnFrame(document, frameId, "StackBlock");
+
       setTarget(blockId);
       let result = applyCanvasAction(document, frameId, {
-        action: "set_array_values",
+        action: inBucket ? "set_stack_values" : "set_array_values",
         componentId: blockId,
         values,
       });
@@ -279,7 +308,7 @@ export function useArraysCanvasBridge({
             // written in: the same insert is a splice in JavaScript and an
             // insert in Python.
             operation: operation
-              ? codeForOperation(
+              ? (structure === "stack" ? codeForStackOperation : codeForOperation)(
                   operation.tool,
                   operation.args,
                   arrayName,
@@ -437,6 +466,7 @@ export function useArraysCanvasBridge({
           body: "BodyTextBlock",
           code: "CodeBlock",
           array: "ArrayBlock",
+          stack: "StackBlock",
         }[target];
 
         const document = getDocument();
@@ -447,7 +477,7 @@ export function useArraysCanvasBridge({
         });
         applyDocument(result.document, result.activeSlideId);
 
-        if (blockType === "ArrayBlock") setTarget(null);
+        if (blockType === "ArrayBlock" || blockType === "StackBlock") setTarget(null);
         if (blockType === "CodeBlock") linkedCodeRef.current = null;
         return result.message;
       },
@@ -643,8 +673,15 @@ export function useArraysCanvasBridge({
    * clear the agent's state or leave it alone.
    */
   const adoptFrameArray = useCallback(
-    (frameId: string | null) => {
-      const found = readArrayFromFrame(getDocument(), frameId);
+    (frameId: string | null, blockType: VisualBlockType = "ArrayBlock") => {
+      // Only the picture this tutor is drawing right now.
+      //
+      // Deliberately no fallback to the other kind: an arrays tutor that
+      // adopted a stack block could be asked to insert into the middle of a
+      // stack, and a stacks tutor that adopted the teacher's array would
+      // contradict the handover it just announced. A frame with the other
+      // kind on it reads as an empty board to this tutor, which is honest.
+      const found = readArrayFromFrame(getDocument(), frameId, blockType);
       setTarget(found?.blockId ?? null);
       return found;
     },

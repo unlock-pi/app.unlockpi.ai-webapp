@@ -33,6 +33,7 @@ import { StackStrip } from "@/components/data-structure/stack-strip";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
+import { stackNameFromTitle } from "@/features/arrays-agent/lib/array-name";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import { SketchBlock } from "@/features/canvas/components/sketch-block";
@@ -509,6 +510,37 @@ function StackBlock({
     visitedIndices,
     traversalTarget,
   );
+  // The stacks tutor drives this block the same way the arrays tutor drives
+  // an array strip: while it is playing, its beat is the truth on screen, and
+  // the authored props are what the block falls back to when it lets go.
+  const agent = useArraysAgentView(id);
+
+  if (agent) {
+    const top = agent.view.values.length - 1;
+    return blockShell(
+      "canvas-frame-block--compact",
+      <div className="grid w-full gap-4">
+        <StackStrip
+          data={agent.view.values}
+          name={stackNameFromTitle(title)}
+          activeIndex={agent.view.found ?? agent.view.active[0] ?? undefined}
+          visitedIndices={agent.view.visited}
+          isFixed={isFixed}
+          stackSize={stackSize}
+          className="justify-start pt-6"
+        />
+        {agent.view.held ? (
+          <p className="canvas-array-step text-muted-foreground">
+            {agent.view.held.label}: {agent.view.held.value}
+          </p>
+        ) : null}
+        {agent.isAnimating && agent.view.note ? (
+          <p className="canvas-array-step text-muted-foreground">{agent.view.note}</p>
+        ) : null}
+        {!agent.isAnimating && top >= 0 ? null : null}
+      </div>,
+    );
+  }
 
   return blockShell(
     !title || !caption ? "canvas-frame-block--compact" : undefined,
@@ -519,7 +551,7 @@ function StackBlock({
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
         data={stackValues}
-        name="S"
+        name={stackNameFromTitle(title)}
         isFixed={isFixed}
         stackSize={stackSize}
         className={cn("justify-start", (!title || !caption) && "pt-6")}

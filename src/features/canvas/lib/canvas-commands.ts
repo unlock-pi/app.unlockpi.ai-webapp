@@ -667,7 +667,7 @@ export function applyCanvasAction(
       props: {
         id: createCanvasId("array"),
         title: action.title?.trim() || "A",
-        values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0", "1"]),
+        values: normalizeArrayValues(action.values ?? ["8", "5", "0", "1"]),
         highlightedIndex: undefined,
         showIndices: true,
         caption: "",
@@ -790,7 +790,9 @@ export function applyCanvasAction(
         title: action.title?.trim() || "Stack A",
         values: normalizeArrayValues(
           clampStackToCapacity(
-            action.values?.length ? action.values : ["8", "5", "0"],
+            // An explicit [] means an empty stack — "make me an empty stack of
+            // size 5" would otherwise arrive with three items already in it.
+            action.values ?? ["8", "5", "0"],
             isFixed ? { isFixed: true, size: stackSize } : { isFixed: false },
           ),
         ),
@@ -804,6 +806,24 @@ export function applyCanvasAction(
     });
     nextSlideId = result.slideId;
     message = result.inserted ? "Added a stack block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_stack_values") {
+    const stack = getTargetStack(nextDocument, action.componentId, nextSlideId);
+    if (stack) {
+      stack.props.values = normalizeArrayValues(
+        clampStackToCapacity(action.values, stackCapacityOf(stack)),
+      );
+      if (
+        typeof stack.props.highlightedIndex === "number" &&
+        stack.props.highlightedIndex >= stack.props.values.length
+      ) {
+        stack.props.highlightedIndex = undefined;
+      }
+      message = `Updated ${stack.props.title}.`;
+    } else {
+      message = "Could not find a stack block to update.";
+    }
   }
 
   if (action.action === "push_stack_value") {
