@@ -41,6 +41,7 @@ const paletteSections: PaletteSection[] = [
       "CodeBlock",
       "MermaidBlock",
       "TableBlock",
+      "AutomatonBlock",
     ],
   },
 ];

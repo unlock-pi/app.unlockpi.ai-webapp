@@ -30,6 +30,11 @@ import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
 import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
+import { AutomatonBlock } from "@/components/automata";
+import {
+  nextAutomatonId,
+  reconcileAutomatonProps,
+} from "@/components/automata/authoring";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -364,6 +369,7 @@ function SlideBlock({
               "CodeBlock",
               "MermaidBlock",
               "TableBlock",
+              "AutomatonBlock",
               "CheckpointBlock",
               "SketchBlock",
             ]}
@@ -899,6 +905,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "CodeBlock",
         "MermaidBlock",
         "TableBlock",
+        "AutomatonBlock",
       ],
       defaultExpanded: true,
     },
@@ -935,6 +942,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "CodeBlock",
             "MermaidBlock",
             "TableBlock",
+            "AutomatonBlock",
             "CheckpointBlock",
             "SketchBlock",
           ],
@@ -1258,6 +1266,159 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         answer: "Add the expected answer.",
       },
       render: CheckpointBlock,
+    },
+    AutomatonBlock: {
+      label: "Automaton",
+      resolveData: (data, { lastData }) => ({
+        ...data,
+        props: reconcileAutomatonProps(data.props, lastData?.props),
+      }),
+      resolveFields: (data, { fields }) => {
+        if (fields.states.type !== "array" || fields.transitions.type !== "array") {
+          return fields;
+        }
+
+        const states = reconcileAutomatonProps(data.props).states;
+        const stateIds = new Set(states.map((state) => state.id));
+        const options = states.map((state) => ({
+          label: state.label && state.label !== state.id
+            ? `${state.label} (${state.id})`
+            : state.id,
+          value: state.id,
+        }));
+        const missingIds = new Set(
+          (data.props.transitions ?? [])
+            .flatMap((transition) => [transition.from, transition.to])
+            .filter((id) => id && !stateIds.has(id)),
+        );
+        const endpointOptions = [
+          ...options,
+          ...[...missingIds].map((id) => ({ label: `${id} (missing state)`, value: id })),
+        ];
+        const initialId = states.find((state) => state.initial)?.id ?? states[0]?.id ?? "";
+        const otherId = states.find((state) => state.id !== initialId)?.id ?? initialId;
+
+        return {
+          ...fields,
+          states: {
+            ...fields.states,
+            defaultItemProps: (index) => {
+              const id = nextAutomatonId(states, "q", index);
+              return { id, label: id, initial: false, accepting: false, status: "normal" };
+            },
+          },
+          transitions: {
+            ...fields.transitions,
+            arrayFields: {
+              ...fields.transitions.arrayFields,
+              from: { type: "select", label: "From state", options: endpointOptions },
+              to: { type: "select", label: "To state", options: endpointOptions },
+              symbols: {
+                type: "text",
+                label: data.props.type === "nfa"
+                  ? "Symbols (comma separated; ε allowed)"
+                  : "Symbols (comma separated)",
+              },
+            },
+            defaultItemProps: (index) => ({
+              id: nextAutomatonId(data.props.transitions ?? [], "t", index),
+              from: initialId,
+              to: otherId,
+              symbols: "",
+              status: "normal",
+            }),
+          },
+        };
+      },
+      fields: {
+        automatonId: {
+          type: "text",
+          label: "Automaton ID",
+          visible: false,
+        },
+        type: {
+          type: "select",
+          label: "Automaton type",
+          options: [
+            { label: "DFA", value: "dfa" },
+            { label: "NFA", value: "nfa" },
+          ],
+        },
+        alphabet: { type: "text", label: "Alphabet (comma separated)" },
+        input: { type: "text", label: "Input string" },
+        states: {
+          type: "array",
+          label: "States",
+          arrayFields: {
+            id: { type: "text", label: "State ID", visible: false },
+            label: { type: "text", label: "Label" },
+            initial: {
+              type: "radio",
+              label: "Initial state",
+              options: [{ label: "Yes", value: true }, { label: "No", value: false }],
+            },
+            accepting: {
+              type: "radio",
+              label: "Accepting state",
+              options: [{ label: "Yes", value: true }, { label: "No", value: false }],
+            },
+            status: {
+              type: "select",
+              label: "Visual state",
+              options: [
+                { label: "Normal", value: "normal" },
+                { label: "Highlighted", value: "highlighted" },
+                { label: "Visited", value: "visited" },
+              ],
+            },
+          },
+          defaultItemProps: (index) => ({ id: `q${index}`, label: `q${index}`, initial: false, accepting: false, status: "normal" }),
+          getItemSummary: (item) => item.label || item.id || "State",
+        },
+        transitions: {
+          type: "array",
+          label: "Transitions",
+          arrayFields: {
+            id: { type: "text", label: "Transition ID", visible: false },
+            from: { type: "text", label: "From state ID" },
+            to: { type: "text", label: "To state ID" },
+            symbols: { type: "text", label: "Symbols (comma separated; ε allowed)" },
+            status: {
+              type: "select",
+              label: "Visual state",
+              options: [
+                { label: "Normal", value: "normal" },
+                { label: "Highlighted", value: "highlighted" },
+                { label: "Visited", value: "visited" },
+              ],
+            },
+          },
+          defaultItemProps: (index) => ({ id: `t${index}`, from: "q0", to: "q1", symbols: "", status: "normal" }),
+          getItemSummary: (item) => `${item.from || "?"} → ${item.to || "?"}: ${item.symbols || "Set symbol"}`,
+        },
+        showTransitionTable: {
+          type: "radio",
+          label: "Show transition table",
+          options: [{ label: "Yes", value: true }, { label: "No", value: false }],
+        },
+      },
+      defaultProps: {
+        type: "dfa",
+        alphabet: "0, 1",
+        input: "101",
+        states: [
+          { id: "q0", label: "q0", initial: true, accepting: false, status: "normal" },
+          { id: "q1", label: "q1", initial: false, accepting: true, status: "normal" },
+        ],
+        transitions: [
+          { id: "t0", from: "q0", to: "q0", symbols: "0", status: "normal" },
+          { id: "t1", from: "q0", to: "q1", symbols: "1", status: "normal" },
+          { id: "t2", from: "q1", to: "q0", symbols: "0", status: "normal" },
+          { id: "t3", from: "q1", to: "q1", symbols: "1", status: "normal" },
+        ],
+        showTransitionTable: true,
+      },
+      render: AutomatonBlock,
     },
     SketchBlock: {
       label: "Drawing",

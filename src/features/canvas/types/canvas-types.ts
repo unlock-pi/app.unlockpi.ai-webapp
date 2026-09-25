@@ -1,4 +1,5 @@
 import type { Data, Slot } from "@puckeditor/core";
+import type { AutomatonBlockProps } from "@/components/automata";
 
 // TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
 // FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
@@ -196,6 +197,7 @@ export type CanvasComponents = {
   MermaidBlock: MermaidBlockProps;
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
+  AutomatonBlock: AutomatonBlockProps;
   SketchBlock: SketchBlockProps;
 };
 
@@ -261,6 +263,12 @@ export type CanvasAiAction =
   | { action: "clear_frame" }
   | { action: "add_array_block"; title?: string; values?: string[] }
   | { action: "set_array_values"; componentId?: string; values: string[] }
+  | { action: "add_automaton_block"; automaton: AutomatonBlockProps }
+  | {
+      action: "set_automaton_block";
+      componentId: string;
+      automaton: AutomatonBlockProps;
+    }
   | { action: "resize_array"; componentId?: string; length: number }
   | { action: "highlight_array_index"; componentId?: string; index?: number }
   | { action: "append_array_value"; componentId?: string; value?: string }

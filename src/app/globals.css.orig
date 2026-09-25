@@ -758,10 +758,9 @@ html ::-webkit-scrollbar-track {
   right: max(1.5rem, env(safe-area-inset-right));
 }
 
-/* Puck disables selected blocks by default. These controls and diagram
-   interactions are deliberately available inside the Automaton block. */
+/* Puck disables selected blocks by default. These are deliberate interactive
+   controls and vis-network canvas interactions inside the Automaton block. */
 .canvas-preview-pane [data-puck-component] .automaton-control,
-.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) canvas,
-.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) svg[role="img"] {
+.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) canvas {
   pointer-events: auto !important;
 }

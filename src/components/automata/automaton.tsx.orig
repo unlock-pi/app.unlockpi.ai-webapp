@@ -1,0 +1,300 @@
+"use client";
+
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+
+import { useAutomataAgentView } from "@/components/automata/agent-view-context";
+import { AutomatonNetwork } from "@/components/automata/automaton-network";
+import { reconcileAutomatonProps } from "@/components/automata/authoring";
+import { ExecutionPanel } from "@/components/automata/execution-panel";
+import { InputString } from "@/components/automata/input-string";
+import {
+  createAutomatonExecution,
+  normaliseSymbol,
+  stepAutomaton,
+  tokenizeAutomatonInput,
+  validateAutomaton,
+  type Automaton,
+  type AutomatonExecution,
+  type AutomatonType,
+  type AutomatonVisualStatus,
+} from "@/components/automata/model";
+import { TransitionTable } from "@/components/automata/transition-table";
+
+export type AutomatonBlockState = {
+  id: string;
+  label: string;
+  initial?: boolean;
+  accepting?: boolean;
+  status?: AutomatonVisualStatus;
+};
+
+export type AutomatonBlockTransition = {
+  id: string;
+  from: string;
+  to: string;
+  symbols: string;
+  status?: AutomatonVisualStatus;
+};
+
+export type AutomatonBlockProps = {
+  /** Formal identity, separate from Puck's component instance id. */
+  automatonId?: string;
+  type: AutomatonType;
+  alphabet: string;
+  states: AutomatonBlockState[];
+  transitions: AutomatonBlockTransition[];
+  input: string;
+  showTransitionTable: boolean;
+};
+
+type AutomatonBlockRenderProps = AutomatonBlockProps & { id: string };
+
+const TRANSITION_PLAYBACK_DELAY_MS = 3_100;
+const TRANSITION_SETTLE_DELAY_MS = 140;
+
+function executionBeforeStep(execution: AutomatonExecution, stepCount: number): AutomatonExecution {
+  const steps = execution.steps.slice(0, stepCount);
+  const step = steps.at(-1);
+  if (!step) return execution;
+  const completedSteps = steps.slice(0, -1);
+
+  return {
+    ...execution,
+    status: "running",
+    result: "unknown",
+    inputIndex: step.inputIndex,
+    currentStates: step.fromStates,
+    activeTransitions: step.transitions,
+    visitedStates: [
+      ...new Set(completedSteps.flatMap((item) => [...item.fromStates, ...item.toStates])),
+      ...step.fromStates,
+    ],
+    visitedTransitions: [...new Set(completedSteps.flatMap((item) => item.transitions))],
+    stepIndex: step.stepIndex,
+    steps,
+  };
+}
+
+function executionAtStep(execution: AutomatonExecution, stepCount: number): AutomatonExecution {
+  const steps = execution.steps.slice(0, stepCount);
+  const step = steps.at(-1);
+  if (!step) return execution;
+
+  return {
+    ...execution,
+    status: step.status,
+    result: step.result,
+    inputIndex: step.symbol === null ? step.inputIndex : step.inputIndex + 1,
+    currentStates: step.toStates,
+    activeTransitions: step.transitions,
+    visitedStates: [...new Set(steps.flatMap((item) => [...item.fromStates, ...item.toStates]))],
+    visitedTransitions: [...new Set(steps.flatMap((item) => item.transitions))],
+    stepIndex: step.stepIndex,
+    steps,
+  };
+}
+
+/**
+ * Agent tools may evaluate a whole input string in one state update. Replay its
+ * recorded steps locally so every state-to-state transition remains visible.
+ */
+function useExecutionPlayback(execution: AutomatonExecution) {
+  const [displayedExecution, setDisplayedExecution] = useState(execution);
+  const previousRef = useRef({ executionId: execution.executionId, stepCount: execution.steps.length });
+
+  useEffect(() => {
+    const previous = previousRef.current;
+    const isNewExecution = previous.executionId !== execution.executionId;
+    const firstNewStep = isNewExecution ? 0 : previous.stepCount;
+    previousRef.current = { executionId: execution.executionId, stepCount: execution.steps.length };
+
+    if (execution.steps.length === 0 || firstNewStep >= execution.steps.length) {
+      const timeout = setTimeout(() => setDisplayedExecution(execution), 0);
+      return () => clearTimeout(timeout);
+    }
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let displayedStepCount = firstNewStep + 1;
+    const playNext = () => {
+      const step = execution.steps[displayedStepCount - 1];
+      if (!step || step.transitions.length === 0) {
+        setDisplayedExecution(executionAtStep(execution, displayedStepCount));
+        displayedStepCount += 1;
+        if (displayedStepCount <= execution.steps.length) {
+          timeout = setTimeout(playNext, TRANSITION_SETTLE_DELAY_MS);
+        }
+        return;
+      }
+
+      // Keep the source active while liquid travels through the transition.
+      setDisplayedExecution(executionBeforeStep(execution, displayedStepCount));
+      timeout = setTimeout(() => {
+        setDisplayedExecution(executionAtStep(execution, displayedStepCount));
+        displayedStepCount += 1;
+        if (displayedStepCount <= execution.steps.length) {
+          timeout = setTimeout(playNext, TRANSITION_SETTLE_DELAY_MS);
+        }
+      }, TRANSITION_PLAYBACK_DELAY_MS);
+    };
+    timeout = setTimeout(playNext, 0);
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [execution]);
+
+  return displayedExecution;
+}
+
+// Puck recreates block-prop objects during unrelated editor updates. Compare the
+// persisted values rather than their references so those updates do not redraw
+// the Vis.js canvas.
+function automatonBlockPropsKey(props: AutomatonBlockRenderProps) {
+  return JSON.stringify({
+    id: props.id,
+    automatonId: props.automatonId,
+    type: props.type,
+    alphabet: props.alphabet,
+    states: props.states,
+    transitions: props.transitions,
+    input: props.input,
+    showTransitionTable: props.showTransitionTable,
+  });
+}
+
+function areAutomatonBlockPropsEqual(
+  previous: AutomatonBlockRenderProps,
+  next: AutomatonBlockRenderProps,
+) {
+  return automatonBlockPropsKey(previous) === automatonBlockPropsKey(next);
+}
+
+export function toAutomaton(props: AutomatonBlockRenderProps): Automaton {
+  const authored = reconcileAutomatonProps(props);
+  const states = authored.states.map((state) => ({
+    ...state,
+    label: state.label.trim() || state.id,
+  }));
+  const startState = states.find((state) => state.initial)?.id ?? "";
+  return {
+    id: authored.automatonId?.trim() || props.id,
+    type: authored.type,
+    alphabet: [...new Set(authored.alphabet.split(",").map(normaliseSymbol).filter(Boolean))],
+    states,
+    transitions: authored.transitions.map((transition) => ({
+      ...transition,
+      symbols: [...new Set(transition.symbols.split(",").map(normaliseSymbol).filter(Boolean))],
+    })),
+    startState,
+    acceptStates: states.filter((state) => state.accepting).map((state) => state.id),
+  };
+}
+
+export function toAutomatonBlockProps(
+  automaton: Automaton,
+  input = "",
+  showTransitionTable = true,
+): AutomatonBlockProps {
+  return {
+    automatonId: automaton.id,
+    type: automaton.type,
+    alphabet: automaton.alphabet.join(", "),
+    states: automaton.states.map((state) => ({
+      id: state.id,
+      label: state.label,
+      initial: state.id === automaton.startState,
+      accepting: automaton.acceptStates.includes(state.id),
+      status: state.status ?? "normal",
+    })),
+    transitions: automaton.transitions.map((transition) => ({
+      id: transition.id,
+      from: transition.from,
+      to: transition.to,
+      symbols: transition.symbols.join(", "),
+      status: transition.status ?? "normal",
+    })),
+    input,
+    showTransitionTable,
+  };
+}
+
+function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
+  const authoredAutomaton = useMemo(() => toAutomaton(props), [props]);
+  const authoredInput = props.input;
+  const agent = useAutomataAgentView(props.id);
+  const automaton = agent?.automaton ?? authoredAutomaton;
+  const inputText = agent?.execution.input ?? authoredInput;
+  const input = useMemo(
+    () => tokenizeAutomatonInput(automaton, inputText),
+    [automaton, inputText],
+  );
+  const validation = useMemo(() => validateAutomaton(automaton), [automaton]);
+  const [localExecution, setLocalExecution] = useState(() =>
+    createAutomatonExecution(authoredAutomaton, authoredInput),
+  );
+
+  const executionKey = `${JSON.stringify(authoredAutomaton)}:${authoredInput}`;
+  const [lastExecutionKey, setLastExecutionKey] = useState(executionKey);
+  if (!agent && lastExecutionKey !== executionKey) {
+    setLastExecutionKey(executionKey);
+    setLocalExecution(createAutomatonExecution(authoredAutomaton, authoredInput));
+  }
+  const execution = agent?.execution ?? localExecution;
+  const displayedExecution = useExecutionPlayback(execution);
+
+  return (
+    <section
+      className="canvas-automaton-block flex w-full min-w-0 flex-col gap-3"
+      aria-label={`${automaton.type.toUpperCase()} automaton`}
+    >
+      <div className="min-w-0 overflow-hidden">
+        <AutomatonNetwork automaton={automaton} execution={displayedExecution} />
+      </div>
+
+      {props.showTransitionTable ? (
+        <section className="grid min-w-0 gap-2" aria-label="Transition table">
+          <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Transition table
+          </h4>
+          <TransitionTable automaton={automaton} execution={displayedExecution} />
+        </section>
+      ) : null}
+
+      {!validation.valid ? (
+        <p
+          role="status"
+          className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning"
+        >
+          {validation.issues.map((issue) => issue.message).join(" ")}
+        </p>
+      ) : null}
+
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pt-1">
+        <InputString symbols={input} currentIndex={displayedExecution.inputIndex} />
+        <ExecutionPanel
+          disabled={!validation.valid}
+          execution={execution}
+          onStep={
+            agent?.onStep ??
+            (() => setLocalExecution((current) => stepAutomaton(automaton, current)))
+          }
+          onReset={
+            agent?.onReset ??
+            (() => setLocalExecution(createAutomatonExecution(automaton, authoredInput)))
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+const MemoizedAutomatonBlock = memo(
+  AutomatonBlockComponent,
+  areAutomatonBlockPropsEqual,
+);
+
+// Puck requires a regular component function, while the memoized child keeps
+// editor-wide updates from reaching the interactive diagram.
+export function AutomatonBlock(props: AutomatonBlockRenderProps) {
+  return <MemoizedAutomatonBlock {...props} />;
+}

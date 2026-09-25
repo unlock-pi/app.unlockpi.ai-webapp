@@ -1,0 +1,466 @@
+/** Renderer-independent DFA/NFA domain model and execution semantics. */
+export type AutomatonType = "dfa" | "nfa";
+
+export type AutomatonVisualStatus =
+  | "normal"
+  | "active"
+  | "visited"
+  | "highlighted";
+
+export type AutomatonState = {
+  id: string;
+  label: string;
+  initial?: boolean;
+  accepting?: boolean;
+  status?: AutomatonVisualStatus;
+};
+
+export type AutomatonTransition = {
+  id: string;
+  from: string;
+  to: string;
+  symbols: string[];
+  status?: AutomatonVisualStatus;
+};
+
+export type Automaton = {
+  id: string;
+  type: AutomatonType;
+  alphabet: string[];
+  states: AutomatonState[];
+  transitions: AutomatonTransition[];
+  startState: string;
+  acceptStates: string[];
+};
+
+export type ExecutionStatus =
+  | "idle"
+  | "running"
+  | "paused"
+  | "accepted"
+  | "rejected"
+  | "error";
+
+export type ExecutionResult = "unknown" | "accepted" | "rejected";
+
+export type AutomatonExecutionStep = {
+  stepIndex: number;
+  inputIndex: number;
+  symbol: string | null;
+  fromStates: string[];
+  transitions: string[];
+  toStates: string[];
+  status: ExecutionStatus;
+  result: ExecutionResult;
+};
+
+/** Transient execution state. It is never persisted into the automaton definition. */
+export type AutomatonExecution = {
+  executionId: string;
+  automatonId: string;
+  status: ExecutionStatus;
+  input: string;
+  inputIndex: number;
+  currentStates: string[];
+  activeTransitions: string[];
+  visitedStates: string[];
+  visitedTransitions: string[];
+  stepIndex: number;
+  result: ExecutionResult;
+  steps: AutomatonExecutionStep[];
+  error?: string;
+};
+
+export type AutomatonValidationIssue = {
+  code:
+    | "NO_STATES"
+    | "DUPLICATE_STATE_ID"
+    | "DUPLICATE_TRANSITION_ID"
+    | "NO_START_STATE"
+    | "MULTIPLE_START_STATES"
+    | "START_STATE_NOT_FOUND"
+    | "ACCEPT_STATE_NOT_FOUND"
+    | "EMPTY_ALPHABET_SYMBOL"
+    | "EPSILON_IN_ALPHABET"
+    | "DUPLICATE_ALPHABET_SYMBOL"
+    | "INVALID_TRANSITION_REFERENCE"
+    | "EMPTY_TRANSITION_SYMBOL"
+    | "SYMBOL_NOT_IN_ALPHABET"
+    | "DFA_EPSILON_TRANSITION"
+    | "DFA_NONDETERMINISTIC_TRANSITION";
+  message: string;
+  details?: Record<string, unknown>;
+};
+
+export type AutomatonValidation = {
+  valid: boolean;
+  issues: AutomatonValidationIssue[];
+};
+
+const EPSILON_ALIASES = new Set(["ε", "epsilon", "eps"]);
+
+export function isEpsilon(symbol: string) {
+  return EPSILON_ALIASES.has(symbol.trim().toLowerCase());
+}
+
+export function normaliseSymbol(symbol: string) {
+  return isEpsilon(symbol) ? "ε" : symbol.trim();
+}
+
+export function unique(values: string[]) {
+  return [...new Set(values)];
+}
+
+/** Keeps redundant authoring flags in sync with the formal start/accept sets. */
+export function normaliseAutomaton(automaton: Automaton): Automaton {
+  const alphabet = unique(automaton.alphabet.map(normaliseSymbol).filter(Boolean));
+  const acceptStates = unique(automaton.acceptStates.map((id) => id.trim()).filter(Boolean));
+  return {
+    ...structuredClone(automaton),
+    id: automaton.id.trim(),
+    alphabet,
+    startState: automaton.startState.trim(),
+    acceptStates,
+    states: automaton.states.map((state) => ({
+      ...state,
+      id: state.id.trim(),
+      label: state.label.trim() || state.id.trim(),
+      initial: state.id.trim() === automaton.startState.trim(),
+      accepting: acceptStates.includes(state.id.trim()),
+    })),
+    transitions: automaton.transitions.map((transition) => ({
+      ...transition,
+      id: transition.id.trim(),
+      from: transition.from.trim(),
+      to: transition.to.trim(),
+      symbols: unique(transition.symbols.map(normaliseSymbol).filter(Boolean)),
+    })),
+  };
+}
+
+export function validateAutomaton(input: Automaton): AutomatonValidation {
+  const automaton = structuredClone(input);
+  const issues: AutomatonValidationIssue[] = [];
+  const stateIds = automaton.states.map((state) => state.id.trim());
+  const stateIdSet = new Set(stateIds);
+  const transitionIds = automaton.transitions.map((transition) => transition.id.trim());
+  const alphabet = automaton.alphabet.map(normaliseSymbol);
+  const alphabetSet = new Set(alphabet);
+
+  if (automaton.states.length === 0) {
+    issues.push({ code: "NO_STATES", message: "The automaton has no states." });
+  }
+  for (const id of unique(stateIds.filter((id, index) => stateIds.indexOf(id) !== index))) {
+    issues.push({
+      code: "DUPLICATE_STATE_ID",
+      message: `State ID "${id}" is used more than once.`,
+      details: { stateId: id },
+    });
+  }
+  for (const id of unique(transitionIds.filter((id, index) => transitionIds.indexOf(id) !== index))) {
+    issues.push({
+      code: "DUPLICATE_TRANSITION_ID",
+      message: `Transition ID "${id}" is used more than once.`,
+      details: { transitionId: id },
+    });
+  }
+
+  const markedStarts = automaton.states.filter((state) => state.initial).map((state) => state.id);
+  if (!automaton.startState) {
+    issues.push({ code: "NO_START_STATE", message: "Choose exactly one start state." });
+  } else if (!stateIdSet.has(automaton.startState)) {
+    issues.push({
+      code: "START_STATE_NOT_FOUND",
+      message: `Start state "${automaton.startState}" does not exist.`,
+      details: { startState: automaton.startState },
+    });
+  }
+  if (markedStarts.length > 1) {
+    issues.push({
+      code: "MULTIPLE_START_STATES",
+      message: "An automaton must have exactly one start state.",
+      details: { states: markedStarts },
+    });
+  }
+
+  for (const stateId of automaton.acceptStates) {
+    if (!stateIdSet.has(stateId)) {
+      issues.push({
+        code: "ACCEPT_STATE_NOT_FOUND",
+        message: `Accepting state "${stateId}" does not exist.`,
+        details: { stateId },
+      });
+    }
+  }
+
+  if (alphabet.some((symbol) => !symbol)) {
+    issues.push({ code: "EMPTY_ALPHABET_SYMBOL", message: "Alphabet symbols cannot be empty." });
+  }
+  if (alphabet.some(isEpsilon)) {
+    issues.push({
+      code: "EPSILON_IN_ALPHABET",
+      message: "Epsilon is not an input alphabet symbol; use it only on NFA transitions.",
+    });
+  }
+  for (const symbol of unique(alphabet.filter((value, index) => alphabet.indexOf(value) !== index))) {
+    issues.push({
+      code: "DUPLICATE_ALPHABET_SYMBOL",
+      message: `Alphabet symbol "${symbol}" is duplicated.`,
+      details: { symbol },
+    });
+  }
+
+  const dfaTargets = new Map<string, Set<string>>();
+  for (const transition of automaton.transitions) {
+    if (!stateIdSet.has(transition.from) || !stateIdSet.has(transition.to)) {
+      issues.push({
+        code: "INVALID_TRANSITION_REFERENCE",
+        message: `Transition "${transition.id}" must connect existing states.`,
+        details: { transitionId: transition.id, from: transition.from, to: transition.to },
+      });
+    }
+    if (transition.symbols.length === 0 || transition.symbols.some((symbol) => !symbol.trim())) {
+      issues.push({
+        code: "EMPTY_TRANSITION_SYMBOL",
+        message: `Transition "${transition.id}" needs at least one symbol.`,
+        details: { transitionId: transition.id },
+      });
+    }
+    for (const rawSymbol of transition.symbols) {
+      const symbol = normaliseSymbol(rawSymbol);
+      if (isEpsilon(symbol)) {
+        if (automaton.type === "dfa") {
+          issues.push({
+            code: "DFA_EPSILON_TRANSITION",
+            message: "A DFA cannot contain epsilon transitions.",
+            details: { transitionId: transition.id },
+          });
+        }
+        continue;
+      }
+      if (!alphabetSet.has(symbol)) {
+        issues.push({
+          code: "SYMBOL_NOT_IN_ALPHABET",
+          message: `Transition symbol "${symbol}" is not in the alphabet.`,
+          details: { transitionId: transition.id, symbol },
+        });
+      }
+      if (automaton.type === "dfa") {
+        const key = JSON.stringify([transition.from, symbol]);
+        const targets = dfaTargets.get(key) ?? new Set<string>();
+        targets.add(transition.to);
+        dfaTargets.set(key, targets);
+      }
+    }
+  }
+  for (const [key, targets] of dfaTargets) {
+    if (targets.size <= 1) continue;
+    const [state, symbol] = JSON.parse(key) as [string, string];
+    issues.push({
+      code: "DFA_NONDETERMINISTIC_TRANSITION",
+      message: `A DFA cannot have multiple transitions from "${state}" on "${symbol}".`,
+      details: { state, symbol, targets: [...targets] },
+    });
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+function epsilonClosureWithTransitions(automaton: Automaton, initial: string[]) {
+  if (automaton.type === "dfa") {
+    return { states: unique(initial), transitions: [] as string[] };
+  }
+  const states = new Set(initial);
+  const transitions = new Set<string>();
+  const pending = [...initial];
+  while (pending.length) {
+    const stateId = pending.pop();
+    if (!stateId) continue;
+    for (const transition of automaton.transitions) {
+      if (transition.from !== stateId || !transition.symbols.some(isEpsilon)) continue;
+      transitions.add(transition.id);
+      if (!states.has(transition.to)) {
+        states.add(transition.to);
+        pending.push(transition.to);
+      }
+    }
+  }
+  return { states: [...states], transitions: [...transitions] };
+}
+
+export function epsilonClosure(automaton: Automaton, initial: string[]) {
+  return epsilonClosureWithTransitions(automaton, initial).states;
+}
+
+export function move(automaton: Automaton, stateIds: string[], symbol: string) {
+  return automaton.transitions.filter(
+    (transition) =>
+      stateIds.includes(transition.from) &&
+      transition.symbols.some((candidate) => !isEpsilon(candidate) && candidate === symbol),
+  );
+}
+
+/** Tokenises whitespace-delimited input or greedily matches multi-character symbols. */
+export function tokenizeAutomatonInput(automaton: Automaton, input: string): string[] {
+  const trimmed = input.trim();
+  if (!trimmed) return [];
+  if (/\s/.test(trimmed)) return trimmed.split(/\s+/).filter(Boolean);
+  const symbols = automaton.alphabet.filter((symbol) => symbol && !isEpsilon(symbol));
+  if (symbols.every((symbol) => [...symbol].length === 1)) return [...trimmed];
+
+  const ordered = [...symbols].sort((left, right) => right.length - left.length);
+  const tokens: string[] = [];
+  let remaining = trimmed;
+  while (remaining) {
+    const match = ordered.find((symbol) => remaining.startsWith(symbol));
+    if (!match) {
+      tokens.push(remaining[0]);
+      remaining = remaining.slice(1);
+    } else {
+      tokens.push(match);
+      remaining = remaining.slice(match.length);
+    }
+  }
+  return tokens;
+}
+
+function executionId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `execution-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function createAutomatonExecution(
+  automaton: Automaton,
+  input = "",
+): AutomatonExecution {
+  const validation = validateAutomaton(automaton);
+  const initial = automaton.states.some((state) => state.id === automaton.startState)
+    ? epsilonClosureWithTransitions(automaton, [automaton.startState])
+    : { states: [], transitions: [] };
+  return {
+    executionId: executionId(),
+    automatonId: automaton.id,
+    status: validation.valid ? "idle" : "error",
+    input,
+    inputIndex: 0,
+    currentStates: initial.states,
+    activeTransitions: [],
+    visitedStates: initial.states,
+    visitedTransitions: [],
+    stepIndex: 0,
+    result: "unknown",
+    steps: [],
+    error: validation.valid ? undefined : validation.issues[0]?.message,
+  };
+}
+
+export function stepAutomaton(
+  automaton: Automaton,
+  inputOrExecution: string[] | AutomatonExecution,
+  maybeExecution?: AutomatonExecution,
+): AutomatonExecution {
+  // Backwards-compatible signature for the original Puck block.
+  const execution = maybeExecution ?? (inputOrExecution as AutomatonExecution);
+  const symbols = Array.isArray(inputOrExecution)
+    ? inputOrExecution
+    : tokenizeAutomatonInput(automaton, execution.input);
+  if (["accepted", "rejected", "error"].includes(execution.status)) return execution;
+
+  const fromStates = [...execution.currentStates];
+  const symbol = symbols[execution.inputIndex];
+  if (symbol === undefined) {
+    const accepted = fromStates.some((stateId) => automaton.acceptStates.includes(stateId));
+    const status = accepted ? "accepted" : "rejected";
+    const result = accepted ? "accepted" : "rejected";
+    const step: AutomatonExecutionStep = {
+      stepIndex: execution.stepIndex + 1,
+      inputIndex: execution.inputIndex,
+      symbol: null,
+      fromStates,
+      transitions: [],
+      toStates: fromStates,
+      status,
+      result,
+    };
+    return {
+      ...execution,
+      status,
+      result,
+      activeTransitions: [],
+      stepIndex: step.stepIndex,
+      steps: [...execution.steps, step],
+    };
+  }
+
+  if (!automaton.alphabet.includes(symbol)) {
+    return {
+      ...execution,
+      status: "error",
+      result: "unknown",
+      activeTransitions: [],
+      error: `Input symbol "${symbol}" is not in the alphabet.`,
+    };
+  }
+
+  const matching = move(automaton, fromStates, symbol);
+  const closure = epsilonClosureWithTransitions(
+    automaton,
+    unique(matching.map((transition) => transition.to)),
+  );
+  const transitions = unique([
+    ...matching.map((transition) => transition.id),
+    ...closure.transitions,
+  ]);
+  const nextIndex = execution.inputIndex + 1;
+  const consumedAll = nextIndex === symbols.length;
+  const accepted =
+    consumedAll && closure.states.some((stateId) => automaton.acceptStates.includes(stateId));
+  const status: ExecutionStatus =
+    closure.states.length === 0
+      ? "rejected"
+      : consumedAll
+        ? accepted
+          ? "accepted"
+          : "rejected"
+        : "running";
+  const result: ExecutionResult =
+    status === "accepted" ? "accepted" : status === "rejected" ? "rejected" : "unknown";
+  const step: AutomatonExecutionStep = {
+    stepIndex: execution.stepIndex + 1,
+    inputIndex: execution.inputIndex,
+    symbol,
+    fromStates,
+    transitions,
+    toStates: closure.states,
+    status,
+    result,
+  };
+
+  return {
+    ...execution,
+    status,
+    result,
+    inputIndex: nextIndex,
+    currentStates: closure.states,
+    activeTransitions: transitions,
+    visitedStates: unique([...execution.visitedStates, ...closure.states]),
+    visitedTransitions: unique([...execution.visitedTransitions, ...transitions]),
+    stepIndex: step.stepIndex,
+    steps: [...execution.steps, step],
+    error: undefined,
+  };
+}
+
+export function executeAutomaton(automaton: Automaton, input: string): AutomatonExecution {
+  let execution = createAutomatonExecution(automaton, input);
+  if (execution.status === "error") return execution;
+  const symbols = tokenizeAutomatonInput(automaton, input);
+  // Empty input still takes one evaluation step.
+  const maximumSteps = Math.max(1, symbols.length);
+  for (let index = 0; index < maximumSteps; index++) {
+    execution = stepAutomaton(automaton, symbols, execution);
+    if (["accepted", "rejected", "error"].includes(execution.status)) break;
+  }
+  return execution;
+}

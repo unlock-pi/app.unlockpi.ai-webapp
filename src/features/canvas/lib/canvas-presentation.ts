@@ -14,6 +14,7 @@ export const CANVAS_PRESENTATION_MODES = [
   "voice",
   "companion",
   "arrays",
+  "automata",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
@@ -175,6 +176,17 @@ export function readFrameBlocks(frame: CanvasPresentationFrame) {
       // only thing it can honestly talk about.
       drawingDescription: text("aiContext"),
       values: values ?? nodes,
+      automaton:
+        kind === "Automaton"
+          ? {
+              id: text("automatonId") ?? id,
+              type: text("type"),
+              alphabet: text("alphabet"),
+              input: text("input"),
+              states: Array.isArray(props.states) ? props.states : [],
+              transitions: Array.isArray(props.transitions) ? props.transitions : [],
+            }
+          : undefined,
       highlightedIndex:
         typeof props.highlightedIndex === "number" ? props.highlightedIndex : undefined,
     };
@@ -209,6 +221,7 @@ const BLOCK_NAMES: Record<string, string> = {
   Checkpoint: "question",
   MindMap: "mind map",
   Sketch: "drawing",
+  Automaton: "automaton",
 };
 
 function clip(text: string, max: number) {
@@ -256,6 +269,19 @@ export function describeFrameReadable(
         return `${position}: "${clip(block.question ?? "", 200)}" (answer: "${clip(block.answer ?? "", 120)}")`;
       case "Sketch":
         return `${position}: ${block.drawingDescription ? `"${clip(block.drawingDescription, 200)}"` : "no description"}`;
+      case "Automaton": {
+        const automaton = block.automaton as
+          | {
+              id?: string;
+              type?: string;
+              alphabet?: string;
+              input?: string;
+              states?: unknown[];
+              transitions?: unknown[];
+            }
+          | undefined;
+        return `${position} ${automaton?.id ?? ""} (${(automaton?.type ?? "finite").toUpperCase()}), alphabet {${automaton?.alphabet ?? ""}}, ${automaton?.states?.length ?? 0} states, ${automaton?.transitions?.length ?? 0} transitions, input "${automaton?.input ?? ""}"`;
+      }
       default:
         return `${position}${block.title ? `: "${clip(block.title, 120)}"` : ""}`;
     }

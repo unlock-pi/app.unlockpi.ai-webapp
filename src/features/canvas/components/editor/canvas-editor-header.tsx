@@ -8,6 +8,7 @@ import {
   DoorOpenIcon,
   MicIcon,
   MoonIcon,
+  NetworkIcon,
   PanelRightIcon,
   PresentationIcon,
   SaveIcon,
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name";
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
@@ -118,6 +120,12 @@ const classModes: Array<{
     icon: BracketsIcon,
     title: ARRAYS_AGENT_NAME,
     tagline: "Teaches arrays — builds, sorts and searches on the board",
+  },
+  {
+    mode: "automata",
+    icon: NetworkIcon,
+    title: AUTOMATA_AGENT_NAME,
+    tagline: "Builds and runs DFA and NFA on the board",
   },
 ];
 

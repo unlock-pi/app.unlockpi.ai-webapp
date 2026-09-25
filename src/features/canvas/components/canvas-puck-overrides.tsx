@@ -106,10 +106,20 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     description: "Concept map with branches",
     icon: NetworkIcon,
   },
+  AutomatonBlock: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
+  },
   CodeBlock: {
     label: "Code",
     description: "Snippet and explanation",
     icon: Code2Icon,
+  },
+  Automaton: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
   },
   Code: {
     label: "Code",

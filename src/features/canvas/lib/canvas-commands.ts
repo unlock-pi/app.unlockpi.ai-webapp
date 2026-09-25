@@ -5,6 +5,7 @@ import {
   pushStack,
   type StackCapacity,
 } from "@/components/data-structure/stack-model";
+import type { AutomatonBlockProps } from "@/components/automata";
 import type {
   ArrayBlockProps,
   CanvasAiAction,
@@ -25,6 +26,10 @@ type SlideItem = CanvasItem & {
 };
 type ArrayItem = CanvasItem & { type: "ArrayBlock"; props: ArrayBlockProps & { id: string } };
 type StackItem = CanvasItem & { type: "StackBlock"; props: StackBlockProps & { id: string } };
+type AutomatonItem = CanvasItem & {
+  type: "AutomatonBlock";
+  props: AutomatonBlockProps & { id: string };
+};
 
 function cloneDocument(document: CanvasDocument): CanvasDocument {
   return structuredClone(document);
@@ -55,6 +60,10 @@ function isArrayItem(item: CanvasItem): item is ArrayItem {
 
 function isStackItem(item: CanvasItem): item is StackItem {
   return item.type === "StackBlock";
+}
+
+function isAutomatonItem(item: CanvasItem): item is AutomatonItem {
+  return item.type === "AutomatonBlock";
 }
 
 /** Builds the `StackCapacity` a given stack block currently enforces. */
@@ -127,6 +136,8 @@ function itemLayoutCost(item: FrameContentItem) {
     case "MermaidBlock":
     case "SketchBlock":
       return 3.5;
+    case "AutomatonBlock":
+      return 7.5;
     default:
       return 2;
   }
@@ -255,6 +266,25 @@ function getTargetArray(
 
 function getArrays(document: CanvasDocument) {
   return getSlides(document).flatMap((slide) => getSlideContent(slide).filter(isArrayItem));
+}
+
+function getTargetAutomaton(
+  document: CanvasDocument,
+  componentId: string | undefined,
+  activeSlideId: string | null,
+) {
+  const active = getActiveSlide(document, activeSlideId);
+  const onActive = active ? getSlideContent(active).filter(isAutomatonItem) : [];
+  if (componentId) {
+    return onActive.find((item) => item.props.id === componentId) ??
+      getSlides(document)
+        .flatMap((slide) => getSlideContent(slide))
+        .find((item): item is AutomatonItem =>
+          isAutomatonItem(item) && item.props.id === componentId,
+        ) ??
+      null;
+  }
+  return onActive.at(-1) ?? null;
 }
 
 /**
@@ -392,6 +422,7 @@ function blockLabel(blockType: string): string {
     CheckpointBlock: "checkpoint",
     MindMapBlock: "mind map",
     SketchBlock: "drawing",
+    AutomatonBlock: "automaton",
   };
   return labels[blockType] ?? blockType.replace(/Block$/, "").toLowerCase();
 }
@@ -690,6 +721,34 @@ export function applyCanvasAction(
       message = `Updated ${array.props.title}.`;
     } else {
       message = "Could not find an array block to update.";
+    }
+  }
+
+  if (action.action === "add_automaton_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "AutomatonBlock",
+      props: {
+        id: createCanvasId("automaton"),
+        ...structuredClone(action.automaton),
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added an automaton block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_automaton_block") {
+    const block = getTargetAutomaton(nextDocument, action.componentId, nextSlideId);
+    if (block) {
+      const componentId = block.props.id;
+      block.props = {
+        id: componentId,
+        ...structuredClone(action.automaton),
+      };
+      message = `Updated ${action.automaton.automatonId ?? "the automaton"}.`;
+    } else {
+      message = "Could not find an automaton block to update.";
     }
   }
 

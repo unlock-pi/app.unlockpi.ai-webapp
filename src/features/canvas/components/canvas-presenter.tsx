@@ -13,6 +13,7 @@ import {
   Grid2X2Icon,
   MicIcon,
   MicOffIcon,
+  NetworkIcon,
   PowerIcon,
   RotateCcwIcon,
   XIcon,
@@ -30,11 +31,14 @@ import type { RemoteAudioTrack } from "livekit-client";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import { AutomataAgentViewProvider } from "@/components/automata";
 import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import { useAutomataAgentOnCanvas } from "@/features/automata-agent/hooks/use-automata-agent-on-canvas";
+import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name";
 import {
   PresenterDock,
   type DockAction,
@@ -461,8 +465,23 @@ export function CanvasPresenter({
     activeFrameId: activeFrame?.id ?? null,
     enabled: selectedMode === "arrays",
   });
+  const automata = useAutomataAgentOnCanvas({
+    canvasId,
+    canvasTitle: title,
+    getDocument: getArraysDocument,
+    getActiveFrameId: getArraysFrameId,
+    applyDocument: applyArraysDocument,
+    activeFrameId: activeFrame?.id ?? null,
+    enabled: selectedMode === "automata",
+  });
 
   const isArraysMode = selectedMode === "arrays";
+  const isAutomataMode = selectedMode === "automata";
+  const specialistAgent = isArraysMode
+    ? arrays.agent
+    : isAutomataMode
+      ? automata.agent
+      : null;
   const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
@@ -541,6 +560,7 @@ export function CanvasPresenter({
     // ends its session before the next one can start.
     realtimeSession.disconnect();
     arrays.agent.disconnect();
+    automata.agent.disconnect();
     setSelectedMode(nextMode);
   };
 
@@ -561,19 +581,19 @@ export function CanvasPresenter({
   const endClass = () => {
     realtimeSession.disconnect();
     arrays.agent.disconnect();
+    automata.agent.disconnect();
     onClose?.();
   };
 
-  const voiceConnected = isArraysMode
-    ? arrays.agent.isConnected
-    : realtimeSession.isConnected;
+  const voiceConnected = specialistAgent?.isConnected ?? realtimeSession.isConnected;
   // `use-canvas-realtime-session` (the non-arrays modes) doesn't have an
   // automatic-reconnect path yet, so it has no "reconnecting" status to check.
-  const voiceReconnecting = isArraysMode && arrays.agent.status === "reconnecting";
+  const voiceReconnecting =
+    Boolean(specialistAgent) && specialistAgent?.status === "reconnecting";
   const voiceConnecting =
-    (isArraysMode ? arrays.agent.status === "connecting" : aiStatus === "connecting") ||
+    (specialistAgent ? specialistAgent.status === "connecting" : aiStatus === "connecting") ||
     voiceReconnecting;
-  const micLive = isArraysMode ? arrays.agent.micEnabled : !realtimeSession.isPaused;
+  const micLive = specialistAgent?.micEnabled ?? !realtimeSession.isPaused;
 
   const reveal = useChromeReveal({ hold: voiceConnecting });
   /** Shared by every piece of chrome so they move as one. */
@@ -593,23 +613,23 @@ export function CanvasPresenter({
 
   const toggleVoice = () => {
     if (voiceConnected) {
-      if (isArraysMode) arrays.agent.disconnect();
+      if (specialistAgent) specialistAgent.disconnect();
       else realtimeSession.disconnect();
       return;
     }
-    void (isArraysMode ? arrays.agent.connect() : realtimeSession.connect());
+    void (specialistAgent ? specialistAgent.connect() : realtimeSession.connect());
   };
 
   const dockPrimary: DockAction[] = [
     {
       id: "power",
       label: voiceConnected
-        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
+        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`
         : voiceReconnecting
           ? "Reconnecting…"
           : voiceConnecting
             ? "Connecting…"
-            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
+            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
@@ -647,12 +667,12 @@ export function CanvasPresenter({
       active: micLive,
       disabled: !voiceConnected,
       onClick: () => {
-        if (isArraysMode) arrays.agent.toggleMic();
+        if (specialistAgent) specialistAgent.toggleMic();
         else realtimeSession.togglePause();
       },
     });
   }
-  if (isArraysMode) {
+  if (specialistAgent) {
     dockPrimary.push({
       id: "activity",
       label: activityOpen ? "Hide agent activity" : "Show agent activity",
@@ -695,6 +715,13 @@ export function CanvasPresenter({
           onClick: () => selectMode("arrays"),
         },
         {
+          id: "mode-automata",
+          label: AUTOMATA_AGENT_NAME,
+          icon: <NetworkIcon className="size-4" />,
+          active: isAutomataMode,
+          onClick: () => selectMode("automata"),
+        },
+        {
           id: "overview",
           label: "All frames",
           icon: <Grid2X2Icon className="size-4" />,
@@ -724,7 +751,7 @@ export function CanvasPresenter({
           : []),
       ];
 
-  const liveCaption = isArraysMode ? arrays.agent.caption : aiCaption;
+  const liveCaption = specialistAgent?.caption ?? aiCaption;
   // The pill above the dock (live transcript / keyboard hint) is hidden for
   // now; the logic stays so it can be switched back on.
   const SHOW_DOCK_HINT = false;
@@ -738,7 +765,7 @@ export function CanvasPresenter({
           ? "Connection dropped — reconnecting automatically…"
           : voiceConnected
             ? "Listening — just talk to change the board"
-            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`);
 
   if (!activeFrame) {
     return (
@@ -895,10 +922,22 @@ export function CanvasPresenter({
                 ? arrays.viewProviderProps
                 : { blockId: null, view: null, showIndices: true, isAnimating: false })}
             >
-              <FittedPresentationFrame
-                document={activeFrame.document}
-                zoom={zoomPercent / 100}
-              />
+              <AutomataAgentViewProvider
+                {...(isAutomataMode
+                  ? automata.viewProviderProps
+                  : {
+                      blockId: null,
+                      automaton: null,
+                      execution: null,
+                      onStep: undefined,
+                      onReset: undefined,
+                    })}
+              >
+                <FittedPresentationFrame
+                  document={activeFrame.document}
+                  zoom={zoomPercent / 100}
+                />
+              </AutomataAgentViewProvider>
             </ArraysAgentViewProvider>
           </div>
 
@@ -936,6 +975,18 @@ export function CanvasPresenter({
             animationProgress={arrays.agent.animationProgress}
             animationSpeed={arrays.agent.animationSpeed}
             onSkipAnimation={arrays.agent.skipAnimation}
+            onClose={() => setActivityOpen(false)}
+          />
+        ) : null}
+        {!publicView && isAutomataMode && activityOpen ? (
+          <ArraysAgentActivityPanel
+            events={automata.agent.events}
+            latency={automata.agent.latency}
+            status={automata.agent.status}
+            isConnected={automata.agent.isConnected}
+            isUserSpeaking={automata.agent.isUserSpeaking}
+            isResponding={automata.agent.isResponding}
+            isAnimating={false}
             onClose={() => setActivityOpen(false)}
           />
         ) : null}
@@ -991,9 +1042,9 @@ export function CanvasPresenter({
         `arrays.agent.error` but nothing ever rendered it. A teacher whose
         session silently gave up had no way to know why the board went quiet.
       */}
-      {(isArraysMode ? arrays.agent.error : realtimeSession.error) ? (
+      {(specialistAgent?.error ?? realtimeSession.error) ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
-          {isArraysMode ? arrays.agent.error : realtimeSession.error}
+          {specialistAgent?.error ?? realtimeSession.error}
         </div>
       ) : null}
 
