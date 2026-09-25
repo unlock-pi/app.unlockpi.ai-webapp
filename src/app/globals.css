@@ -49,6 +49,46 @@
   font-display: swap;
 }
 
+/* ─── transitions.dev: icon swap ───
+   Cross-fades two icons stacked in the same slot (mic on/off, power
+   connect/disconnect, …). Pure CSS, toggled via data-state — see
+   .claude/skills/transitions-dev/09-icon-swap.md and IconSwap in
+   src/components/ui/icon-swap.tsx. */
+:root {
+  --icon-swap-dur: 250ms;
+  --icon-swap-blur: 2px;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: ease-in-out;
+}
+
+.t-icon-swap {
+  position: relative;
+  display: inline-grid;
+}
+.t-icon-swap .t-icon {
+  grid-area: 1 / 1;
+  transition:
+    opacity   var(--icon-swap-dur) var(--icon-swap-ease),
+    filter    var(--icon-swap-dur) var(--icon-swap-ease),
+    transform var(--icon-swap-dur) var(--icon-swap-ease);
+  will-change: opacity, filter, transform;
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+  opacity: 0;
+  filter: blur(var(--icon-swap-blur));
+  transform: scale(var(--icon-swap-start-scale));
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-icon-swap .t-icon { transition: none !important; }
+}
+
 /* ─── Pi AI Design Tokens ─── */
 :root {
   /* Core palette */
@@ -681,6 +721,31 @@ html ::-webkit-scrollbar-track {
 
 .canvas-presenter-surface--dense .canvas-array-block .canvas-array-strip-name {
   font-size: clamp(1.25rem, 3.5cqi, 2.75rem);
+}
+
+/* ── Counting strip block: same fix as the array block above — the strip's
+   own cells are a fixed Tailwind size regardless of how much room the block
+   has, so on the big 16:9 presentation stage it sat tiny in a mostly-empty
+   card. Container-query sizing lets the cells (and the ⋯ ellipsis, which is
+   the same `.number-strip-cell` size) grow to fill the block. */
+/* Up to ~17 tokens can be on screen at once (lead + ellipsis + window +
+   ellipsis + trail) — sized so all of them fit in one row without
+   triggering the nowrap container's scrollbar on a typical 16:9 frame. */
+.canvas-presenter-surface .number-strip-block .number-strip-cell {
+  width: clamp(2.75rem, 5cqi, 5rem) !important;
+  height: clamp(2.75rem, 5cqi, 5rem) !important;
+  font-size: clamp(1rem, 2cqi, 1.75rem) !important;
+}
+
+.canvas-presenter-surface .number-strip-block .number-strip-plates {
+  gap: clamp(0.375rem, 0.8cqi, 1rem) !important;
+  padding: clamp(0.75rem, 1.4cqi, 1.75rem) !important;
+}
+
+.canvas-presenter-surface--dense .number-strip-block .number-strip-cell {
+  width: clamp(2.25rem, 4cqi, 3.75rem) !important;
+  height: clamp(2.25rem, 4cqi, 3.75rem) !important;
+  font-size: clamp(0.9rem, 1.6cqi, 1.25rem) !important;
 }
 
 .canvas-presenter-surface .canvas-frame-watermark {

@@ -6,6 +6,7 @@ import {
   BotIcon,
   BracketsIcon,
   DoorOpenIcon,
+  HashIcon,
   MicIcon,
   MoonIcon,
   PanelRightIcon,
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import { COUNTING_AGENT_NAME } from "@/features/counting-agent/lib/counting-identity";
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
@@ -118,6 +120,12 @@ const classModes: Array<{
     icon: BracketsIcon,
     title: ARRAYS_AGENT_NAME,
     tagline: "Teaches arrays — builds, sorts and searches on the board",
+  },
+  {
+    mode: "counting",
+    icon: HashIcon,
+    title: COUNTING_AGENT_NAME,
+    tagline: "Teaches the counting principle — multiples, division, factorials",
   },
 ];
 

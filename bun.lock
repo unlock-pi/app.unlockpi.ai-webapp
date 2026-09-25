@@ -43,6 +43,7 @@
         "estree-util-attach-comments": "^3.0.0",
         "html-to-image": "^1.11.13",
         "input-otp": "^1.4.2",
+        "isomer": "^0.2.6",
         "jspdf": "^4.2.1",
         "katex": "^0.16.28",
         "lightningcss": "^1.30.2",
@@ -2653,6 +2654,8 @@
     "isexe": ["isexe@2.0.0", "", {}, "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="],
 
     "isobject": ["isobject@3.0.1", "", {}, "sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg=="],
+
+    "isomer": ["isomer@0.2.6", "", {}, "sha512-4fcNlxr+3lQu5wbA/Rvah612TTIdeQubddfbTVs4m1ax/cKgvGU2WYDfDKqMFIXAXNBFa8xpE+hILP+dQm+PSg=="],
 
     "isstream": ["isstream@0.1.2", "", {}, "sha512-Yljz7ffyPbrLpLngrMtZ7NduUgVvi6wG9RJ9IUcyCd59YQ911PBJphODUcbOVbqYfxe1wuYf/LJ8PauMRwsM/g=="],
 

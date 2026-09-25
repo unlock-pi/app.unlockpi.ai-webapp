@@ -182,6 +182,16 @@ export type SketchBlockProps = {
   aspectRatio?: number;
 };
 
+export type CountingStripBlockProps = {
+  total: number;
+  order: "ascending" | "descending";
+  mode: "list" | "factorial";
+  /** Serializable — a predicate can't survive JSON. Rendered as { of } -> n % of === 0. */
+  highlights: Array<{ id: string; label: string; of: number }>;
+  /** null/undefined = no active division */
+  divisionBy?: number | null;
+};
+
 export type CanvasComponents = {
   SlideBlock: SlideBlockProps;
   HeadingTextBlock: HeadingTextBlockProps;
@@ -197,6 +207,7 @@ export type CanvasComponents = {
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
   SketchBlock: SketchBlockProps;
+  CountingStripBlock: CountingStripBlockProps;
 };
 
 export type CanvasDocument = Data<CanvasComponents, CanvasRootProps>;
@@ -277,7 +288,24 @@ export type CanvasAiAction =
   | { action: "pop_stack_value"; componentId?: string }
   | { action: "add_queue_block"; title?: string; values?: string[] }
   | { action: "add_linked_list_block"; values?: string[] }
-  | { action: "add_checkpoint"; question?: string; answer?: string };
+  | { action: "add_checkpoint"; question?: string; answer?: string }
+  | {
+    action: "add_counting_strip_block";
+    total?: number;
+    order?: "ascending" | "descending";
+    mode?: "list" | "factorial";
+    highlights?: Array<{ id: string; label: string; of: number }>;
+    divisionBy?: number | null;
+  }
+  | {
+    action: "set_counting_strip";
+    componentId?: string;
+    total: number;
+    order: "ascending" | "descending";
+    mode: "list" | "factorial";
+    highlights: Array<{ id: string; label: string; of: number }>;
+    divisionBy?: number | null;
+  };
 
 export type CanvasCommandResult = {
   document: CanvasDocument;

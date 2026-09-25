@@ -14,6 +14,7 @@ export const CANVAS_PRESENTATION_MODES = [
   "voice",
   "companion",
   "arrays",
+  "counting",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
@@ -159,6 +160,26 @@ export function readFrameBlocks(frame: CanvasPresentationFrame) {
         )
       : undefined;
 
+    // CountingStripBlock-only fields — a number strip has no `values` array,
+    // so it needs its own read-out (total, order, highlighted multiples,
+    // active division) for the agent to describe it.
+    const countingTotal =
+      typeof props.total === "number" && kind === "CountingStrip" ? props.total : undefined;
+    const countingOrder =
+      typeof props.order === "string" && kind === "CountingStrip"
+        ? (props.order as string)
+        : undefined;
+    const countingMode =
+      typeof props.mode === "string" && kind === "CountingStrip" ? (props.mode as string) : undefined;
+    const countingHighlights =
+      kind === "CountingStrip" && Array.isArray(props.highlights)
+        ? (props.highlights as Array<{ of?: unknown }>).map((rule) => Number(rule?.of))
+        : undefined;
+    const countingDivisionBy =
+      kind === "CountingStrip" && typeof props.divisionBy === "number"
+        ? props.divisionBy
+        : undefined;
+
     return {
       id,
       kind,
@@ -177,6 +198,11 @@ export function readFrameBlocks(frame: CanvasPresentationFrame) {
       values: values ?? nodes,
       highlightedIndex:
         typeof props.highlightedIndex === "number" ? props.highlightedIndex : undefined,
+      countingTotal,
+      countingOrder,
+      countingMode,
+      countingHighlights,
+      countingDivisionBy,
     };
   });
 }
@@ -200,6 +226,7 @@ const BLOCK_NAMES: Record<string, string> = {
   SubheadingText: "subheading",
   BodyText: "paragraph",
   Array: "array",
+  CountingStrip: "counting strip",
   Stack: "stack",
   Queue: "queue",
   LinkedList: "linked list",
@@ -244,6 +271,16 @@ export function describeFrameReadable(
         return `${position}: "${clip(block.text ?? "", 600)}"`;
       case "Array":
         return `${position} ${arrayNameFromTitle(block.title)} = [${(block.values ?? []).join(", ")}] (${block.values?.length ?? 0} elements)`;
+      case "CountingStrip": {
+        const order = block.countingOrder === "descending" ? "descending" : "ascending";
+        const mode = block.countingMode === "factorial" ? " as a factorial" : "";
+        const highlights = block.countingHighlights?.length
+          ? `; highlighting multiples of ${block.countingHighlights.join(", ")}`
+          : "";
+        const division =
+          typeof block.countingDivisionBy === "number" ? `; divided by ${block.countingDivisionBy}` : "";
+        return `${position}: 1..${block.countingTotal ?? 0} (${order}${mode})${highlights}${division}`;
+      }
       case "Stack":
       case "Queue":
       case "LinkedList":

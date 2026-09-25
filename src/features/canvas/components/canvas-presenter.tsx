@@ -11,6 +11,7 @@ import {
   ChevronRightIcon,
   CircleStopIcon,
   Grid2X2Icon,
+  HashIcon,
   MicIcon,
   MicOffIcon,
   PowerIcon,
@@ -30,11 +31,16 @@ import type { RemoteAudioTrack } from "livekit-client";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import { IconSwap } from "@/components/ui/icon-swap";
 import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
+import { CountingAgentOverlays } from "@/features/counting-agent/components/counting-agent-overlays";
+import { CountingAgentViewProvider } from "@/features/counting-agent/components/counting-agent-view-context";
+import { useCountingAgentOnCanvas } from "@/features/counting-agent/hooks/use-counting-agent-on-canvas";
+import { COUNTING_AGENT_NAME } from "@/features/counting-agent/lib/counting-identity";
 import {
   PresenterDock,
   type DockAction,
@@ -462,7 +468,23 @@ export function CanvasPresenter({
     enabled: selectedMode === "arrays",
   });
 
+  // The counting agent (Tally) shares the same document/frame refs and the
+  // same navigation controls object as the arrays agent — they never run at
+  // once (only one mode is ever selected), so reusing `arraysPresentation`
+  // here is safe rather than building a second, identical navigation object.
+  const counting = useCountingAgentOnCanvas({
+    canvasId,
+    canvasTitle: title,
+    getDocument: getArraysDocument,
+    getActiveFrameId: getArraysFrameId,
+    applyDocument: applyArraysDocument,
+    presentation: arraysPresentation,
+    activeFrameId: activeFrame?.id ?? null,
+    enabled: selectedMode === "counting",
+  });
+
   const isArraysMode = selectedMode === "arrays";
+  const isCountingMode = selectedMode === "counting";
   const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
@@ -541,6 +563,7 @@ export function CanvasPresenter({
     // ends its session before the next one can start.
     realtimeSession.disconnect();
     arrays.agent.disconnect();
+    counting.agent.disconnect();
     setSelectedMode(nextMode);
   };
 
@@ -561,19 +584,32 @@ export function CanvasPresenter({
   const endClass = () => {
     realtimeSession.disconnect();
     arrays.agent.disconnect();
+    counting.agent.disconnect();
     onClose?.();
   };
 
   const voiceConnected = isArraysMode
     ? arrays.agent.isConnected
-    : realtimeSession.isConnected;
-  // `use-canvas-realtime-session` (the non-arrays modes) doesn't have an
-  // automatic-reconnect path yet, so it has no "reconnecting" status to check.
-  const voiceReconnecting = isArraysMode && arrays.agent.status === "reconnecting";
+    : isCountingMode
+      ? counting.agent.isConnected
+      : realtimeSession.isConnected;
+  // `use-canvas-realtime-session` (the non-arrays/non-counting modes) doesn't
+  // have an automatic-reconnect path yet, so it has no "reconnecting" status
+  // to check.
+  const voiceReconnecting =
+    (isArraysMode && arrays.agent.status === "reconnecting") ||
+    (isCountingMode && counting.agent.status === "reconnecting");
   const voiceConnecting =
-    (isArraysMode ? arrays.agent.status === "connecting" : aiStatus === "connecting") ||
-    voiceReconnecting;
-  const micLive = isArraysMode ? arrays.agent.micEnabled : !realtimeSession.isPaused;
+    (isArraysMode
+      ? arrays.agent.status === "connecting"
+      : isCountingMode
+        ? counting.agent.status === "connecting"
+        : aiStatus === "connecting") || voiceReconnecting;
+  const micLive = isArraysMode
+    ? arrays.agent.micEnabled
+    : isCountingMode
+      ? counting.agent.micEnabled
+      : !realtimeSession.isPaused;
 
   const reveal = useChromeReveal({ hold: voiceConnecting });
   /** Shared by every piece of chrome so they move as one. */
@@ -594,22 +630,33 @@ export function CanvasPresenter({
   const toggleVoice = () => {
     if (voiceConnected) {
       if (isArraysMode) arrays.agent.disconnect();
+      else if (isCountingMode) counting.agent.disconnect();
       else realtimeSession.disconnect();
       return;
     }
-    void (isArraysMode ? arrays.agent.connect() : realtimeSession.connect());
+    void (isArraysMode
+      ? arrays.agent.connect()
+      : isCountingMode
+        ? counting.agent.connect()
+        : realtimeSession.connect());
   };
+
+  const agentLabel = isArraysMode
+    ? ARRAYS_AGENT_NAME
+    : isCountingMode
+      ? COUNTING_AGENT_NAME
+      : "the AI";
 
   const dockPrimary: DockAction[] = [
     {
       id: "power",
       label: voiceConnected
-        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
+        ? `Stop ${agentLabel}`
         : voiceReconnecting
           ? "Reconnecting…"
           : voiceConnecting
             ? "Connecting…"
-            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
+            : `Start ${agentLabel}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
@@ -643,11 +690,18 @@ export function CanvasPresenter({
     dockPrimary.push({
       id: "mic",
       label: micLive ? "Mute your microphone" : "Unmute your microphone",
-      icon: micLive ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />,
+      icon: (
+        <IconSwap
+          state={micLive ? "a" : "b"}
+          iconA={<MicIcon className="size-4" />}
+          iconB={<MicOffIcon className="size-4" />}
+        />
+      ),
       active: micLive,
       disabled: !voiceConnected,
       onClick: () => {
         if (isArraysMode) arrays.agent.toggleMic();
+        else if (isCountingMode) counting.agent.toggleMic();
         else realtimeSession.togglePause();
       },
     });
@@ -695,6 +749,13 @@ export function CanvasPresenter({
           onClick: () => selectMode("arrays"),
         },
         {
+          id: "mode-counting",
+          label: COUNTING_AGENT_NAME,
+          icon: <HashIcon className="size-4" />,
+          active: isCountingMode,
+          onClick: () => selectMode("counting"),
+        },
+        {
           id: "overview",
           label: "All frames",
           icon: <Grid2X2Icon className="size-4" />,
@@ -724,7 +785,11 @@ export function CanvasPresenter({
           : []),
       ];
 
-  const liveCaption = isArraysMode ? arrays.agent.caption : aiCaption;
+  const liveCaption = isArraysMode
+    ? arrays.agent.caption
+    : isCountingMode
+      ? counting.agent.caption
+      : aiCaption;
   // The pill above the dock (live transcript / keyboard hint) is hidden for
   // now; the logic stays so it can be switched back on.
   const SHOW_DOCK_HINT = false;
@@ -738,7 +803,7 @@ export function CanvasPresenter({
           ? "Connection dropped — reconnecting automatically…"
           : voiceConnected
             ? "Listening — just talk to change the board"
-            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+            : `Press power to start ${agentLabel}`);
 
   if (!activeFrame) {
     return (
@@ -895,10 +960,16 @@ export function CanvasPresenter({
                 ? arrays.viewProviderProps
                 : { blockId: null, view: null, showIndices: true, isAnimating: false })}
             >
-              <FittedPresentationFrame
-                document={activeFrame.document}
-                zoom={zoomPercent / 100}
-              />
+              <CountingAgentViewProvider
+                {...(isCountingMode
+                  ? counting.viewProviderProps
+                  : { blockId: null, view: null, isAnimating: false })}
+              >
+                <FittedPresentationFrame
+                  document={activeFrame.document}
+                  zoom={zoomPercent / 100}
+                />
+              </CountingAgentViewProvider>
             </ArraysAgentViewProvider>
           </div>
 
@@ -907,6 +978,15 @@ export function CanvasPresenter({
               <ArraysAgentOverlays
                 overlays={arrays.agent.overlays}
                 onDismiss={arrays.agent.dismissOverlay}
+              />
+            </div>
+          ) : null}
+
+          {isCountingMode && counting.agent.overlays.length > 0 ? (
+            <div className="pointer-events-auto absolute right-4 top-1/2 z-20 w-72 max-w-[40vw] -translate-y-1/2">
+              <CountingAgentOverlays
+                overlays={counting.agent.overlays}
+                onDismiss={counting.agent.dismissOverlay}
               />
             </div>
           ) : null}
@@ -991,9 +1071,17 @@ export function CanvasPresenter({
         `arrays.agent.error` but nothing ever rendered it. A teacher whose
         session silently gave up had no way to know why the board went quiet.
       */}
-      {(isArraysMode ? arrays.agent.error : realtimeSession.error) ? (
+      {(isArraysMode
+        ? arrays.agent.error
+        : isCountingMode
+          ? counting.agent.error
+          : realtimeSession.error) ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
-          {isArraysMode ? arrays.agent.error : realtimeSession.error}
+          {isArraysMode
+            ? arrays.agent.error
+            : isCountingMode
+              ? counting.agent.error
+              : realtimeSession.error}
         </div>
       ) : null}
 

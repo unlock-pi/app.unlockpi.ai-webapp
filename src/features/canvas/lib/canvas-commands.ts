@@ -10,6 +10,7 @@ import type {
   CanvasAiAction,
   CanvasCommandResult,
   CanvasDocument,
+  CountingStripBlockProps,
   SlideBlockProps,
   StackBlockProps,
 } from "@/features/canvas/types/canvas-types";
@@ -25,6 +26,10 @@ type SlideItem = CanvasItem & {
 };
 type ArrayItem = CanvasItem & { type: "ArrayBlock"; props: ArrayBlockProps & { id: string } };
 type StackItem = CanvasItem & { type: "StackBlock"; props: StackBlockProps & { id: string } };
+type CountingStripItem = CanvasItem & {
+  type: "CountingStripBlock";
+  props: CountingStripBlockProps & { id: string };
+};
 
 function cloneDocument(document: CanvasDocument): CanvasDocument {
   return structuredClone(document);
@@ -55,6 +60,10 @@ function isArrayItem(item: CanvasItem): item is ArrayItem {
 
 function isStackItem(item: CanvasItem): item is StackItem {
   return item.type === "StackBlock";
+}
+
+function isCountingStripItem(item: CanvasItem): item is CountingStripItem {
+  return item.type === "CountingStripBlock";
 }
 
 /** Builds the `StackCapacity` a given stack block currently enforces. */
@@ -112,6 +121,9 @@ function itemLayoutCost(item: FrameContentItem) {
     // An array block draws only the strip — no title or caption — so it
     // reserves a fixed height whatever copy happens to be stored on it.
     case "ArrayBlock":
+      return 1.9;
+    // A number strip, like an array block, draws only the strip itself.
+    case "CountingStripBlock":
       return 1.9;
     case "QueueBlock":
     case "LinkedListBlock": {
@@ -308,6 +320,41 @@ function normalizeArrayValues(values: string[]) {
   return values.map((value) => ({ value }));
 }
 
+/**
+ * Pick the counting strip the AI is talking about. Same precedence idea as
+ * `getTargetArray`/`getTargetStack`, simplified: there is only ever meant to
+ * be ONE strip per frame (no "combine" concept for counting), so "most
+ * recent on the active frame" is really just "the one on the active frame".
+ */
+function getTargetCountingStrip(
+  document: CanvasDocument,
+  componentId?: string,
+  activeSlideId?: string | null,
+) {
+  if (componentId) {
+    for (const slide of getSlides(document)) {
+      const match = getSlideContent(slide).find(
+        (item): item is CountingStripItem =>
+          isCountingStripItem(item) && item.props.id === componentId,
+      );
+      if (match) return match;
+    }
+    return null;
+  }
+
+  const activeSlide = getActiveSlide(document, activeSlideId ?? null);
+  if (activeSlide) {
+    const stripsOnActive = getSlideContent(activeSlide).filter(isCountingStripItem);
+    if (stripsOnActive.length) return stripsOnActive[stripsOnActive.length - 1];
+  }
+
+  for (const slide of getSlides(document)) {
+    const strip = getSlideContent(slide).find(isCountingStripItem);
+    if (strip) return strip;
+  }
+  return null;
+}
+
 function createHeadingTextItem(text: string): CanvasItem {
   return {
     type: "HeadingTextBlock",
@@ -384,6 +431,7 @@ function blockLabel(blockType: string): string {
     BodyTextBlock: "paragraph",
     CodeBlock: "code block",
     ArrayBlock: "array",
+    CountingStripBlock: "counting strip",
     StackBlock: "stack",
     QueueBlock: "queue",
     LinkedListBlock: "linked list",
@@ -777,6 +825,38 @@ export function applyCanvasAction(
         : FRAME_CONTENT_LIMIT_MESSAGE;
     } else {
       message = "Could not find an array block to duplicate.";
+    }
+  }
+
+  if (action.action === "add_counting_strip_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "CountingStripBlock",
+      props: {
+        id: createCanvasId("counting"),
+        total: action.total && action.total > 0 ? Math.round(action.total) : 100,
+        order: action.order ?? "ascending",
+        mode: action.mode ?? "list",
+        highlights: action.highlights ?? [],
+        divisionBy: action.divisionBy ?? null,
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added a number strip to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_counting_strip") {
+    const strip = getTargetCountingStrip(nextDocument, action.componentId, nextSlideId);
+    if (strip) {
+      strip.props.total = action.total;
+      strip.props.order = action.order;
+      strip.props.mode = action.mode;
+      strip.props.highlights = action.highlights;
+      strip.props.divisionBy = action.divisionBy ?? null;
+      message = "Updated the number strip.";
+    } else {
+      message = "Could not find a number strip to update.";
     }
   }
 

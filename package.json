@@ -51,6 +51,7 @@
     "estree-util-attach-comments": "^3.0.0",
     "html-to-image": "^1.11.13",
     "input-otp": "^1.4.2",
+    "isomer": "^0.2.6",
     "jspdf": "^4.2.1",
     "katex": "^0.16.28",
     "lightningcss": "^1.30.2",

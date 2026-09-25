@@ -28,11 +28,13 @@ import Logo from "@/components/logo";
 import { ArrayStrip } from "@/components/data-structure/array-strip";
 import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
+import { NumberPaginationStrip } from "@/components/data-structure/number-pagination-strip";
 import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
+import { useCountingAgentView } from "@/features/counting-agent/components/counting-agent-view-context";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import { SketchBlock } from "@/features/canvas/components/sketch-block";
@@ -49,6 +51,7 @@ import type {
   CheckpointBlockProps,
   CodeLanguage,
   CodeBlockProps,
+  CountingStripBlockProps,
   HeadingTextBlockProps,
   LinkedListBlockProps,
   MermaidBlockProps,
@@ -357,6 +360,7 @@ function SlideBlock({
               "SubheadingTextBlock",
               "BodyTextBlock",
               "ArrayBlock",
+              "CountingStripBlock",
               "StackBlock",
               "QueueBlock",
               "LinkedListBlock",
@@ -489,6 +493,70 @@ function ArrayBlock({
         highlightedIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         onUpdate={traversal.setTraversal}
+      />
+    </div>,
+  );
+}
+
+/**
+ * Just the number strip, same shape as `ArrayBlock`: while the counting agent
+ * (Tally) is driving this block, its live animation beat is the truth on
+ * screen; otherwise it falls back to the block's authored props. Highlight
+ * rules and division are stored serializable (`{ of }` / `divisionBy`) since a
+ * predicate function can't survive the canvas document — both are turned into
+ * the strip's actual props here, at render time.
+ */
+function CountingStripBlock({
+  id,
+  total,
+  order,
+  mode,
+  highlights,
+  divisionBy,
+}: CountingStripBlockProps & { id: string }) {
+  const agent = useCountingAgentView(id);
+
+  if (agent) {
+    const view = agent.view;
+    return blockShell(
+      "canvas-frame-block--compact canvas-array-block number-strip-block",
+      <div className="grid w-full gap-4">
+        <NumberPaginationStrip
+          className="max-w-none"
+          total={view.total}
+          order={view.order}
+          mode={view.mode}
+          highlights={view.highlights.map((rule) => ({
+            id: rule.id,
+            label: rule.label,
+            predicate: (n: number) => n % rule.of === 0,
+          }))}
+          division={view.division}
+          cursor={view.cursor ?? null}
+          accumulator={view.accumulator ?? null}
+          extracted={view.extracted ?? false}
+        />
+        {agent.isAnimating && view.note ? (
+          <p className="canvas-array-step text-muted-foreground">{view.note}</p>
+        ) : null}
+      </div>,
+    );
+  }
+
+  return blockShell(
+    "canvas-frame-block--compact canvas-array-block number-strip-block",
+    <div className="grid w-full gap-4">
+      <NumberPaginationStrip
+        className="max-w-none"
+        total={total}
+        order={order}
+        mode={mode}
+        highlights={(highlights ?? []).map((rule) => ({
+          id: rule.id,
+          label: rule.label,
+          predicate: (n: number) => n % rule.of === 0,
+        }))}
+        division={typeof divisionBy === "number" ? { divisor: divisionBy } : null}
       />
     </div>,
   );
@@ -892,6 +960,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "SlideBlock",
         "CheckpointBlock",
         "ArrayBlock",
+        "CountingStripBlock",
         "StackBlock",
         "QueueBlock",
         "LinkedListBlock",
@@ -928,6 +997,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "SubheadingTextBlock",
             "BodyTextBlock",
             "ArrayBlock",
+            "CountingStripBlock",
             "StackBlock",
             "QueueBlock",
             "LinkedListBlock",
@@ -1023,6 +1093,56 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         caption: "",
       },
       render: ArrayBlock,
+    },
+    CountingStripBlock: {
+      label: "Number strip",
+      // Division is agent-driven for now — no field editor for it yet, same
+      // reasoning as ArrayBlock's fields: only what a teacher would sensibly
+      // hand-edit. Highlights DO need a field entry (Puck requires one per
+      // required prop), so it gets a minimal one.
+      fields: {
+        total: {
+          type: "number",
+          label: "Total (1 to 1000)",
+          min: 1,
+          max: 1000,
+        },
+        order: {
+          type: "radio",
+          label: "Order",
+          options: [
+            { label: "Ascending", value: "ascending" },
+            { label: "Descending", value: "descending" },
+          ],
+        },
+        mode: {
+          type: "radio",
+          label: "Mode",
+          options: [
+            { label: "List", value: "list" },
+            { label: "Factorial", value: "factorial" },
+          ],
+        },
+        highlights: {
+          type: "array",
+          label: "Highlight multiples of…",
+          arrayFields: {
+            id: { type: "text", label: "Id" },
+            label: { type: "text", label: "Label" },
+            of: { type: "number", label: "Multiples of", min: 1 },
+          },
+          defaultItemProps: { id: "", label: "", of: 2 },
+          getItemSummary: (item) => `Multiples of ${item.of}`,
+        },
+      },
+      defaultProps: {
+        total: 100,
+        order: "ascending",
+        mode: "list",
+        highlights: [],
+        divisionBy: null,
+      },
+      render: CountingStripBlock,
     },
     StackBlock: {
       label: "Stack",

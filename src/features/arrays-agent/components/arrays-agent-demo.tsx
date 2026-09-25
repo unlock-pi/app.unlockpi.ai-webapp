@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MicIcon, MicOffIcon } from "lucide-react";
 
+import { IconSwap } from "@/components/ui/icon-swap";
 import { ArraysAgentBoard } from "@/features/arrays-agent/components/arrays-agent-board";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { useArraysVoiceAgent } from "@/features/arrays-agent/hooks/use-arrays-voice-agent";
@@ -146,7 +147,11 @@ export function ArraysAgentDemo() {
               : "bg-primary text-primary-foreground hover:bg-primary/90",
           )}
         >
-          {agent.isConnected ? <MicOffIcon className="size-4" /> : <MicIcon className="size-4" />}
+          <IconSwap
+            state={agent.isConnected ? "b" : "a"}
+            iconA={<MicIcon className="size-4" />}
+            iconB={<MicOffIcon className="size-4" />}
+          />
           {agent.isConnected ? "Stop listening" : "Start voice session"}
         </button>
         {agent.lastToolCall ? (
