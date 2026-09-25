@@ -54,12 +54,28 @@ export function exportSessionsToCSV(
       Mode: session.mode,
       Model: session.model,
       "Started At": formatDateISO(session.startedAt),
+      "Ended At": session.endedAt ? formatDateISO(session.endedAt) : "Never recorded",
       "Duration (seconds)": session.durationSeconds,
       "Duration (minutes)": (session.durationSeconds / 60).toFixed(2),
       "Response Count": session.responseCount,
       "Input Tokens": session.inputTokens,
       "Output Tokens": session.outputTokens,
       "Total Tokens": session.inputTokens + session.outputTokens,
+      // The modality split — this is what actually explains cost per
+      // session, since audio tokens are priced far above text tokens.
+      "Input Audio Tokens": session.inputAudioTokens,
+      "Input Text Tokens": session.inputTextTokens,
+      "Cached Audio Tokens": session.cachedAudioTokens,
+      "Cached Text Tokens": session.cachedTextTokens,
+      "Output Audio Tokens": session.outputAudioTokens,
+      "Output Text Tokens": session.outputTextTokens,
+      "Cache Hit Rate": session.inputTokens
+        ? `${Math.round(
+            ((session.cachedAudioTokens + session.cachedTextTokens) / session.inputTokens) * 100,
+          )}%`
+        : "—",
+      "Canvas ID": session.canvasId ?? "—",
+      "OpenAI Session ID": session.openaiSessionId ?? "—",
       Status: session.status,
       "Estimated Cost (USD)": session.estimatedCostUsd?.toFixed(4) ?? "Not configured",
     };

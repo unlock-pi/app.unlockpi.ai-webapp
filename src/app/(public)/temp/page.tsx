@@ -1,4 +1,4 @@
-import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArrayView } from "@/components/data-structure/array";
 import { ArraysAgentDemo } from "@/features/arrays-agent/components/arrays-agent-demo";
 
 export default function Page() {
@@ -9,7 +9,7 @@ export default function Page() {
       
       <ArraysAgentDemo />
 
-      {/* <ArrayStrip
+      {/* <ArrayView
         data={data}
         disabledElements={[0, 1, 3, 4]}
         name="Arr"

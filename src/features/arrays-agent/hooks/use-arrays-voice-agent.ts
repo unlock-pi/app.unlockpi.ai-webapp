@@ -41,6 +41,7 @@ import {
   trackRealtimeResponse,
 } from "@/features/realtime/lib/realtime-usage-client";
 import type { RealtimeUsageResponse } from "@/features/realtime/types/realtime-usage";
+import { playConnectionCue, playMicCue } from "@/lib/openai-realtime/connection-sound";
 import { OpenAIRealtimeClient } from "@/lib/openai-realtime/realtime-client";
 import type { RealtimeStatus } from "@/lib/openai-realtime/types";
 
@@ -471,6 +472,7 @@ export function useArraysVoiceAgent({
       onToolCall: (call) => runTool(call.name, call.argumentsJson),
       onStatusChange: (next) => {
         setStatus(next);
+        playConnectionCue(next);
         logEvent({ kind: "status", at: Date.now(), text: next });
         // The data channel is only writable once connected; context sent
         // before this point was silently dropped.
@@ -601,6 +603,7 @@ export function useArraysVoiceAgent({
     setMicEnabled((enabled) => {
       const next = !enabled;
       clientRef.current?.setMicrophoneEnabled(next);
+      playMicCue(next);
       return next;
     });
   }, []);

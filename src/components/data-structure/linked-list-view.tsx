@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { cn } from "@/lib/utils";
 
-type LinkedListStripProps = {
+type LinkedListViewProps = {
   nodes: Array<{ value: string }>;
   activeIndex?: number;
   visitedIndices?: number[];
@@ -59,7 +59,7 @@ function PointerArrow() {
   );
 }
 
-// Matches ArrayStrip / StackStrip / QueueStrip.
+// Matches ArrayView / StackView / QueueView.
 const CELL_SPRING = {
   type: "spring" as const,
   stiffness: 240,
@@ -73,13 +73,13 @@ const VALUE_SPRING = {
   mass: 0.5,
 };
 
-export function LinkedListStrip({
+export function LinkedListView({
   nodes,
   activeIndex,
   visitedIndices = EMPTY_VISITED_INDICES,
   traversalTarget,
   className,
-}: LinkedListStripProps) {
+}: LinkedListViewProps) {
   const isTraversing = traversalTarget !== undefined;
 
   return (

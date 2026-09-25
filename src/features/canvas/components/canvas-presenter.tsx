@@ -592,7 +592,13 @@ export function CanvasPresenter({
   };
 
   const toggleVoice = () => {
-    if (voiceConnected) {
+    // Connecting and reconnecting are both "there is an attempt in flight
+    // someone might want out of" — same disconnect() as stopping a live
+    // session, not a separate cancel path. Its own generation/abort
+    // machinery is what makes that safe: the in-flight connect() notices
+    // and unwinds itself rather than finishing and resurrecting a
+    // connection the teacher just tried to call off.
+    if (voiceConnected || voiceConnecting) {
       if (isArraysMode) arrays.agent.disconnect();
       else realtimeSession.disconnect();
       return;
@@ -606,14 +612,17 @@ export function CanvasPresenter({
       label: voiceConnected
         ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
         : voiceReconnecting
-          ? "Reconnecting…"
+          ? "Cancel reconnecting"
           : voiceConnecting
-            ? "Connecting…"
+            ? "Cancel connecting"
             : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
-      disabled: selectedMode === "manual" || voiceConnecting,
+      // Stays clickable while connecting/reconnecting — that's what lets a
+      // teacher back out of an attempt instead of being stuck watching a
+      // spinner they can't stop.
+      disabled: selectedMode === "manual",
       onClick: toggleVoice,
     },
   ];
@@ -735,10 +744,12 @@ export function CanvasPresenter({
       : selectedMode === "manual"
         ? "Manual mode · ← → to move between frames"
         : voiceReconnecting
-          ? "Connection dropped — reconnecting automatically…"
-          : voiceConnected
-            ? "Listening — just talk to change the board"
-            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
+          ? "Connection dropped — reconnecting automatically… press power to give up"
+          : voiceConnecting
+            ? "Connecting… press power to cancel"
+            : voiceConnected
+              ? "Listening — just talk to change the board"
+              : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
 
   if (!activeFrame) {
     return (
@@ -960,7 +971,7 @@ export function CanvasPresenter({
       >
         {/* A shared/embedded canvas has no AI session and no class to end. */}
         {publicView ? null : (
-          <div className="flex justify-center px-4 pb-3">
+          <div className="pointer-events-auto flex justify-center px-4 pb-3">
             <PresenterDock
               primary={dockPrimary}
               secondary={dockSecondary}

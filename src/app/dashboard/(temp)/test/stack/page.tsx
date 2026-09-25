@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 
-import { ArrayStrip } from "@/components/data-structure/array-strip";
-import { StackStrip } from "@/components/data-structure/stack-strip";
+import { ArrayView } from "@/components/data-structure/array";
+import { StackView } from "@/components/data-structure/stack-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 //   1) Give the user knobs to drive push/pop and toggle fixed/dynamic so the
 //      animations can be exercised without wiring up a full lesson flow.
 //   2) Serve as the reference for how a parent should manage stack state
-//      when using StackStrip in Fixed mode (guard pushes against the size).
+//      when using StackView in Fixed mode (guard pushes against the size).
 
 export default function Page() {
   return (
@@ -30,7 +30,7 @@ function ArraySection() {
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold">Array</h2>
-      <ArrayStrip
+      <ArrayView
         data={arrayData}
         highlightElements
         highlightIndices
@@ -111,7 +111,7 @@ function StackPlayground() {
   return (
     <section className="space-y-6  flex justify-between max-w-4xl mx-auto gap-20">
       <div>
-        <StackStrip
+        <StackView
           data={stackData}
           name="S"
           isFixed={isFixed}

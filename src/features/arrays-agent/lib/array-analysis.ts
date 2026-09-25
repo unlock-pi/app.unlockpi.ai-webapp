@@ -1,3 +1,9 @@
+/**
+ * Read-only questions about the array that aren't a search or a sort:
+ * counting occurrences, duplicates, min/max, sum/average — plus the frequency
+ * comparison overlay. Same pure `(values, ...args) => ArrayOpResult` shape as
+ * array-ops.ts — see that file's docstring for how the operation split works.
+ */
 import { frame, toNumeric } from "@/features/arrays-agent/lib/array-frames";
 import type {
   ArrayFrame,

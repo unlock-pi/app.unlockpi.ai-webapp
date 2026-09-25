@@ -29,6 +29,30 @@ export function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
+/** Just the clock time, e.g. "2:14 PM" — pairs with `formatDate` for a "date, then time" layout. */
+export function formatClockTime(value: string) {
+  return new Date(value).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * A session's start/end as one "from → to" line. Same calendar day (the
+ * common case) collapses to just the two times; spanning midnight spells out
+ * both dates so it's never ambiguous which day "11:58 PM → 12:04 AM" means.
+ */
+export function formatTimeRange(startedAt: string, endedAt: string | null): string {
+  const start = new Date(startedAt);
+  if (!endedAt) return `${formatClockTime(startedAt)} → —`;
+
+  const end = new Date(endedAt);
+  const sameDay = start.toDateString() === end.toDateString();
+  return sameDay
+    ? `${formatClockTime(startedAt)} → ${formatClockTime(endedAt)}`
+    : `${formatDate(startedAt)}, ${formatClockTime(startedAt)} → ${formatDate(endedAt)}, ${formatClockTime(endedAt)}`;
+}
+
 export function formatRelative(value: string | null) {
   if (!value) return "Never";
   const diffMs = Date.now() - new Date(value).getTime();

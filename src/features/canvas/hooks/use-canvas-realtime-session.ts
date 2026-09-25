@@ -7,6 +7,7 @@ import {
   type CanvasPresentationFrame,
 } from "@/features/canvas/lib/canvas-presentation";
 import type { PanelGenerateRequest } from "@/features/canvas/lib/panel-generation";
+import { playConnectionCue, playMicCue } from "@/lib/openai-realtime/connection-sound";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -120,6 +121,24 @@ export function useCanvasRealtimeSession({
   );
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  /**
+   * Whether THIS session actually reached "connected" at some point — guards
+   * the "session ended" sound in `disconnect()`, which runs unconditionally
+   * (including on unmount when nothing was ever connected, and defensively
+   * before every `connect()`), so it must not fire on connects that never
+   * happened.
+   */
+  const hadConnectionRef = useRef(false);
+  /**
+   * Bumped on every `connect()`; a run checks its own number against this
+   * after each `await` to notice it's been superseded — by `disconnect()`
+   * cancelling it, or by a newer `connect()`. That's what lets a teacher
+   * click "cancel" mid-handshake: the in-flight attempt unwinds itself on
+   * its next step instead of going on to open a connection nobody wants.
+   */
+  const connectGenerationRef = useRef(0);
+  /** Aborts the connect attempt's own fetches — the fast half of cancelling; the slow half is the generation check. */
+  const connectAbortRef = useRef<AbortController | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const handledCallIdsRef = useRef(new Set<string>());
@@ -155,7 +174,14 @@ export function useCanvasRealtimeSession({
     modeRef.current = mode;
   }, [mode]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((options: { silent?: boolean } = {}) => {
+    // Invalidates any `connect()` mid-flight: its own staleness checks start
+    // returning true, and its fetch is cut instead of left to finish
+    // pointlessly in the background.
+    connectGenerationRef.current++;
+    connectAbortRef.current?.abort();
+    connectAbortRef.current = null;
+
     finishRealtimeUsageSession(usageSessionIdRef.current);
     usageSessionIdRef.current = null;
     dataChannelRef.current?.close();
@@ -187,6 +213,14 @@ export function useCanvasRealtimeSession({
     setRemoteAudioStream(null);
     setError(null);
     setStatus("idle");
+    // `silent` is passed by the two call sites that immediately follow this
+    // with `setStatus("error")` — the error cue alone says it, and playing
+    // both back to back was two sounds landing on top of each other for one
+    // event.
+    if (hadConnectionRef.current) {
+      hadConnectionRef.current = false;
+      if (!options.silent) playConnectionCue("idle");
+    }
   }, []);
 
   useEffect(() => disconnect, [disconnect]);
@@ -520,6 +554,13 @@ export function useCanvasRealtimeSession({
 
     setStatus("connecting");
     setError(null);
+    playConnectionCue("connecting");
+
+    const generation = ++connectGenerationRef.current;
+    const abort = new AbortController();
+    connectAbortRef.current = abort;
+    /** True once this run has been cancelled or overtaken by a newer `connect()`. */
+    const isStale = () => generation !== connectGenerationRef.current;
 
     try {
       const tokenResponse = await fetch("/api/openai/realtime/canvas", {
@@ -536,8 +577,11 @@ export function useCanvasRealtimeSession({
             searchable_content: frame.searchText.slice(0, 1200),
           })),
         }),
+        signal: abort.signal,
       });
+      if (isStale()) return;
       const tokenData = await tokenResponse.json();
+      if (isStale()) return;
 
       if (!tokenResponse.ok) {
         throw new Error(tokenData.error ?? "Unable to connect the AI session.");
@@ -568,6 +612,12 @@ export function useCanvasRealtimeSession({
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
+      if (isStale()) {
+        // Cancelled while the mic permission prompt was up — nothing of
+        // this run's was torn down yet, so release the mic now.
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       localStreamRef.current = mediaStream;
       mediaStream
         .getAudioTracks()
@@ -610,20 +660,27 @@ export function useCanvasRealtimeSession({
           );
         }
       });
-      dataChannel.addEventListener("open", () => setStatus("connected"));
+      dataChannel.addEventListener("open", () => {
+        setStatus("connected");
+        hadConnectionRef.current = true;
+        playConnectionCue("connected");
+      });
       peerConnection.addEventListener("connectionstatechange", () => {
         if (
           peerConnection.connectionState === "failed" ||
           peerConnection.connectionState === "disconnected"
         ) {
-          disconnect();
+          disconnect({ silent: true });
           setStatus("error");
           setError("The Realtime connection was interrupted.");
+          playConnectionCue("error");
         }
       });
 
       const offer = await peerConnection.createOffer();
+      if (isStale()) return;
       await peerConnection.setLocalDescription(offer);
+      if (isStale()) return;
       const sdpResponse = await fetch(
         "https://api.openai.com/v1/realtime/calls",
         {
@@ -633,22 +690,34 @@ export function useCanvasRealtimeSession({
             Authorization: `Bearer ${ephemeralKey}`,
             "Content-Type": "application/sdp",
           },
+          signal: abort.signal,
         },
       );
+      if (isStale()) return;
 
       if (!sdpResponse.ok) {
         throw new Error("OpenAI Realtime connection failed.");
       }
 
-      await peerConnection.setRemoteDescription({
-        type: "answer",
-        sdp: await sdpResponse.text(),
-      });
+      const answerSdp = await sdpResponse.text();
+      if (isStale()) return;
+      await peerConnection.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (unknownError) {
+      // A cancelled `fetch` rejects with an AbortError — that's `isStale()`
+      // by another name. Nothing to report: `disconnect()` already reset
+      // status and cleaned up whatever this run had built so far.
+      if (
+        isStale() ||
+        (unknownError instanceof DOMException && unknownError.name === "AbortError")
+      ) {
+        return;
+      }
+
       finishRealtimeUsageSession(usageSessionIdRef.current, "failed");
       usageSessionIdRef.current = null;
-      disconnect();
+      disconnect({ silent: true });
       setStatus("error");
+      playConnectionCue("error");
       setError(
         unknownError instanceof Error
           ? unknownError.message
@@ -675,6 +744,9 @@ export function useCanvasRealtimeSession({
       }
     }
     setStatus(shouldPause ? "paused" : "connected");
+    // Not `playConnectionCue("connected")` on the unpause branch — that cue
+    // is reserved for the one real "we're live" moment, not every unmute.
+    playMicCue(!shouldPause);
   }, [status]);
 
   return {

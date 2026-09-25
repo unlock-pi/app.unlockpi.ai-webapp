@@ -1,3 +1,13 @@
+/**
+ * The five sort algorithms: bubble, selection, insertion, merge, quick.
+ *
+ * Same pure `(values, ...args) => ArrayOpResult` shape as array-ops.ts — see
+ * that file's docstring for how the operation split works. Each algorithm
+ * also produces `SortStep`s internally (comparisons/swaps/pivots) before
+ * being flattened to the same `ArrayFrame` list every other operation uses —
+ * that's what lets `compare_algorithms` show two algorithms' step counts
+ * side by side without touching the board.
+ */
 import { COMPLEXITY, frame, toNumeric } from "@/features/arrays-agent/lib/array-frames";
 import type {
   ArrayFrame,

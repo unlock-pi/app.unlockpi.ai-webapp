@@ -25,11 +25,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/logo";
-import { ArrayStrip } from "@/components/data-structure/array-strip";
-import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
+import { ArrayView } from "@/components/data-structure/array";
+import { LinkedListView } from "@/components/data-structure/linked-list-view";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
-import { QueueStrip } from "@/components/data-structure/queue-strip";
-import { StackStrip } from "@/components/data-structure/stack-strip";
+import { QueueView } from "@/components/data-structure/queue-view";
+import { StackView } from "@/components/data-structure/stack-view";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -450,7 +450,7 @@ function ArrayBlock({
     return blockShell(
       "canvas-frame-block--compact canvas-array-block",
       <div className="grid w-full gap-4">
-        <ArrayStrip
+        <ArrayView
           className="max-w-none justify-start"
           data={agent.view.values}
           name="A"
@@ -474,7 +474,7 @@ function ArrayBlock({
   return blockShell(
     "canvas-frame-block--compact canvas-array-block",
     <div className="grid w-full gap-4">
-      <ArrayStrip
+      <ArrayView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -516,7 +516,7 @@ function StackBlock({
     !title || !caption ? "canvas-frame-block--compact" : undefined,
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <StackStrip
+      <StackView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -557,7 +557,7 @@ function QueueBlock({
     cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <QueueStrip
+      <QueueView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -595,7 +595,7 @@ function LinkedListBlock({
     cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <LinkedListStrip
+      <LinkedListView
         nodes={nodes}
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}

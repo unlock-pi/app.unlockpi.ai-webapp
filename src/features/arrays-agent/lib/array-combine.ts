@@ -1,3 +1,9 @@
+/**
+ * Two-array operations: concatenate, element-wise combine, merge-sorted —
+ * the only operations in this feature that read from two arrays and write a
+ * third. Same pure `(values, ...args) => ArrayOpResult` shape as
+ * array-ops.ts — see that file's docstring for how the operation split works.
+ */
 import { MAX_ARRAY_LENGTH, frame, toNumeric } from "@/features/arrays-agent/lib/array-frames";
 import type {
   ArrayFrame,

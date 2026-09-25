@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { play } from "cuelume";
 
-import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArrayView } from "@/components/data-structure/array";
 import {
   canPopStack,
   canPushStack,
@@ -12,7 +12,7 @@ import {
   pushStack,
   type StackCapacity,
 } from "@/components/data-structure/stack-model";
-import { StackStrip } from "@/components/data-structure/stack-strip";
+import { StackView } from "@/components/data-structure/stack-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import { Switch } from "@/components/ui/switch";
 //   1) Give the user knobs to drive push/pop and toggle fixed/dynamic so the
 //      animations can be exercised without wiring up a full lesson flow.
 //   2) Serve as the reference for how a parent should manage stack state
-//      when using StackStrip in Fixed mode (guard pushes against the size).
+//      when using StackView in Fixed mode (guard pushes against the size).
 
 export default function Page() {
   return (
@@ -39,7 +39,7 @@ function ArraySection() {
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold">Array</h2>
-      <ArrayStrip
+      <ArrayView
         data={arrayData}
         highlightElements
         highlightIndices
@@ -163,7 +163,7 @@ function StackPlayground() {
         </Badge>
       </div>
 
-      <StackStrip
+      <StackView
         data={stackData}
         name="S"
         isFixed={isFixed}

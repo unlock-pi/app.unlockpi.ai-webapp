@@ -1,3 +1,10 @@
+/**
+ * Rendering the array as a source-code declaration (`const A = [5, 10, 15];`)
+ * and reading one back out of edited code. This is the "declaration" half of
+ * code-sync mode; operation-code.ts is the other half — the line of code
+ * that performed the LAST operation (`A.splice(2, 0, 10)`). Together they're
+ * what show_array_as_code keeps in sync under the array on a frame.
+ */
 import type { ArrayValue } from "@/features/arrays-agent/lib/array-types";
 
 export type CodeLanguageName =
