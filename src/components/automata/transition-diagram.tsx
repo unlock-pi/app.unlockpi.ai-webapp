@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import { memo, useMemo, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 
@@ -9,8 +10,8 @@ import type {
   AutomatonState,
   AutomatonTransition,
 } from "@/components/automata/model";
-import { TRANSITION_FLOW_DURATION_MS } from "@/components/automata/animation-timing";
-import styles from "@/components/automata/automaton-network.module.css";
+export const TRANSITION_FLOW_DURATION_MS = 2_000;
+export const TRANSITION_ARRIVAL_DELAY_MS = TRANSITION_FLOW_DURATION_MS;
 
 type Point = { x: number; y: number };
 type PlacedState = AutomatonState & Point & { radius: number };
@@ -21,6 +22,7 @@ type DrawnEdge = {
   label: string;
   transitionIds: string[];
   path: string;
+  pipePath: string;
   tip: string;
   labelAt: Point;
 };
@@ -70,9 +72,15 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
     const end = { x: from.x + 22, y: from.y - from.radius * 0.75 };
     const c1 = { x: from.x - 85, y: from.y - from.radius - 105 };
     const c2 = { x: from.x + 85, y: from.y - from.radius - 105 };
+    const endDirection = normalize(end.x - c2.x, end.y - c2.y);
+    const pipeEnd = {
+      x: end.x - endDirection.x * 11,
+      y: end.y - endDirection.y * 11,
+    };
     return {
       path: `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`,
-      tip: arrowTip(end, normalize(end.x - c2.x, end.y - c2.y)),
+      pipePath: `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${pipeEnd.x} ${pipeEnd.y}`,
+      tip: arrowTip(end, endDirection),
       labelAt: { x: from.x, y: from.y - from.radius - 76 },
     };
   }
@@ -92,8 +100,13 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
       x: to.x - endDirection.x * (to.radius + 6),
       y: to.y - endDirection.y * (to.radius + 6),
     };
+    const pipeEnd = {
+      x: end.x - endDirection.x * 11,
+      y: end.y - endDirection.y * 11,
+    };
     return {
       path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
+      pipePath: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${pipeEnd.x} ${pipeEnd.y}`,
       tip: arrowTip(end, endDirection),
       labelAt: { x: middle.x + normal.x * 32, y: middle.y + normal.y * 32 - 13 },
     };
@@ -107,8 +120,13 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
     x: to.x - vector.x * (to.radius + 6),
     y: to.y - vector.y * (to.radius + 6),
   };
+  const pipeEnd = {
+    x: end.x - vector.x * 11,
+    y: end.y - vector.y * 11,
+  };
   return {
     path: `M ${start.x} ${start.y} L ${end.x} ${end.y}`,
+    pipePath: `M ${start.x} ${start.y} L ${pipeEnd.x} ${pipeEnd.y}`,
     tip: arrowTip(end, vector),
     labelAt: { x: middle.x, y: middle.y - 15 },
   };
@@ -186,14 +204,16 @@ function statusColor(status: string) {
   return "var(--foreground)";
 }
 
-function AutomatonNetworkView({
-  automaton,
-  execution,
-}: {
+export type TransitionDiagramProps = {
   automaton: Automaton;
   execution: AutomatonExecution;
-}) {
+  /** The initial path progress for an active flow, from 0 through 1. */
+  flowProgress?: number;
+};
+
+function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: TransitionDiagramProps) {
   const diagram = useMemo(() => buildDiagram(automaton), [automaton]);
+  const reduceMotion = useReducedMotion();
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, zoom: 1 });
@@ -227,12 +247,12 @@ function AutomatonNetworkView({
   };
 
   return (
-    <div className={styles.frame}>
+    <div className="relative h-96 w-full overflow-hidden rounded-[1.25rem] border border-border/65 bg-card sm:h-[30rem] lg:h-[34rem]" style={{ backgroundImage: "radial-gradient(circle at 50% 0%, rgb(14 165 233 / 6%), transparent 55%)" }}>
       <svg
         ref={svgRef}
         role="img"
         aria-label={`${automaton.type.toUpperCase()} state diagram`}
-        className={styles.diagram}
+        className="block h-full w-full cursor-grab touch-none select-none active:cursor-grabbing"
         viewBox={`${viewX} ${viewY} ${viewWidth} ${viewHeight}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={onPointerDown}
@@ -254,49 +274,59 @@ function AutomatonNetworkView({
                 d={edge.path}
                 fill="none"
                 stroke={restingColor}
-                strokeWidth={flowing ? 11 : status === "active" ? 3 : status === "visited" ? 1.5 : 1.8}
-                strokeOpacity={flowing ? 0.45 : 1}
+                strokeWidth={status === "active" ? 3 : status === "visited" ? 1.5 : 1.8}
                 strokeLinecap="round"
-                className={styles.edge}
+                className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
               />
               {flowing ? (
-                <path d={edge.path} fill="none" stroke="var(--card)" strokeWidth={6}
-                  strokeLinecap="round" className={styles.pipeChannel} />
-              ) : null}
-              <polygon
-                points={edge.tip}
-                fill={restingColor}
-                className={styles.edge}
-              />
-              {flowing ? (
-                <g key={pulseKey} className={styles.flow}>
+                <>
                   <path
+                    d={edge.pipePath}
+                    fill="none"
+                    stroke="var(--border)"
+                    strokeWidth={11}
+                    strokeOpacity={0.45}
+                    strokeLinecap="round"
+                    className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
+                  />
+                  <path
+                    d={edge.pipePath}
+                    fill="none"
+                    stroke="var(--card)"
+                    strokeWidth={6}
+                    strokeLinecap="round"
+                  />
+                </>
+              ) : null}
+              {flowing ? (
+                <g key={pulseKey} className="pointer-events-none">
+                  <motion.path
                     d={edge.path}
-                    pathLength={100}
                     fill="none"
                     stroke={SKY}
                     strokeWidth={5.5}
                     strokeLinecap="round"
-                    className={styles.fill}
-                    style={{ animationDuration: `${TRANSITION_FLOW_DURATION_MS}ms` }}
+                    initial={{ pathLength: flowProgress }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: reduceMotion ? 0 : (1 - flowProgress) * TRANSITION_FLOW_DURATION_MS / 1_000,
+                      ease: "linear",
+                    }}
                   />
-                  <path d="M 0 0 L -13 -7 L -9 0 L -13 7 Z" fill={SKY}>
-                    <animateMotion
-                      path={edge.path}
-                      dur={`${TRANSITION_FLOW_DURATION_MS}ms`}
-                      rotate="auto"
-                      fill="freeze"
-                    />
-                  </path>
                 </g>
               ) : null}
+              <polygon
+                points={edge.tip}
+                fill={restingColor}
+                className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
+              />
               {edge.label ? (
                 <g transform={`translate(${edge.labelAt.x} ${edge.labelAt.y})`}>
                   <rect x={-Math.max(17, edge.label.length * 4.1 + 8)} y={-13}
                     width={Math.max(34, edge.label.length * 8.2 + 16)} height={24}
                     rx={7} fill="var(--card)" fillOpacity={0.94} />
                   <text textAnchor="middle" dominantBaseline="middle" fill={color}
-                    fontSize={14} fontWeight={600} className={styles.label}>{edge.label}</text>
+                    fontSize={14} fontWeight={600} className="pointer-events-none [font-family:Arial,sans-serif]">{edge.label}</text>
                 </g>
               ) : null}
             </g>
@@ -321,22 +351,22 @@ function AutomatonNetworkView({
               ) : null}
               {active ? <circle cx={state.x} cy={state.y} r={state.radius + 8}
                 fill="none" stroke={SKY} strokeOpacity={0.23} strokeWidth={5}
-                className={styles.halo} /> : null}
+                className="origin-center animate-in fade-in zoom-in-90 duration-300 motion-reduce:animate-none" /> : null}
               <circle cx={state.x} cy={state.y} r={state.radius}
                 fill={fill} stroke={outline} strokeWidth={active ? 3 : 2}
-                className={styles.node} />
+                className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none" />
               {state.accepting ? <circle cx={state.x} cy={state.y}
                 r={state.radius - 6} fill="none" stroke={active ? "#fff" : outline}
-                strokeWidth={1.8} className={styles.node} /> : null}
+                strokeWidth={1.8} className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none" /> : null}
               <text x={state.x} y={state.y} textAnchor="middle" dominantBaseline="middle"
                 fill={text} fontSize={18} fontWeight={600}
-                className={styles.label}>{state.label}</text>
+                className="pointer-events-none [font-family:Arial,sans-serif]">{state.label}</text>
             </g>
           );
         })}
       </svg>
       {view.zoom !== 1 || view.x !== 0 || view.y !== 0 ? (
-        <button type="button" className={styles.reset} onClick={() => setView({ x: 0, y: 0, zoom: 1 })}>
+        <button type="button" className="absolute right-3 top-3 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-md transition-colors hover:bg-muted" onClick={() => setView({ x: 0, y: 0, zoom: 1 })}>
           Reset view
         </button>
       ) : null}
@@ -344,4 +374,4 @@ function AutomatonNetworkView({
   );
 }
 
-export const AutomatonNetwork = memo(AutomatonNetworkView);
+export const TransitionDiagram = memo(TransitionDiagramView);

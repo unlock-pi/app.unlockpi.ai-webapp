@@ -40,12 +40,10 @@ well.
 | `model.ts` | Renderer-independent automaton types, validation, epsilon handling, traces, and execution functions. |
 | `authoring.ts` | Reconciles Puck array edits: ensures unique IDs and exactly one initial state. |
 | `agent-view-context.tsx` | Supplies transient agent execution without persisting it into Puck. |
-| `automaton-network.tsx` | Custom SVG states, transitions, layout, pan/zoom, and execution status. |
-| `automaton-network.module.css` | Scoped diagram styling and edge-flow animation. |
+| `transition-diagram.tsx` | Self-contained SVG states, transitions, layout, pan/zoom, and Motion-based execution flow. |
 | `transition-table.tsx` | Accessible transition-table view. |
 | `input-string.tsx` | Displays the input and its current execution position. |
 | `execution-panel.tsx` | Step and reset controls. |
-| `*.orig` | Historical backup copies; they are not imported by the application. |
 
 ## Data flow
 
@@ -59,7 +57,7 @@ AutomatonBlock ──► portable Automaton model ──► validation messages
         │                    │
         │                    ├──► TransitionTable
         │                    │
-        │                    └──► AutomatonNetwork (SVG)
+        │                    └──► TransitionDiagram (SVG)
         ▼
 InputString + ExecutionPanel
 ```
@@ -163,8 +161,8 @@ execution = stepAutomaton(automaton, [..."101"], execution);
 
 ## Rendering and styling
 
-`AutomatonNetwork` renders SVG from the portable model. It never owns formal
-model or execution data. A CSS animation moves the signal along the active edge
+`TransitionDiagram` renders SVG from the portable model. It never owns formal
+model or execution data. Its Motion animation moves the signal along the active edge
 without redrawing the whole graph each frame.
 
 - A deterministic left-to-right layout places states; the model stores no coordinates.
@@ -186,7 +184,7 @@ Drag to pan, scroll to zoom, and double-click or use Reset view to fit again.
    persisted shape changes.
 3. Put formal semantics in `model.ts`; do not add them to the renderer.
 4. Extend `authoring.ts` if the new data needs a cross-field invariant.
-5. Update both `TransitionTable` and `automaton-network.tsx` when the change
+5. Update both `TransitionTable` and `transition-diagram.tsx` when the change
    affects how transitions or states are presented.
 6. Export any intentional consumer-facing API from `index.ts` and add tests for
    model and reconciliation behaviour.

@@ -3,8 +3,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAutomataAgentView } from "@/components/automata/agent-view-context";
-import { TRANSITION_ARRIVAL_DELAY_MS } from "@/components/automata/animation-timing";
-import { AutomatonNetwork } from "@/components/automata/automaton-network";
+import {
+  TRANSITION_ARRIVAL_DELAY_MS,
+  TRANSITION_FLOW_DURATION_MS,
+  TransitionDiagram,
+} from "@/components/automata/transition-diagram";
 import { reconcileAutomatonProps } from "@/components/automata/authoring";
 import { ExecutionPanel } from "@/components/automata/execution-panel";
 import { InputString } from "@/components/automata/input-string";
@@ -56,12 +59,26 @@ const TRANSITION_SETTLE_DELAY_MS = 140;
 // completed-step cursor outside the component so a remount continues from the
 // last reached state instead of replaying the trace from step zero.
 const playbackCursorByExecution = new Map<string, number>();
+const transitionStartedAtByExecution = new Map<
+  string,
+  { stepCount: number; startedAt: number }
+>();
 
 function playbackCursor(execution: AutomatonExecution) {
   return Math.min(
     playbackCursorByExecution.get(execution.executionId) ?? 0,
     execution.steps.length,
   );
+}
+
+function activeTransitionStart(executionId: string, stepCount: number) {
+  const active = transitionStartedAtByExecution.get(executionId);
+  return active?.stepCount === stepCount ? active.startedAt : null;
+}
+
+function flowProgressAt(startedAt: number | null) {
+  if (startedAt === null) return 0;
+  return Math.min(1, Math.max(0, (Date.now() - startedAt) / TRANSITION_FLOW_DURATION_MS));
 }
 
 function executionBeforeStep(execution: AutomatonExecution, stepCount: number): AutomatonExecution {
@@ -122,6 +139,9 @@ function useExecutionPlayback(execution: AutomatonExecution) {
   const [isTransitioning, setIsTransitioning] = useState(
     () => Boolean(execution.steps[initialCursor]?.transitions.length),
   );
+  const [flowProgress, setFlowProgress] = useState(() =>
+    flowProgressAt(activeTransitionStart(execution.executionId, initialCursor + 1)),
+  );
   const latestExecutionRef = useRef(execution);
   const playbackRef = useRef({
     executionId: execution.executionId,
@@ -142,6 +162,7 @@ function useExecutionPlayback(execution: AutomatonExecution) {
       const step = latest.steps[playback.nextStep];
       if (!step) {
         setIsTransitioning(false);
+        setFlowProgress(0);
         setDisplayedExecution(latest);
         return;
       }
@@ -152,6 +173,8 @@ function useExecutionPlayback(execution: AutomatonExecution) {
         setDisplayedExecution(executionAtStep(latest, stepCount));
         playback.nextStep = stepCount;
         playbackCursorByExecution.set(playback.executionId, stepCount);
+        transitionStartedAtByExecution.delete(playback.executionId);
+        setFlowProgress(1);
         playback.timeout = setTimeout(() => {
           playback.timeout = null;
           advanceRef.current();
@@ -159,17 +182,25 @@ function useExecutionPlayback(execution: AutomatonExecution) {
         return;
       }
   
+      const existingStart = activeTransitionStart(playback.executionId, stepCount);
+      const startedAt = existingStart ?? Date.now();
+      if (!existingStart) {
+        transitionStartedAtByExecution.set(playback.executionId, { stepCount, startedAt });
+      }
       setIsTransitioning(true);
+      setFlowProgress(flowProgressAt(startedAt));
       setDisplayedExecution(executionBeforeStep(latest, stepCount));
       const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? 0
-        : TRANSITION_ARRIVAL_DELAY_MS;
+        : Math.max(0, TRANSITION_ARRIVAL_DELAY_MS - (Date.now() - startedAt));
       playback.timeout = setTimeout(() => {
         const current = latestExecutionRef.current;
         if (current.executionId !== playback.executionId) return;
         setDisplayedExecution(executionAtStep(current, stepCount));
         playback.nextStep = stepCount;
         playbackCursorByExecution.set(playback.executionId, stepCount);
+        transitionStartedAtByExecution.delete(playback.executionId);
+        setFlowProgress(0);
         playback.timeout = setTimeout(() => {
           playback.timeout = null;
           setIsTransitioning(false);
@@ -183,6 +214,7 @@ function useExecutionPlayback(execution: AutomatonExecution) {
         execution.steps.length < playback.nextStep) {
       if (playback.timeout) clearTimeout(playback.timeout);
       playback.timeout = null;
+      transitionStartedAtByExecution.delete(playback.executionId);
       playback.executionId = execution.executionId;
       playback.nextStep = playbackCursor(execution);
     }
@@ -200,7 +232,7 @@ function useExecutionPlayback(execution: AutomatonExecution) {
     playback.timeout = null;
   }, []);
 
-  return { displayedExecution, isTransitioning };
+  return { displayedExecution, flowProgress, isTransitioning };
 }
 
 // Puck recreates block-prop objects during unrelated editor updates. Compare
@@ -296,7 +328,7 @@ function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
     setLocalExecution(createAutomatonExecution(authoredAutomaton, authoredInput));
   }
   const execution = agent?.execution ?? localExecution;
-  const { displayedExecution, isTransitioning } = useExecutionPlayback(execution);
+  const { displayedExecution, flowProgress, isTransitioning } = useExecutionPlayback(execution);
 
   return (
     <section
@@ -304,7 +336,11 @@ function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
       aria-label={`${automaton.type.toUpperCase()} automaton`}
     >
       <div className="min-w-0 overflow-hidden">
-        <AutomatonNetwork automaton={automaton} execution={displayedExecution} />
+        <TransitionDiagram
+          automaton={automaton}
+          execution={displayedExecution}
+          flowProgress={flowProgress}
+        />
       </div>
 
       {props.showTransitionTable ? (
