@@ -213,6 +213,29 @@ export type CheckpointBlockProps = {
   answer: string;
 };
 
+/**
+ * One row of a Points List block. `content` is the always-visible line and is
+ * inline-editable directly on the canvas (Puck's `contentEditable` field
+ * transform). `detail` is optional supporting text — leaving it blank means
+ * the point renders as a plain, non-toggleable line; any text in it turns the
+ * point into a Notion-style toggle.
+ */
+export type PointsListItem = {
+  id: string;
+  content: string;
+  detail: string;
+};
+
+export type PointsListBlockProps = {
+  points: PointsListItem[];
+  /** Bullets vs. auto-numbered — numbering is derived from position, never stored. */
+  listStyle: "bullet" | "numbered";
+  /** Whether a reader sees each point's supporting text open by default. */
+  defaultExpanded: boolean;
+  /** Sidebar-only "paste multiple points" scratch field — always cleared back to "" after use, never rendered. */
+  quickAdd?: string;
+};
+
 /** Scratchpad scene kept in the Draw tool panel, never stored on a block. */
 export type SketchSceneData = {
   elements: readonly unknown[];
@@ -262,6 +285,7 @@ export type CanvasComponents = {
   CheckpointBlock: CheckpointBlockProps;
   SketchBlock: SketchBlockProps;
   CountingStripBlock: CountingStripBlockProps;
+  PointsListBlock: PointsListBlockProps;
 };
 
 export type CanvasDocument = Data<CanvasComponents, CanvasRootProps>;

@@ -30,6 +30,13 @@ import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
 import { NumberGrid } from "@/components/data-structure/number-grid";
 import { NumberPaginationStrip } from "@/components/data-structure/number-pagination-strip";
+import {
+  createPointsListItem,
+  dedupePointIds,
+  defaultPointsListItems,
+  PointsList,
+  PointsListQuickAddField,
+} from "@/components/data-structure/points-list";
 import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
 
@@ -58,6 +65,7 @@ import type {
   LinkedListBlockProps,
   MermaidBlockProps,
   MindMapBlockProps,
+  PointsListBlockProps,
   QueueBlockProps,
   SlideBlockProps,
   StackBlockProps,
@@ -372,6 +380,7 @@ function SlideBlock({
               "TableBlock",
               "CheckpointBlock",
               "SketchBlock",
+              "PointsListBlock",
             ]}
             className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
           />
@@ -707,6 +716,13 @@ function MindMapBlock({ title, center, branches }: MindMapBlockProps) {
   );
 }
 
+function PointsListBlock({ points, listStyle, defaultExpanded }: PointsListBlockProps) {
+  return blockShell(
+    undefined,
+    <PointsList points={points} listStyle={listStyle} defaultExpanded={defaultExpanded} />,
+  );
+}
+
 function CodeBlock({ title, language, code, explanation }: CodeBlockProps) {
   return blockShell(
     "grid gap-3",
@@ -984,6 +1000,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "CodeBlock",
         "MermaidBlock",
         "TableBlock",
+        "PointsListBlock",
       ],
       defaultExpanded: true,
     },
@@ -1023,6 +1040,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "TableBlock",
             "CheckpointBlock",
             "SketchBlock",
+            "PointsListBlock",
           ],
         },
       },
@@ -1445,6 +1463,65 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         };
       },
       render: SketchBlock,
+    },
+    PointsListBlock: {
+      label: "Points list",
+      fields: {
+        listStyle: {
+          type: "radio",
+          label: "List style",
+          options: [
+            { label: "Bullets", value: "bullet" },
+            { label: "Numbered", value: "numbered" },
+          ],
+        },
+        defaultExpanded: {
+          type: "radio",
+          label: "Points start expanded",
+          options: [
+            { label: "Yes", value: true },
+            { label: "No", value: false },
+          ],
+        },
+        quickAdd: {
+          type: "custom",
+          label: "Paste multiple points",
+          render: ({ readOnly }) => <PointsListQuickAddField readOnly={readOnly} />,
+        },
+        points: {
+          type: "array",
+          label: "Points",
+          arrayFields: {
+            id: { type: "text", label: "ID", visible: false },
+            content: { type: "text", label: "Point", contentEditable: true },
+            detail: {
+              type: "textarea",
+              label: "Supporting text (optional — leave blank for no toggle)",
+              contentEditable: true,
+            },
+          },
+          defaultItemProps: () => createPointsListItem(),
+          getItemSummary: (item, index) => item.content || `Point ${(index ?? 0) + 1}`,
+        },
+      },
+      defaultProps: {
+        listStyle: "bullet",
+        defaultExpanded: false,
+        quickAdd: "",
+        points: defaultPointsListItems(),
+      },
+      // Puck's built-in array "Duplicate" copies a row's props verbatim
+      // (it only re-ids nested slot fields), so a duplicated point would
+      // otherwise share its source's id — fix that up after every change.
+      resolveData: (data) => {
+        const points = Array.isArray(data.props.points) ? data.props.points : [];
+        const deduped = dedupePointIds(points);
+        if (deduped === points) {
+          return data;
+        }
+        return { ...data, props: { ...data.props, points: deduped } };
+      },
+      render: PointsListBlock,
     },
   },
 };

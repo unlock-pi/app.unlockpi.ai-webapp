@@ -8,6 +8,7 @@ import {
   GitBranchIcon,
   LayoutPanelTopIcon,
   ListChecksIcon,
+  ListTreeIcon,
   NetworkIcon,
   PencilRulerIcon,
   Share2Icon,
@@ -145,6 +146,16 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     label: "Drawing",
     description: "A sketch drawn in the Draw panel",
     icon: PencilRulerIcon,
+  },
+  PointsListBlock: {
+    label: "Points list",
+    description: "Bulleted or numbered points, each with an optional toggle",
+    icon: ListTreeIcon,
+  },
+  "Points list": {
+    label: "Points list",
+    description: "Bulleted or numbered points, each with an optional toggle",
+    icon: ListTreeIcon,
   },
 };
 
