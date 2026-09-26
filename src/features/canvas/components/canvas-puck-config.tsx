@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { DropZone, type Config, type SlotComponent } from "@puckeditor/core";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/logo";
 import { ArrayView } from "@/components/data-structure/array";
+import { CircuitView } from "@/components/data-structure/circuit";
 import { LinkedListView } from "@/components/data-structure/linked-list-view";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
 import { QueueView } from "@/components/data-structure/queue-view";
@@ -33,6 +34,13 @@ import { StackView } from "@/components/data-structure/stack-view";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
+import {
+  createParallelCircuit,
+  createSeriesCircuit,
+  evaluateGate,
+  toggleSwitch,
+  type CircuitOpResult,
+} from "@/features/digital-circuits/lib/circuit-ops";
 import { TraversalTrigger } from "@/features/canvas/components/traversal-trigger";
 import { useTraversalState } from "@/features/canvas/hooks/use-traversal-state";
 import { SketchBlock } from "@/features/canvas/components/sketch-block";
@@ -47,6 +55,7 @@ import type {
   CanvasComponents,
   CanvasRootProps,
   CheckpointBlockProps,
+  CircuitBlockProps,
   CodeLanguage,
   CodeBlockProps,
   HeadingTextBlockProps,
@@ -357,6 +366,7 @@ function SlideBlock({
               "SubheadingTextBlock",
               "BodyTextBlock",
               "ArrayBlock",
+              "CircuitBlock",
               "StackBlock",
               "QueueBlock",
               "LinkedListBlock",
@@ -490,6 +500,42 @@ function ArrayBlock({
         visitedIndices={traversal.visitedIndices}
         onUpdate={traversal.setTraversal}
       />
+    </div>,
+  );
+}
+
+/**
+ * A circuit block is authored as one of a small set of presets (see
+ * `CircuitBlockProps`) — never animated, always the settled end state a
+ * teacher would want frozen on a slide. `useMemo` re-derives that state only
+ * when the preset or gate inputs actually change, since `createSeriesCircuit`
+ * et al. build a fresh CircuitOpResult (and fresh object identities) on every
+ * call.
+ */
+function CircuitBlock({ preset, gateInputA = true, gateInputB = true }: CircuitBlockProps) {
+  const result: CircuitOpResult = useMemo(() => {
+    switch (preset) {
+      case "series":
+        return createSeriesCircuit();
+      case "series-closed": {
+        const built = createSeriesCircuit();
+        return toggleSwitch(built.components, built.wires, "switch");
+      }
+      case "parallel":
+        return createParallelCircuit();
+      case "and-gate":
+        return evaluateGate("and", [gateInputA, gateInputB]);
+      case "or-gate":
+        return evaluateGate("or", [gateInputA, gateInputB]);
+      case "not-gate":
+        return evaluateGate("not", [gateInputA]);
+    }
+  }, [preset, gateInputA, gateInputB]);
+
+  return blockShell(
+    "canvas-frame-block--compact",
+    <div className="flex w-full items-center justify-center">
+      <CircuitView components={result.components} wires={result.wires} />
     </div>,
   );
 }
@@ -892,6 +938,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "SlideBlock",
         "CheckpointBlock",
         "ArrayBlock",
+        "CircuitBlock",
         "StackBlock",
         "QueueBlock",
         "LinkedListBlock",
@@ -928,6 +975,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "SubheadingTextBlock",
             "BodyTextBlock",
             "ArrayBlock",
+            "CircuitBlock",
             "StackBlock",
             "QueueBlock",
             "LinkedListBlock",
@@ -1023,6 +1071,45 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         caption: "",
       },
       render: ArrayBlock,
+    },
+    CircuitBlock: {
+      label: "Circuit",
+      fields: {
+        preset: {
+          type: "select",
+          label: "Circuit",
+          options: [
+            { label: "Series (switch open)", value: "series" },
+            { label: "Series (switch closed)", value: "series-closed" },
+            { label: "Parallel", value: "parallel" },
+            { label: "AND gate", value: "and-gate" },
+            { label: "OR gate", value: "or-gate" },
+            { label: "NOT gate", value: "not-gate" },
+          ],
+        },
+        gateInputA: {
+          type: "radio",
+          label: "Gate input A (or NOT's only input)",
+          options: [
+            { label: "1", value: true },
+            { label: "0", value: false },
+          ],
+        },
+        gateInputB: {
+          type: "radio",
+          label: "Gate input B",
+          options: [
+            { label: "1", value: true },
+            { label: "0", value: false },
+          ],
+        },
+      },
+      defaultProps: {
+        preset: "series",
+        gateInputA: true,
+        gateInputB: true,
+      },
+      render: CircuitBlock,
     },
     StackBlock: {
       label: "Stack",

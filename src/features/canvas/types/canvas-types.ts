@@ -65,6 +65,20 @@ export type BodyTextBlockProps = {
   text: string;
 };
 
+/**
+ * A circuit block is authored as one of a small set of PRESETS, not as raw
+ * components/wires — the same reasoning as picking hardcoded layouts over a
+ * layout solver in circuit-ops.ts: a teacher composing a frame is choosing
+ * "which known circuit," not placing parts by hand, so the Puck fields stay
+ * as simple as ArrayBlock's.
+ */
+export type CircuitBlockProps = {
+  preset: "series" | "series-closed" | "parallel" | "and-gate" | "or-gate" | "not-gate";
+  /** Only read by the gate presets. */
+  gateInputA?: boolean;
+  gateInputB?: boolean;
+};
+
 export type ArrayBlockProps = {
   /** Stored on older blocks but never drawn — an array block shows only the strip. */
   title?: string;
@@ -188,6 +202,7 @@ export type CanvasComponents = {
   SubheadingTextBlock: SubheadingTextBlockProps;
   BodyTextBlock: BodyTextBlockProps;
   ArrayBlock: ArrayBlockProps;
+  CircuitBlock: CircuitBlockProps;
   StackBlock: StackBlockProps;
   QueueBlock: QueueBlockProps;
   LinkedListBlock: LinkedListBlockProps;
