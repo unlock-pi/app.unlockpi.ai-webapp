@@ -32,9 +32,17 @@ import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
 import { AutomatonBlock } from "@/components/automata";
 import {
+  DEFAULT_CONSTRUCTION_STEPS,
+  DEFAULT_EXPRESSION_SEGMENTS,
+  DEFAULT_SYNTAX_TREE,
+  RegularExpressionBlock,
+} from "@/components/regular-expression";
+import {
   nextAutomatonId,
   reconcileAutomatonProps,
 } from "@/components/automata/authoring";
+import { reconcileRegularExpressionProps } from "@/components/regular-expression/authoring";
+import { ContextFreeGrammarBlock, DEFAULT_CFG_PROPS, GrammarEditor, reconcileContextFreeGrammarProps } from "@/components/context-free-grammar";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -370,6 +378,8 @@ function SlideBlock({
               "MermaidBlock",
               "TableBlock",
               "AutomatonBlock",
+        "RegularExpressionBlock",
+              "ContextFreeGrammarBlock",
               "CheckpointBlock",
               "SketchBlock",
             ]}
@@ -906,6 +916,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "MermaidBlock",
         "TableBlock",
         "AutomatonBlock",
+            "RegularExpressionBlock",
+              "ContextFreeGrammarBlock",
       ],
       defaultExpanded: true,
     },
@@ -943,6 +955,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "MermaidBlock",
             "TableBlock",
             "AutomatonBlock",
+              "RegularExpressionBlock",
+              "ContextFreeGrammarBlock",
             "CheckpointBlock",
             "SketchBlock",
           ],
@@ -1419,6 +1433,45 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         showTransitionTable: true,
       },
       render: AutomatonBlock,
+    },
+    RegularExpressionBlock: {
+      label: "Regular expression",
+      resolveData: (data, { lastData }) => ({
+        ...data,
+        props: reconcileRegularExpressionProps(data.props, lastData?.props),
+      }),
+      fields: {
+        expression: { type: "text", label: "Expression" },
+        input: { type: "text", label: "Input string" },
+      },
+      defaultProps: {
+        expression: "(a|b)*abb",
+        input: "aabb",
+        displayMode: "expression",
+        expressionSegments: DEFAULT_EXPRESSION_SEGMENTS,
+        syntaxTree: DEFAULT_SYNTAX_TREE,
+        constructionSteps: DEFAULT_CONSTRUCTION_STEPS,
+        showSyntaxTree: true,
+        showConstruction: true,
+        showInput: true,
+        showExecutionControls: true,
+      },
+      render: RegularExpressionBlock,
+    },
+    ContextFreeGrammarBlock: {
+      label: "Context-free grammar",
+      resolveData: (data, { lastData }) => ({ ...data, props: reconcileContextFreeGrammarProps(data.props, lastData?.props) }),
+      fields: {
+        grammarId: { type: "text", label: "Grammar ID", visible: false },
+        grammar: {
+          type: "custom",
+          label: "Grammar",
+          render: ({ value, onChange, readOnly }) => <GrammarEditor value={value} onChange={onChange} readOnly={readOnly} />,
+        },
+        input: { type: "text", label: "Input string" },
+      },
+      defaultProps: DEFAULT_CFG_PROPS,
+      render: ContextFreeGrammarBlock,
     },
     SketchBlock: {
       label: "Drawing",

@@ -1,0 +1,1 @@
+export const CONTEXT_FREE_GRAMMAR_AGENT_NAME = "CFG Tutor";

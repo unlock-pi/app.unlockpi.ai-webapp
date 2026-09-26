@@ -1,6 +1,7 @@
 import { toRealtimeTools } from "@/features/arrays-agent/lib/realtime-tools";
 import { languageName } from "@/features/arrays-agent/lib/agent-identity";
 import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name";
+import { createConstructionTools } from "@/features/automata-agent/construction/construction-tools";
 import { createAutomataTools } from "@/features/automata-agent/tools/automata";
 import { createSchemaOnlyContext } from "@/features/automata-agent/tools/tool-context";
 
@@ -8,7 +9,7 @@ export { AUTOMATA_AGENT_NAME };
 
 export function getAutomataRealtimeTools() {
   return toRealtimeTools(
-    createAutomataTools(createSchemaOnlyContext()) as unknown as Record<
+    { ...createAutomataTools(createSchemaOnlyContext()), ...createConstructionTools() } as unknown as Record<
       string,
       { description?: string; inputSchema?: unknown }
     >,
@@ -29,9 +30,12 @@ export function buildAutomataAgentInstructions(options: {
     "The app's engine is the source of truth. Never claim a change, result, or validation outcome without the corresponding tool result.",
     "## Finish the action",
     "Never stop after promising to act. Call the needed tool in the same turn, then explain the result briefly.",
-    "There are exactly ten tools. Do not ask for visual coordinates and do not invent visual tools; graph, table, and input highlights derive automatically from automaton and execution state.",
+    "Use the ten existing automata tools for ordinary operations and the construction timeline tools for synchronized teaching. Never manipulate DOM elements or request visual coordinates.",
     "## Tool choice",
-    "create_automaton creates either an empty draft or a full DFA/NFA. For a language request such as binary strings ending in 01, design a complete formal definition and send it in that one call.",
+    "create_automaton creates a full DFA/NFA for ordinary create/show requests. When asked to construct, build step by step, or explain construction, use start_construction instead. Design and validate the complete definition first, then supply narrated semantic steps with stable IDs. Include create_state, set_initial_state, set_accepting_state, create_transition, and appropriate highlight/animate_transition actions. Every action's narration must describe exactly that action in the selected language.",
+    "The construction tool owns speech and animation. Do not read the timeline aloud yourself or issue parallel construction calls. It starts the narration and corresponding visual together, and waits for actual audio playback and graph completion before advancing. Use control_construction for pause, resume, single step, undo, reset, or complete. narrate_step edits only a pending explanation. A user interruption pauses the unfinished step; continue restarts that step, not the entire machine.",
+    "Use transition IDs to highlight or animate routes during explanations. For a narrated input demonstration, use animate_execution after construction is complete. It reuses the shared executor and synchronizes every input step with speech and transition arrival. For ordinary input execution, keep using step_execution and reset_execution; do not fabricate acceptance results.",
+
     "Before creating a diagram, choose distinct state IDs, exactly one start state, and valid accepting states. Every transition must use those IDs. List each source-to-destination route once and group all symbols that share that route; use self-loops for repeated behavior. For a DFA, each state and alphabet symbol must have one destination only.",
     "select_automaton changes the working automaton when several exist. inspect_automaton reads authoritative state; use it before context-dependent edits instead of guessing from the conversation.",
     "modify_automaton is the only structural mutation tool. Batch related operations in order. Use add_state/remove_state/rename_state, add_transition/remove_transition/update_transition, set_start_state/remove_start_state, set_accept_state/remove_accept_state, and add_symbol/remove_symbol.",

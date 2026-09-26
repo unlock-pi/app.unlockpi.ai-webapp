@@ -9,6 +9,8 @@ import {
   MicIcon,
   MoonIcon,
   NetworkIcon,
+  RegexIcon,
+  GitBranchIcon,
   PanelRightIcon,
   PresentationIcon,
   SaveIcon,
@@ -23,6 +25,8 @@ import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
 import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name";
+import { REGULAR_EXPRESSION_AGENT_NAME } from "@/features/regular-expression-agent/lib/agent-name";
+import { CONTEXT_FREE_GRAMMAR_AGENT_NAME } from "@/features/context-free-grammar-agent/agent-name";
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
 import { getCanvasPresentationFrames } from "@/features/canvas/lib/canvas-presentation";
@@ -126,6 +130,18 @@ const classModes: Array<{
     icon: NetworkIcon,
     title: AUTOMATA_AGENT_NAME,
     tagline: "Builds and runs DFA and NFA on the board",
+  },
+  {
+    mode: "regular-expression",
+    icon: RegexIcon,
+    title: REGULAR_EXPRESSION_AGENT_NAME,
+    tagline: "Builds regex trees, ε-NFAs, and equivalent DFAs",
+  },
+  {
+    mode: "context-free-grammar",
+    icon: GitBranchIcon,
+    title: CONTEXT_FREE_GRAMMAR_AGENT_NAME,
+    tagline: "Builds CFGs, derivations, and parse trees",
   },
 ];
 
@@ -291,7 +307,14 @@ export function CanvasEditorHeader({
                       </Card>
                       <FrameFooter className="px-0 py-0.5">
                         <div className="flex gap-1 text-muted-foreground text-xs">
-                          <CircleAlertIcon className={cn("size-3 h-lh shrink-0", title !== "Copilot" ? "text-primary-foreground" : "text-muted-foreground")} />
+                          <CircleAlertIcon
+                            className={cn(
+                              "size-3 h-lh shrink-0",
+                              title !== "Copilot"
+                                ? "text-primary-foreground"
+                                : "text-muted-foreground",
+                            )}
+                          />
                           <p>
                             {" "}
                             <span className="min-w-0 ">

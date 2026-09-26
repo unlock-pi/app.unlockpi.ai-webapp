@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 
 import type {
@@ -10,11 +10,18 @@ import type {
   AutomatonState,
   AutomatonTransition,
 } from "@/components/automata/model";
+import { cn } from "@/lib/utils";
+import type { AutomataConstructionView } from "@/features/automata-agent/construction/automata-construction";
 export const TRANSITION_FLOW_DURATION_MS = 2_000;
 export const TRANSITION_ARRIVAL_DELAY_MS = TRANSITION_FLOW_DURATION_MS;
 
 type Point = { x: number; y: number };
-type PlacedState = AutomatonState & Point & { radius: number };
+type PlacedState = AutomatonState &
+  Point & {
+    radius: number;
+    displayLabel: string;
+    loopDirection: -1 | 1;
+  };
 type DrawnEdge = {
   id: string;
   from: string;
@@ -26,7 +33,12 @@ type DrawnEdge = {
   tip: string;
   labelAt: Point;
 };
-type Diagram = { width: number; height: number; states: PlacedState[]; edges: DrawnEdge[] };
+type Diagram = {
+  width: number;
+  height: number;
+  states: PlacedState[];
+  edges: DrawnEdge[];
+};
 
 const LEVEL_GAP = 220;
 const ROW_GAP = 150;
@@ -67,11 +79,24 @@ function stateLevels(automaton: Automaton) {
 
 function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
   if (from.id === to.id) {
-    // The loop sits above its state, leaving the label and arrow outside the circle.
-    const start = { x: from.x - 22, y: from.y - from.radius * 0.75 };
-    const end = { x: from.x + 22, y: from.y - from.radius * 0.75 };
-    const c1 = { x: from.x - 85, y: from.y - from.radius - 105 };
-    const c2 = { x: from.x + 85, y: from.y - from.radius - 105 };
+    // Split loops around stacked states so they do not cross neighboring nodes.
+    const direction = from.loopDirection;
+    const start = {
+      x: from.x - 22,
+      y: from.y + direction * from.radius * 0.75,
+    };
+    const end = {
+      x: from.x + 22,
+      y: from.y + direction * from.radius * 0.75,
+    };
+    const c1 = {
+      x: from.x - 85,
+      y: from.y + direction * (from.radius + 105),
+    };
+    const c2 = {
+      x: from.x + 85,
+      y: from.y + direction * (from.radius + 105),
+    };
     const endDirection = normalize(end.x - c2.x, end.y - c2.y);
     const pipeEnd = {
       x: end.x - endDirection.x * 11,
@@ -81,7 +106,10 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
       path: `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`,
       pipePath: `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${pipeEnd.x} ${pipeEnd.y}`,
       tip: arrowTip(end, endDirection),
-      labelAt: { x: from.x, y: from.y - from.radius - 76 },
+      labelAt: {
+        x: from.x,
+        y: from.y + direction * (from.radius + 76),
+      },
     };
   }
 
@@ -89,7 +117,10 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
   const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
   if (reciprocal) {
     const normal = { x: -vector.y, y: vector.x };
-    const control = { x: middle.x + normal.x * 58, y: middle.y + normal.y * 58 };
+    const control = {
+      x: middle.x + normal.x * 58,
+      y: middle.y + normal.y * 58,
+    };
     const startDirection = normalize(control.x - from.x, control.y - from.y);
     const endDirection = normalize(to.x - control.x, to.y - control.y);
     const start = {
@@ -108,7 +139,10 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
       path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
       pipePath: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${pipeEnd.x} ${pipeEnd.y}`,
       tip: arrowTip(end, endDirection),
-      labelAt: { x: middle.x + normal.x * 32, y: middle.y + normal.y * 32 - 13 },
+      labelAt: {
+        x: middle.x + normal.x * 32,
+        y: middle.y + normal.y * 32 - 13,
+      },
     };
   }
 
@@ -132,7 +166,8 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
   };
 }
 
-function buildDiagram(automaton: Automaton): Diagram {
+function buildDiagram(automaton: Automaton, compactSpacing = false): Diagram {
+  const levelGap = compactSpacing ? 170 : LEVEL_GAP;
   const levels = stateLevels(automaton);
   const rows = new Map<number, AutomatonState[]>();
   for (const state of automaton.states) {
@@ -141,14 +176,24 @@ function buildDiagram(automaton: Automaton): Diagram {
   }
 
   const maxRows = Math.max(1, ...[...rows.values()].map((row) => row.length));
-  const width = Math.max(390, (Math.max(0, ...levels.values()) + 1) * LEVEL_GAP + 80);
+  const width = Math.max(
+    compactSpacing ? 350 : 390,
+    (Math.max(0, ...levels.values()) + 1) * levelGap + 80,
+  );
   const height = Math.max(340, (maxRows - 1) * ROW_GAP + 300);
+  const displayIndexByStateId = new Map(
+    automaton.states.map((state, index) => [state.id, index]),
+  );
   const states = [...rows.entries()].flatMap(([level, row]) =>
-    row.map((state, index) => ({
+    row.map<PlacedState>((state, index) => ({
       ...state,
-      x: 145 + level * LEVEL_GAP,
+      x: 145 + level * levelGap,
       y: height / 2 + (index - (row.length - 1) / 2) * ROW_GAP,
-      radius: Math.max(32, Math.min(46, 24 + state.label.length * 4)),
+      // Diagram nodes always use formal q0/q1/q2 notation; descriptive labels
+      // remain available in the model and transition table.
+      displayLabel: `q${displayIndexByStateId.get(state.id) ?? index}`,
+      radius: 38,
+      loopDirection: row.length > 1 && index >= row.length / 2 ? 1 : -1,
     })),
   );
   const byId = new Map(states.map((state) => [state.id, state]));
@@ -170,7 +215,9 @@ function buildDiagram(automaton: Automaton): Diagram {
       id,
       from,
       to,
-      label: [...new Set(transitions.flatMap((transition) => transition.symbols))].join(", "),
+      label: [
+        ...new Set(transitions.flatMap((transition) => transition.symbols)),
+      ].join(", "),
       transitionIds: transitions.map((transition) => transition.id),
       ...geometry,
     };
@@ -180,20 +227,37 @@ function buildDiagram(automaton: Automaton): Diagram {
 
 function stateStatus(state: AutomatonState, execution: AutomatonExecution) {
   if (execution.currentStates.includes(state.id)) return "active";
-  if (execution.transitionPhase === "traveling" &&
-      execution.steps.at(-1)?.fromStates.includes(state.id)) return "highlighted";
+  if (
+    execution.transitionPhase === "traveling" &&
+    execution.steps.at(-1)?.fromStates.includes(state.id)
+  )
+    return "highlighted";
   if (state.status === "highlighted") return "highlighted";
-  if (execution.visitedStates.includes(state.id) || state.status === "visited") return "visited";
+  if (execution.visitedStates.includes(state.id) || state.status === "visited")
+    return "visited";
   return "normal";
 }
 
-function edgeStatus(edge: DrawnEdge, execution: AutomatonExecution, automaton: Automaton) {
-  if (edge.transitionIds.some((id) => execution.activeTransitions.includes(id))) return "active";
-  const transitions = automaton.transitions.filter((transition) => edge.transitionIds.includes(transition.id));
-  if (transitions.some((transition) => transition.status === "highlighted")) return "highlighted";
-  if (transitions.some((transition) =>
-    execution.visitedTransitions.includes(transition.id) || transition.status === "visited"
-  )) return "visited";
+function edgeStatus(
+  edge: DrawnEdge,
+  execution: AutomatonExecution,
+  automaton: Automaton,
+) {
+  if (edge.transitionIds.some((id) => execution.activeTransitions.includes(id)))
+    return "active";
+  const transitions = automaton.transitions.filter((transition) =>
+    edge.transitionIds.includes(transition.id),
+  );
+  if (transitions.some((transition) => transition.status === "highlighted"))
+    return "highlighted";
+  if (
+    transitions.some(
+      (transition) =>
+        execution.visitedTransitions.includes(transition.id) ||
+        transition.status === "visited",
+    )
+  )
+    return "visited";
   return "normal";
 }
 
@@ -209,14 +273,79 @@ export type TransitionDiagramProps = {
   execution: AutomatonExecution;
   /** The initial path progress for an active flow, from 0 through 1. */
   flowProgress?: number;
+  flowDurationMs?: number;
+  construction?: AutomataConstructionView | null;
+  onConstructionAnimationComplete?: (token: string) => void;
+  /** Overrides the default standalone diagram height in embedded surfaces. */
+  viewportClassName?: string;
+  /** Reduces long horizontal gaps when a graph shares a lesson frame. */
+  compactSpacing?: boolean;
 };
 
-function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: TransitionDiagramProps) {
-  const diagram = useMemo(() => buildDiagram(automaton), [automaton]);
+function TransitionDiagramView({
+  automaton,
+  execution: suppliedExecution,
+  flowProgress = 0,
+  flowDurationMs = TRANSITION_FLOW_DURATION_MS,
+  viewportClassName,
+  compactSpacing = false,
+  construction,
+  onConstructionAnimationComplete,
+}: TransitionDiagramProps) {
+  const execution = construction?.execution ?? suppliedExecution;
+  const diagram = useMemo(
+    () => buildDiagram(automaton, compactSpacing),
+    [automaton, compactSpacing],
+  );
   const reduceMotion = useReducedMotion();
+  const token = construction?.timeline.token;
+  const action = construction?.timeline.steps[construction.timeline.currentStep]?.action;
+  const constructionRunning = construction?.timeline.mode === "building";
+  const constructionDuration = reduceMotion ? 0 : (construction?.timeline.steps[construction.timeline.currentStep]?.animationMs ?? ((action?.type === "animate_transition" || action?.type === "execute_step") ? 2_000 : 700)) / 1_000;
+  const completedEdges = useRef<{ token: string | null; edges: Set<string> }>({ token: null, edges: new Set() });
+  const acknowledgeEdge = (edgeId: string) => {
+    if (action?.type !== "execute_step") { acknowledge(); return; }
+    if (completedEdges.current.token !== token) completedEdges.current = { token: token ?? null, edges: new Set() };
+    completedEdges.current.edges.add(edgeId);
+    const expected = diagram.edges.filter((edge) => edge.transitionIds.some((id) => execution.activeTransitions.includes(id)));
+    if (expected.every((edge) => completedEdges.current.edges.has(edge.id))) acknowledge();
+  };
+  const acknowledge = () => { if (token && constructionRunning) onConstructionAnimationComplete?.(token); };
+  useEffect(() => {
+    if (token && constructionRunning && action && (["explain", "pause", "complete"].includes(action.type) || (action.type === "execute_step" && !execution.activeTransitions.length))) onConstructionAnimationComplete?.(token);
+  }, [token, constructionRunning, action, execution.activeTransitions.length, onConstructionAnimationComplete]);
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
-  const [view, setView] = useState({ x: 0, y: 0, zoom: 1 });
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const topologyKey = useMemo(
+    () =>
+      JSON.stringify({
+        id: automaton.id,
+        type: automaton.type,
+        startState: automaton.startState,
+        states: automaton.states.map((state) => state.id),
+        transitions: automaton.transitions.map((transition) => [
+          transition.from,
+          transition.to,
+        ]),
+      }),
+    [automaton],
+  );
+  const [storedView, setView] = useState({
+    x: 0,
+    y: 0,
+    zoom: 1,
+    topologyKey,
+  });
+  const view =
+    storedView.topologyKey === topologyKey
+      ? storedView
+      : { x: 0, y: 0, zoom: 1, topologyKey };
+
   const viewWidth = diagram.width / view.zoom;
   const viewHeight = diagram.height / view.zoom;
   const viewX = view.x + (diagram.width - viewWidth) / 2;
@@ -225,29 +354,46 @@ function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: Trans
 
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
-    dragRef.current = { x: event.clientX, y: event.clientY, originX: view.x, originY: view.y };
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      originX: view.x,
+      originY: view.y,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (!drag || !svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    setView((current) => ({
-      ...current,
-      x: drag.originX - (event.clientX - drag.x) * viewWidth / rect.width,
-      y: drag.originY - (event.clientY - drag.y) * viewHeight / rect.height,
-    }));
+    setView({
+      ...view,
+      x: drag.originX - ((event.clientX - drag.x) * viewWidth) / rect.width,
+      y: drag.originY - ((event.clientY - drag.y) * viewHeight) / rect.height,
+    });
   };
   const onWheel = (event: WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
-    setView((current) => ({
-      ...current,
-      zoom: Math.max(0.65, Math.min(2.5, current.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1))),
-    }));
+    setView({
+      ...view,
+      zoom: Math.max(
+        0.65,
+        Math.min(2.5, view.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1)),
+      ),
+    });
   };
 
   return (
-    <div className="relative h-96 w-full overflow-hidden rounded-[1.25rem] border border-border/65 bg-card sm:h-[30rem] lg:h-[34rem]" style={{ backgroundImage: "radial-gradient(circle at 50% 0%, rgb(14 165 233 / 6%), transparent 55%)" }}>
+    <div
+      className={cn(
+        "relative h-96 w-full overflow-hidden rounded-[1.25rem] border border-border/65 bg-card sm:h-[30rem] lg:h-[34rem]",
+        viewportClassName,
+      )}
+      style={{
+        backgroundImage:
+          "radial-gradient(circle at 50% 0%, rgb(14 165 233 / 6%), transparent 55%)",
+      }}
+    >
       <svg
         ref={svgRef}
         role="img"
@@ -257,24 +403,40 @@ function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: Trans
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={() => { dragRef.current = null; }}
-        onPointerCancel={() => { dragRef.current = null; }}
-        onDoubleClick={() => setView({ x: 0, y: 0, zoom: 1 })}
+        onPointerUp={() => {
+          dragRef.current = null;
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        onDoubleClick={() => setView({ x: 0, y: 0, zoom: 1, topologyKey })}
         onWheel={onWheel}
       >
         {diagram.edges.map((edge) => {
-          const status = edgeStatus(edge, execution, automaton);
+          if (construction && !edge.transitionIds.some((id) => construction.visibleTransitions.includes(id))) return null;
+          const targeted = constructionRunning && action && (("transitionId" in action && edge.transitionIds.includes(action.transitionId)) || (action.type === "execute_step" && edge.transitionIds.some((id) => execution.activeTransitions.includes(id))));
+          const status = construction?.execution ? edgeStatus(edge, execution, automaton) : construction ? construction.highlightedTransitions.some((id) => edge.transitionIds.includes(id)) ? "active" : "normal" : edgeStatus(edge, execution, automaton);
           const color = statusColor(status);
-          const flowing = traveling && status === "active";
+          const flowing = construction ? targeted && (action?.type === "animate_transition" || action?.type === "execute_step") && construction.timeline.animation === "running" : traveling && status === "active";
+          const shownLabel = construction ? [...new Set(automaton.transitions.filter((transition) => edge.transitionIds.includes(transition.id) && construction.visibleTransitions.includes(transition.id)).flatMap((transition) => transition.symbols))].join(", ") : edge.label;
           const restingColor = flowing ? "var(--border)" : color;
           const pulseKey = `${execution.executionId}:${execution.stepIndex}:${edge.id}`;
           return (
-            <g key={edge.id}>
-              <path
+            <motion.g key={targeted ? edge.id + ":" + token : edge.id}
+              initial={targeted ? { opacity: 0.4 } : false} animate={{ opacity: 1 }}
+              transition={{ duration: constructionDuration }}
+              onAnimationComplete={targeted && action?.type === "highlight_transition" ? acknowledge : undefined}>
+              <motion.path
+                initial={targeted && action?.type === "create_transition" ? { pathLength: 0 } : false}
+                animate={{ pathLength: 1 }}
+                onAnimationComplete={targeted && action?.type === "create_transition" ? acknowledge : undefined}
+                transition={{ duration: constructionDuration }}
                 d={edge.path}
                 fill="none"
                 stroke={restingColor}
-                strokeWidth={status === "active" ? 3 : status === "visited" ? 1.5 : 1.8}
+                strokeWidth={
+                  status === "active" ? 3 : status === "visited" ? 1.5 : 1.8
+                }
                 strokeLinecap="round"
                 className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
               />
@@ -308,8 +470,12 @@ function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: Trans
                     strokeLinecap="round"
                     initial={{ pathLength: flowProgress }}
                     animate={{ pathLength: 1 }}
+                    onAnimationComplete={construction && targeted && (action?.type === "animate_transition" || action?.type === "execute_step") ? () => acknowledgeEdge(edge.id) : undefined}
                     transition={{
-                      duration: reduceMotion ? 0 : (1 - flowProgress) * TRANSITION_FLOW_DURATION_MS / 1_000,
+                      duration: reduceMotion
+                        ? 0
+                        : ((1 - flowProgress) * (construction ? constructionDuration * 1_000 : flowDurationMs)) /
+                          1_000,
                       ease: "linear",
                     }}
                   />
@@ -320,53 +486,120 @@ function TransitionDiagramView({ automaton, execution, flowProgress = 0 }: Trans
                 fill={restingColor}
                 className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
               />
-              {edge.label ? (
+              {shownLabel ? (
                 <g transform={`translate(${edge.labelAt.x} ${edge.labelAt.y})`}>
-                  <rect x={-Math.max(17, edge.label.length * 4.1 + 8)} y={-13}
-                    width={Math.max(34, edge.label.length * 8.2 + 16)} height={24}
-                    rx={7} fill="var(--card)" fillOpacity={0.94} />
-                  <text textAnchor="middle" dominantBaseline="middle" fill={color}
-                    fontSize={14} fontWeight={600} className="pointer-events-none [font-family:Arial,sans-serif]">{edge.label}</text>
+                  <rect
+                    x={-Math.max(17, edge.label.length * 4.1 + 8)}
+                    y={-13}
+                    width={Math.max(34, edge.label.length * 8.2 + 16)}
+                    height={24}
+                    rx={7}
+                    fill="var(--card)"
+                    fillOpacity={0.94}
+                  />
+                  <text
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill={color}
+                    fontSize={14}
+                    fontWeight={600}
+                    className="pointer-events-none [font-family:Arial,sans-serif]"
+                  >
+                    {shownLabel}
+                  </text>
                 </g>
               ) : null}
-            </g>
+            </motion.g>
           );
         })}
 
         {diagram.states.map((state) => {
-          const status = stateStatus(state, execution);
+          if (construction && !construction.visibleStates.includes(state.id)) return null;
+          const targeted = constructionRunning && action && "stateId" in action && action.stateId === state.id;
+          const traversal = action?.type === "animate_transition" ? automaton.transitions.find((edge) => edge.id === action.transitionId) : undefined;
+          const traversalState = traversal && (construction?.timeline.animation === "complete" ? traversal.to : traversal.from);
+          const status = construction?.execution ? stateStatus(state, execution) : construction ? construction.highlightedStates.includes(state.id) || (constructionRunning && traversalState === state.id) ? "active" : "normal" : stateStatus(state, execution);
           const active = status === "active";
-          const fill = active ? SKY : status === "highlighted" ? SKY_DARK : "var(--card)";
-          const outline = active || status === "highlighted"
-            ? fill : status === "visited" ? "var(--muted-foreground)" : "var(--border)";
-          const text = active || status === "highlighted"
-            ? "#fff" : status === "visited" ? "var(--muted-foreground)" : "var(--foreground)";
+          const fill = active
+            ? SKY
+            : status === "highlighted"
+              ? SKY_DARK
+              : "var(--card)";
+          const outline =
+            active || status === "highlighted"
+              ? fill
+              : status === "visited"
+                ? "var(--muted-foreground)"
+                : "var(--border)";
+          const text =
+            active || status === "highlighted"
+              ? "#fff"
+              : status === "visited"
+                ? "var(--muted-foreground)"
+                : "var(--foreground)";
           return (
-            <g key={state.id}>
-              {automaton.startState === state.id ? (
+            <motion.g key={targeted ? state.id + ":" + token : state.id}
+              initial={targeted ? { opacity: action?.type === "create_state" ? 0 : 0.65 } : false} animate={{ opacity: 1 }}
+              transition={{ duration: constructionDuration }}
+              onAnimationComplete={targeted && (action?.type === "create_state" || action?.type === "highlight_state") ? acknowledge : undefined}>
+              {(construction ? construction.initialState : automaton.startState) === state.id ? (
                 <g fill="none" stroke="var(--foreground)" strokeWidth={1.8}>
-                  <path d={`M ${state.x - state.radius - 82} ${state.y} L ${state.x - state.radius - 8} ${state.y}`} />
-                  <path d={`M ${state.x - state.radius - 17} ${state.y - 5} L ${state.x - state.radius - 8} ${state.y} L ${state.x - state.radius - 17} ${state.y + 5}`} />
+                  <motion.path
+                    initial={targeted && action?.type === "set_initial_state" ? { pathLength: 0 } : false}
+                    animate={{ pathLength: 1 }} transition={{ duration: constructionDuration }}
+                    onAnimationComplete={targeted && action?.type === "set_initial_state" ? acknowledge : undefined}
+                    d={`M ${state.x - state.radius - 82} ${state.y} L ${state.x - state.radius - 8} ${state.y}`}
+                  />
+                  <path
+                    d={`M ${state.x - state.radius - 17} ${state.y - 5} L ${state.x - state.radius - 8} ${state.y} L ${state.x - state.radius - 17} ${state.y + 5}`}
+                  />
                 </g>
               ) : null}
-              {active ? <circle cx={state.x} cy={state.y} r={state.radius + 8}
-                fill="none" stroke={SKY} strokeOpacity={0.23} strokeWidth={5}
-                className="origin-center animate-in fade-in zoom-in-90 duration-300 motion-reduce:animate-none" /> : null}
-              <circle cx={state.x} cy={state.y} r={state.radius}
-                fill={fill} stroke={outline} strokeWidth={active ? 3 : 2}
-                className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none" />
-              {state.accepting ? <circle cx={state.x} cy={state.y}
-                r={state.radius - 6} fill="none" stroke={active ? "#fff" : outline}
-                strokeWidth={1.8} className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none" /> : null}
-              <text x={state.x} y={state.y} textAnchor="middle" dominantBaseline="middle"
-                fill={text} fontSize={18} fontWeight={600}
-                className="pointer-events-none [font-family:Arial,sans-serif]">{state.label}</text>
-            </g>
+              <circle
+                cx={state.x}
+                cy={state.y}
+                r={state.radius}
+                fill={fill}
+                stroke={outline}
+                strokeWidth={active ? 3 : 2}
+                className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
+              />
+              {(construction ? construction.acceptingStates.includes(state.id) : state.accepting) ? (
+                <motion.circle
+                  initial={targeted && action?.type === "set_accepting_state" ? { pathLength: 0 } : false}
+                  animate={{ pathLength: 1 }} transition={{ duration: constructionDuration }}
+                  onAnimationComplete={targeted && action?.type === "set_accepting_state" ? acknowledge : undefined}
+                  cx={state.x}
+                  cy={state.y}
+                  r={state.radius - 6}
+                  fill="none"
+                  stroke={active ? "#fff" : outline}
+                  strokeWidth={1.8}
+                  className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
+                />
+              ) : null}
+              <text
+                x={state.x}
+                y={state.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={text}
+                fontSize={18}
+                fontWeight={600}
+                className="pointer-events-none [font-family:Arial,sans-serif]"
+              >
+                {state.displayLabel}
+              </text>
+            </motion.g>
           );
         })}
       </svg>
       {view.zoom !== 1 || view.x !== 0 || view.y !== 0 ? (
-        <button type="button" className="absolute right-3 top-3 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-md transition-colors hover:bg-muted" onClick={() => setView({ x: 0, y: 0, zoom: 1 })}>
+        <button
+          type="button"
+          className="absolute right-3 top-3 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-md transition-colors hover:bg-muted"
+          onClick={() => setView({ x: 0, y: 0, zoom: 1, topologyKey })}
+        >
           Reset view
         </button>
       ) : null}

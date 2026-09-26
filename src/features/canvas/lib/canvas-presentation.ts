@@ -15,6 +15,8 @@ export const CANVAS_PRESENTATION_MODES = [
   "companion",
   "arrays",
   "automata",
+  "regular-expression",
+  "context-free-grammar",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
@@ -78,8 +80,7 @@ export function describePresentationFrames(document: CanvasDocument) {
  */
 export function getFrameBlockTypes(frame: CanvasPresentationFrame): string[] {
   const slide = frame.document.content[0] as
-    | { props?: { content?: Array<{ type?: string }> } }
-    | undefined;
+    { props?: { content?: Array<{ type?: string }> } } | undefined;
   const children = slide?.props?.content ?? [];
   return children
     .map((child) => String(child.type ?? "").replace(/Block$/, ""))
@@ -97,8 +98,7 @@ export function getFrameTeachingBeat(
   frame: CanvasPresentationFrame,
 ): string | undefined {
   const slide = frame.document.content[0] as
-    | { props?: { teachingBeat?: string } }
-    | undefined;
+    { props?: { teachingBeat?: string } } | undefined;
   return slide?.props?.teachingBeat;
 }
 
@@ -135,8 +135,7 @@ type AnyBlock = { type?: string; props?: Record<string, unknown> };
  */
 export function readFrameBlocks(frame: CanvasPresentationFrame) {
   const slide = frame.document.content[0] as
-    | { props?: { content?: AnyBlock[]; teachingBeat?: string } }
-    | undefined;
+    { props?: { content?: AnyBlock[]; teachingBeat?: string } } | undefined;
 
   return (slide?.props?.content ?? []).map((block) => {
     const props = (block.props ?? {}) as Record<string, unknown>;
@@ -184,11 +183,15 @@ export function readFrameBlocks(frame: CanvasPresentationFrame) {
               alphabet: text("alphabet"),
               input: text("input"),
               states: Array.isArray(props.states) ? props.states : [],
-              transitions: Array.isArray(props.transitions) ? props.transitions : [],
+              transitions: Array.isArray(props.transitions)
+                ? props.transitions
+                : [],
             }
           : undefined,
       highlightedIndex:
-        typeof props.highlightedIndex === "number" ? props.highlightedIndex : undefined,
+        typeof props.highlightedIndex === "number"
+          ? props.highlightedIndex
+          : undefined,
     };
   });
 }
@@ -222,6 +225,7 @@ const BLOCK_NAMES: Record<string, string> = {
   MindMap: "mind map",
   Sketch: "drawing",
   Automaton: "automaton",
+  ContextFreeGrammar: "context-free grammar",
 };
 
 function clip(text: string, max: number) {
@@ -303,13 +307,15 @@ function collectSearchText(value: unknown): string {
   }
 
   if (value && typeof value === "object") {
-    return Object.entries(value)
-      // `src` is a base64 image data URI (SketchBlock) — including it here
-      // would flood the model's truncated context budget with junk and push
-      // out the actually-useful text, e.g. the drawing's aiContext.
-      .filter(([key]) => key !== "id" && key !== "src")
-      .map(([, child]) => collectSearchText(child))
-      .join(" ");
+    return (
+      Object.entries(value)
+        // `src` is a base64 image data URI (SketchBlock) — including it here
+        // would flood the model's truncated context budget with junk and push
+        // out the actually-useful text, e.g. the drawing's aiContext.
+        .filter(([key]) => key !== "id" && key !== "src")
+        .map(([, child]) => collectSearchText(child))
+        .join(" ")
+    );
   }
 
   return "";

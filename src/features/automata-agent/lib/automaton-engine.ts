@@ -3,6 +3,7 @@ import {
   epsilonClosure,
   executeAutomaton,
   isEpsilon,
+  stepAutomaton,
   normaliseAutomaton,
   normaliseSymbol,
   tokenizeAutomatonInput,
@@ -25,10 +26,27 @@ export type AutomataAgentState = {
 };
 
 export type AutomatonOperation =
-  | { type: "add_state"; stateId: string; label?: string; initial?: boolean; accepting?: boolean }
+  | {
+      type: "add_state";
+      stateId: string;
+      label?: string;
+      initial?: boolean;
+      accepting?: boolean;
+    }
   | { type: "remove_state"; stateId: string }
-  | { type: "rename_state"; stateId: string; newStateId?: string; newLabel?: string }
-  | { type: "add_transition"; transitionId?: string; from: string; to: string; symbols: string[] }
+  | {
+      type: "rename_state";
+      stateId: string;
+      newStateId?: string;
+      newLabel?: string;
+    }
+  | {
+      type: "add_transition";
+      transitionId?: string;
+      from: string;
+      to: string;
+      symbols: string[];
+    }
   | { type: "remove_transition"; transitionId: string }
   | {
       type: "update_transition";
@@ -58,15 +76,16 @@ export type AutomatonEngineError = {
 };
 
 export type EngineResult<T> =
-  | { success: true; value: T }
-  | { success: false; error: AutomatonEngineError };
+  { success: true; value: T } | { success: false; error: AutomatonEngineError };
 
 export type GoalChange = {
   operation: string;
   description: string;
 };
 
-export function createInitialAutomataState(canvasId: string | null = null): AutomataAgentState {
+export function createInitialAutomataState(
+  canvasId: string | null = null,
+): AutomataAgentState {
   return {
     activeCanvasId: canvasId,
     automata: {},
@@ -78,7 +97,7 @@ export function createInitialAutomataState(canvasId: string | null = null): Auto
 
 export function selectedAutomaton(state: AutomataAgentState): Automaton | null {
   return state.selectedAutomatonId
-    ? state.automata[state.selectedAutomatonId] ?? null
+    ? (state.automata[state.selectedAutomatonId] ?? null)
     : null;
 }
 
@@ -130,8 +149,16 @@ export function createAutomatonDefinition(input: {
   automatonId: string;
   type: AutomatonType;
   alphabet?: string[];
-  states?: Array<string | { id: string; label?: string; initial?: boolean; accepting?: boolean }>;
-  transitions?: Array<{ id?: string; from: string; to: string; symbols: string[] }>;
+  states?: Array<
+    | string
+    | { id: string; label?: string; initial?: boolean; accepting?: boolean }
+  >;
+  transitions?: Array<{
+    id?: string;
+    from: string;
+    to: string;
+    symbols: string[];
+  }>;
   startState?: string;
   acceptStates?: string[];
 }): Automaton {
@@ -150,21 +177,25 @@ export function createAutomatonDefinition(input: {
     states.find((state) => state.initial)?.id ||
     states[0]?.id ||
     "";
-  const acceptStates = unique([
-    ...(input.acceptStates ?? []).map((id) => id.trim()),
-    ...states.filter((state) => state.accepting).map((state) => state.id),
-  ].filter(Boolean));
+  const acceptStates = unique(
+    [
+      ...(input.acceptStates ?? []).map((id) => id.trim()),
+      ...states.filter((state) => state.accepting).map((state) => state.id),
+    ].filter(Boolean),
+  );
   const usedTransitionIds: string[] = [];
-  const transitions: AutomatonTransition[] = (input.transitions ?? []).map((transition) => {
-    const id = transition.id?.trim() || nextId(usedTransitionIds, "t");
-    usedTransitionIds.push(id);
-    return {
-      id,
-      from: transition.from.trim(),
-      to: transition.to.trim(),
-      symbols: transition.symbols.map(normaliseSymbol).filter(Boolean),
-    };
-  });
+  const transitions: AutomatonTransition[] = (input.transitions ?? []).map(
+    (transition) => {
+      const id = transition.id?.trim() || nextId(usedTransitionIds, "t");
+      usedTransitionIds.push(id);
+      return {
+        id,
+        from: transition.from.trim(),
+        to: transition.to.trim(),
+        symbols: transition.symbols.map(normaliseSymbol).filter(Boolean),
+      };
+    },
+  );
   return normaliseAutomaton({
     id: input.automatonId.trim(),
     type: input.type,
@@ -198,7 +229,11 @@ function applyOne(
       const stateId = operation.stateId.trim();
       if (!stateId) return operationError("State ID cannot be empty.");
       if (stateExists(draft, stateId)) {
-        return operationError(`State "${stateId}" already exists.`, { stateId }, "DUPLICATE_ID");
+        return operationError(
+          `State "${stateId}" already exists.`,
+          { stateId },
+          "DUPLICATE_ID",
+        );
       }
       draft.states.push({
         id: stateId,
@@ -210,52 +245,90 @@ function applyOne(
     }
     case "remove_state": {
       if (!stateExists(draft, operation.stateId)) {
-        return operationError(`State "${operation.stateId}" does not exist.`, { stateId: operation.stateId }, "STATE_NOT_FOUND");
+        return operationError(
+          `State "${operation.stateId}" does not exist.`,
+          { stateId: operation.stateId },
+          "STATE_NOT_FOUND",
+        );
       }
-      draft.states = draft.states.filter((state) => state.id !== operation.stateId);
-      draft.transitions = draft.transitions.filter(
-        (transition) => transition.from !== operation.stateId && transition.to !== operation.stateId,
+      draft.states = draft.states.filter(
+        (state) => state.id !== operation.stateId,
       );
-      draft.acceptStates = draft.acceptStates.filter((id) => id !== operation.stateId);
+      draft.transitions = draft.transitions.filter(
+        (transition) =>
+          transition.from !== operation.stateId &&
+          transition.to !== operation.stateId,
+      );
+      draft.acceptStates = draft.acceptStates.filter(
+        (id) => id !== operation.stateId,
+      );
       if (draft.startState === operation.stateId) draft.startState = "";
       break;
     }
     case "rename_state": {
-      const state = draft.states.find((candidate) => candidate.id === operation.stateId);
+      const state = draft.states.find(
+        (candidate) => candidate.id === operation.stateId,
+      );
       if (!state) {
-        return operationError(`State "${operation.stateId}" does not exist.`, { stateId: operation.stateId }, "STATE_NOT_FOUND");
+        return operationError(
+          `State "${operation.stateId}" does not exist.`,
+          { stateId: operation.stateId },
+          "STATE_NOT_FOUND",
+        );
       }
       const newId = operation.newStateId?.trim();
       if (newId && newId !== operation.stateId && stateExists(draft, newId)) {
-        return operationError(`State "${newId}" already exists.`, { stateId: newId }, "DUPLICATE_ID");
+        return operationError(
+          `State "${newId}" already exists.`,
+          { stateId: newId },
+          "DUPLICATE_ID",
+        );
       }
       if (!newId && operation.newLabel === undefined) {
         return operationError("rename_state needs newStateId or newLabel.");
       }
       if (newId) {
         state.id = newId;
-        if (state.label === operation.stateId && operation.newLabel === undefined) state.label = newId;
+        if (
+          state.label === operation.stateId &&
+          operation.newLabel === undefined
+        )
+          state.label = newId;
         for (const transition of draft.transitions) {
           if (transition.from === operation.stateId) transition.from = newId;
           if (transition.to === operation.stateId) transition.to = newId;
         }
         if (draft.startState === operation.stateId) draft.startState = newId;
-        draft.acceptStates = draft.acceptStates.map((id) => id === operation.stateId ? newId : id);
+        draft.acceptStates = draft.acceptStates.map((id) =>
+          id === operation.stateId ? newId : id,
+        );
       }
-      if (operation.newLabel !== undefined) state.label = operation.newLabel.trim() || state.id;
+      if (operation.newLabel !== undefined)
+        state.label = operation.newLabel.trim() || state.id;
       break;
     }
     case "add_transition": {
-      if (!stateExists(draft, operation.from) || !stateExists(draft, operation.to)) {
+      if (
+        !stateExists(draft, operation.from) ||
+        !stateExists(draft, operation.to)
+      ) {
         return operationError("A transition must connect existing states.", {
           from: operation.from,
           to: operation.to,
         });
       }
-      const id = operation.transitionId?.trim() ||
-        nextId(draft.transitions.map((transition) => transition.id), "t");
+      const id =
+        operation.transitionId?.trim() ||
+        nextId(
+          draft.transitions.map((transition) => transition.id),
+          "t",
+        );
       if (draft.transitions.some((transition) => transition.id === id)) {
-        return operationError(`Transition "${id}" already exists.`, { transitionId: id }, "DUPLICATE_ID");
+        return operationError(
+          `Transition "${id}" already exists.`,
+          { transitionId: id },
+          "DUPLICATE_ID",
+        );
       }
       draft.transitions.push({
         id,
@@ -266,8 +339,16 @@ function applyOne(
       break;
     }
     case "remove_transition": {
-      if (!draft.transitions.some((transition) => transition.id === operation.transitionId)) {
-        return operationError(`Transition "${operation.transitionId}" does not exist.`, { transitionId: operation.transitionId }, "TRANSITION_NOT_FOUND");
+      if (
+        !draft.transitions.some(
+          (transition) => transition.id === operation.transitionId,
+        )
+      ) {
+        return operationError(
+          `Transition "${operation.transitionId}" does not exist.`,
+          { transitionId: operation.transitionId },
+          "TRANSITION_NOT_FOUND",
+        );
       }
       draft.transitions = draft.transitions.filter(
         (transition) => transition.id !== operation.transitionId,
@@ -279,18 +360,28 @@ function applyOne(
         (candidate) => candidate.id === operation.transitionId,
       );
       if (!transition) {
-        return operationError(`Transition "${operation.transitionId}" does not exist.`, { transitionId: operation.transitionId }, "TRANSITION_NOT_FOUND");
+        return operationError(
+          `Transition "${operation.transitionId}" does not exist.`,
+          { transitionId: operation.transitionId },
+          "TRANSITION_NOT_FOUND",
+        );
       }
       if (operation.from !== undefined) transition.from = operation.from;
       if (operation.to !== undefined) transition.to = operation.to;
       if (operation.symbols !== undefined) {
-        transition.symbols = unique(operation.symbols.map(normaliseSymbol).filter(Boolean));
+        transition.symbols = unique(
+          operation.symbols.map(normaliseSymbol).filter(Boolean),
+        );
       }
       break;
     }
     case "set_start_state":
       if (!stateExists(draft, operation.stateId)) {
-        return operationError(`State "${operation.stateId}" does not exist.`, { stateId: operation.stateId }, "STATE_NOT_FOUND");
+        return operationError(
+          `State "${operation.stateId}" does not exist.`,
+          { stateId: operation.stateId },
+          "STATE_NOT_FOUND",
+        );
       }
       draft.startState = operation.stateId;
       break;
@@ -299,37 +390,55 @@ function applyOne(
       break;
     case "set_accept_state":
       if (!stateExists(draft, operation.stateId)) {
-        return operationError(`State "${operation.stateId}" does not exist.`, { stateId: operation.stateId }, "STATE_NOT_FOUND");
+        return operationError(
+          `State "${operation.stateId}" does not exist.`,
+          { stateId: operation.stateId },
+          "STATE_NOT_FOUND",
+        );
       }
       draft.acceptStates = unique([...draft.acceptStates, operation.stateId]);
       break;
     case "remove_accept_state":
-      draft.acceptStates = draft.acceptStates.filter((id) => id !== operation.stateId);
+      draft.acceptStates = draft.acceptStates.filter(
+        (id) => id !== operation.stateId,
+      );
       break;
     case "add_symbol": {
       const symbol = normaliseSymbol(operation.symbol);
       if (!symbol || isEpsilon(symbol)) {
-        return operationError("The input alphabet cannot contain an empty or epsilon symbol.", { symbol });
+        return operationError(
+          "The input alphabet cannot contain an empty or epsilon symbol.",
+          { symbol },
+        );
       }
       draft.alphabet = unique([...draft.alphabet, symbol]);
       break;
     }
     case "remove_symbol": {
       const symbol = normaliseSymbol(operation.symbol);
-      if (draft.transitions.some((transition) => transition.symbols.includes(symbol))) {
+      if (
+        draft.transitions.some((transition) =>
+          transition.symbols.includes(symbol),
+        )
+      ) {
         return operationError(
           `Cannot remove "${symbol}" while a transition still uses it.`,
           { symbol },
         );
       }
-      draft.alphabet = draft.alphabet.filter((candidate) => candidate !== symbol);
+      draft.alphabet = draft.alphabet.filter(
+        (candidate) => candidate !== symbol,
+      );
       break;
     }
   }
   return { success: true, value: normaliseAutomaton(draft) };
 }
 
-const DRAFT_ISSUES = new Set<AutomatonValidationIssue["code"]>(["NO_STATES", "NO_START_STATE"]);
+const DRAFT_ISSUES = new Set<AutomatonValidationIssue["code"]>([
+  "NO_STATES",
+  "NO_START_STATE",
+]);
 
 export function applyAutomatonOperations(
   automaton: Automaton,
@@ -341,7 +450,9 @@ export function applyAutomatonOperations(
     if (!result.success) return result;
     draft = result.value;
   }
-  const blocking = validateAutomaton(draft).issues.filter((issue) => !DRAFT_ISSUES.has(issue.code));
+  const blocking = validateAutomaton(draft).issues.filter(
+    (issue) => !DRAFT_ISSUES.has(issue.code),
+  );
   if (blocking.length) {
     const issue = blocking[0];
     return {
@@ -378,6 +489,96 @@ export function replaceAutomaton(
   return putAutomaton(state, automaton, input);
 }
 
+export type AutomatonExecutionUpdate = {
+  state: AutomataAgentState;
+  automaton: Automaton;
+  execution: AutomatonExecution;
+};
+
+function invalidExecutionAutomaton(
+  automaton: Automaton,
+): EngineResult<never> | null {
+  const validation = validateAutomaton(automaton);
+  if (validation.valid) return null;
+  return {
+    success: false,
+    error: {
+      code: "INVALID_AUTOMATON",
+      message: "Fix validation errors before executing the automaton.",
+      details: { validationIssues: validation.issues },
+    },
+  };
+}
+
+/** Shared controller used by every domain that executes an automaton. */
+export function simulateAutomatonState(
+  state: AutomataAgentState,
+  input: string,
+  automatonId?: string,
+): EngineResult<AutomatonExecutionUpdate> {
+  const resolved = resolveAutomaton(state, automatonId);
+  if (!resolved.success) return resolved;
+  const invalid = invalidExecutionAutomaton(resolved.value);
+  if (invalid) return invalid;
+
+  const execution = executeAutomaton(resolved.value, input);
+  const next = structuredClone(state);
+  next.executions[resolved.value.id] = execution;
+  return {
+    success: true,
+    value: { state: next, automaton: resolved.value, execution },
+  };
+}
+
+/** Shared exactly-one-step controller for DFA, NFA, and ε-NFA playback. */
+export function stepAutomatonState(
+  state: AutomataAgentState,
+  input?: string,
+  automatonId?: string,
+): EngineResult<AutomatonExecutionUpdate> {
+  const resolved = resolveAutomaton(state, automatonId);
+  if (!resolved.success) return resolved;
+  const invalid = invalidExecutionAutomaton(resolved.value);
+  if (invalid) return invalid;
+
+  let execution =
+    state.executions[resolved.value.id] ??
+    createAutomatonExecution(resolved.value, input ?? "");
+  if (input !== undefined && input !== execution.input) {
+    execution = createAutomatonExecution(resolved.value, input);
+  }
+  execution = stepAutomaton(resolved.value, execution);
+
+  const next = structuredClone(state);
+  next.executions[resolved.value.id] = execution;
+  return {
+    success: true,
+    value: { state: next, automaton: resolved.value, execution },
+  };
+}
+
+/** Shared reset controller; it never reconstructs or mutates the automaton. */
+export function resetAutomatonExecutionState(
+  state: AutomataAgentState,
+  input?: string,
+  automatonId?: string,
+): EngineResult<AutomatonExecutionUpdate> {
+  const resolved = resolveAutomaton(state, automatonId);
+  if (!resolved.success) return resolved;
+
+  const previous = state.executions[resolved.value.id];
+  const execution = createAutomatonExecution(
+    resolved.value,
+    input ?? previous?.input ?? "",
+  );
+  const next = structuredClone(state);
+  next.executions[resolved.value.id] = execution;
+  return {
+    success: true,
+    value: { state: next, automaton: resolved.value, execution },
+  };
+}
+
 export type AutomatonAnalysis =
   | "reachable_states"
   | "unreachable_states"
@@ -396,17 +597,25 @@ function reachableStates(automaton: Automaton) {
     if (!state || reachable.has(state)) continue;
     reachable.add(state);
     for (const transition of automaton.transitions) {
-      if (transition.from === state && !reachable.has(transition.to)) pending.push(transition.to);
+      if (transition.from === state && !reachable.has(transition.to))
+        pending.push(transition.to);
     }
   }
-  return automaton.states.map((state) => state.id).filter((id) => reachable.has(id));
+  return automaton.states
+    .map((state) => state.id)
+    .filter((id) => reachable.has(id));
 }
 
-export function analyzeAutomaton(automaton: Automaton, analysis: AutomatonAnalysis) {
+export function analyzeAutomaton(
+  automaton: Automaton,
+  analysis: AutomatonAnalysis,
+) {
   const reachable = reachableStates(automaton);
   if (analysis === "reachable_states") return reachable;
   if (analysis === "unreachable_states") {
-    return automaton.states.map((state) => state.id).filter((id) => !reachable.includes(id));
+    return automaton.states
+      .map((state) => state.id)
+      .filter((id) => !reachable.includes(id));
   }
   if (analysis === "state_count") return automaton.states.length;
   if (analysis === "transition_count") return automaton.transitions.length;
@@ -441,9 +650,13 @@ export function analyzeAutomaton(automaton: Automaton, analysis: AutomatonAnalys
     const missing: Array<{ state: string; symbol: string }> = [];
     for (const state of automaton.states) {
       for (const symbol of automaton.alphabet) {
-        if (!automaton.transitions.some(
-          (transition) => transition.from === state.id && transition.symbols.includes(symbol),
-        )) {
+        if (
+          !automaton.transitions.some(
+            (transition) =>
+              transition.from === state.id &&
+              transition.symbols.includes(symbol),
+          )
+        ) {
           missing.push({ state: state.id, symbol });
         }
       }
@@ -453,7 +666,10 @@ export function analyzeAutomaton(automaton: Automaton, analysis: AutomatonAnalys
 
   const reverse = new Map<string, string[]>();
   for (const transition of automaton.transitions) {
-    reverse.set(transition.to, [...(reverse.get(transition.to) ?? []), transition.from]);
+    reverse.set(transition.to, [
+      ...(reverse.get(transition.to) ?? []),
+      transition.from,
+    ]);
   }
   const canReachAccept = new Set(automaton.acceptStates);
   const pending = [...automaton.acceptStates];
@@ -474,9 +690,10 @@ export function analyzeAutomaton(automaton: Automaton, analysis: AutomatonAnalys
 
 function tracePath(automaton: Automaton, input: string) {
   const symbols = tokenizeAutomatonInput(automaton, input);
-  let current = automaton.type === "nfa"
-    ? epsilonClosure(automaton, [automaton.startState])
-    : [automaton.startState];
+  let current =
+    automaton.type === "nfa"
+      ? epsilonClosure(automaton, [automaton.startState])
+      : [automaton.startState];
   const path: string[][] = [current];
   for (const symbol of symbols) {
     const matching = automaton.transitions.filter(
@@ -484,9 +701,13 @@ function tracePath(automaton: Automaton, input: string) {
         current.includes(transition.from) &&
         transition.symbols.some((candidate) => candidate === symbol),
     );
-    current = automaton.type === "nfa"
-      ? epsilonClosure(automaton, unique(matching.map((transition) => transition.to)))
-      : unique(matching.map((transition) => transition.to));
+    current =
+      automaton.type === "nfa"
+        ? epsilonClosure(
+            automaton,
+            unique(matching.map((transition) => transition.to)),
+          )
+        : unique(matching.map((transition) => transition.to));
     path.push(current);
   }
   return { symbols, path };
@@ -498,7 +719,11 @@ export function satisfyAutomatonGoal(
 ): EngineResult<{
   automaton: Automaton;
   changes: GoalChange[];
-  verification: Array<{ input: string; result: "accepted" | "rejected"; execution: AutomatonExecution }>;
+  verification: Array<{
+    input: string;
+    result: "accepted" | "rejected";
+    execution: AutomatonExecution;
+  }>;
 }> {
   let draft = structuredClone(automaton);
   const changes: GoalChange[] = [];
@@ -527,7 +752,10 @@ export function satisfyAutomatonGoal(
       );
       for (const symbol of unique(unknown)) {
         draft.alphabet.push(symbol);
-        changes.push({ operation: "add_symbol", description: `Added "${symbol}" to the alphabet.` });
+        changes.push({
+          operation: "add_symbol",
+          description: `Added "${symbol}" to the alphabet.`,
+        });
       }
       execution = executeAutomaton(draft, input);
     }
@@ -552,18 +780,28 @@ export function satisfyAutomatonGoal(
       const symbol = symbols[index];
       if (!draft.alphabet.includes(symbol)) {
         draft.alphabet.push(symbol);
-        changes.push({ operation: "add_symbol", description: `Added "${symbol}" to the alphabet.` });
+        changes.push({
+          operation: "add_symbol",
+          description: `Added "${symbol}" to the alphabet.`,
+        });
       }
       const existing = draft.transitions.find(
-        (transition) => transition.from === current && transition.symbols.includes(symbol),
+        (transition) =>
+          transition.from === current && transition.symbols.includes(symbol),
       );
       if (existing) {
         current = existing.to;
         continue;
       }
-      const stateId = nextId(draft.states.map((state) => state.id), "q");
+      const stateId = nextId(
+        draft.states.map((state) => state.id),
+        "q",
+      );
       draft.states.push({ id: stateId, label: stateId });
-      const transitionId = nextId(draft.transitions.map((transition) => transition.id), "t");
+      const transitionId = nextId(
+        draft.transitions.map((transition) => transition.id),
+        "t",
+      );
       draft.transitions.push({
         id: transitionId,
         from: current,
@@ -601,7 +839,10 @@ export function satisfyAutomatonGoal(
     const execution = executeAutomaton(draft, input);
     return {
       input,
-      result: execution.result === "accepted" ? "accepted" as const : "rejected" as const,
+      result:
+        execution.result === "accepted"
+          ? ("accepted" as const)
+          : ("rejected" as const),
       execution,
     };
   });

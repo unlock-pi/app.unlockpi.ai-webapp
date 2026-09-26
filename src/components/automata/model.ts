@@ -268,7 +268,8 @@ export function validateAutomaton(input: Automaton): AutomatonValidation {
   return { valid: issues.length === 0, issues };
 }
 
-function epsilonClosureWithTransitions(automaton: Automaton, initial: string[]) {
+/** Returns the closure and epsilon edges traversed while computing it. */
+export function epsilonClosureWithTransitions(automaton: Automaton, initial: string[]) {
   if (automaton.type === "dfa") {
     return { states: unique(initial), transitions: [] as string[] };
   }

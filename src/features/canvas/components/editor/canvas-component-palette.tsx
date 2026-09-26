@@ -42,6 +42,8 @@ const paletteSections: PaletteSection[] = [
       "MermaidBlock",
       "TableBlock",
       "AutomatonBlock",
+      "RegularExpressionBlock",
+      "ContextFreeGrammarBlock",
     ],
   },
 ];

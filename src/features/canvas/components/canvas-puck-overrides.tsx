@@ -111,6 +111,16 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     description: "Interactive DFA or NFA state diagram",
     icon: NetworkIcon,
   },
+  RegularExpressionBlock: {
+    label: "Regular expression",
+    description: "Expression, syntax tree, and construction visuals",
+    icon: GitBranchIcon,
+  },
+  ContextFreeGrammarBlock: {
+    label: "Context-free grammar",
+    description: "Productions, derivation, and parse tree",
+    icon: GitBranchIcon,
+  },
   CodeBlock: {
     label: "Code",
     description: "Snippet and explanation",

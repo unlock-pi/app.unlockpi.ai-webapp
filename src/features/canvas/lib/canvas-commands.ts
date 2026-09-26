@@ -6,6 +6,8 @@ import {
   type StackCapacity,
 } from "@/components/data-structure/stack-model";
 import type { AutomatonBlockProps } from "@/components/automata";
+import type { RegularExpressionBlockProps } from "@/components/regular-expression";
+import type { ContextFreeGrammarBlockProps } from "@/components/context-free-grammar";
 import type {
   ArrayBlockProps,
   CanvasAiAction,
@@ -24,11 +26,25 @@ type SlideItem = CanvasItem & {
   type: "SlideBlock";
   props: SlideBlockProps & { id: string; content: CanvasItem[] };
 };
-type ArrayItem = CanvasItem & { type: "ArrayBlock"; props: ArrayBlockProps & { id: string } };
-type StackItem = CanvasItem & { type: "StackBlock"; props: StackBlockProps & { id: string } };
+type ArrayItem = CanvasItem & {
+  type: "ArrayBlock";
+  props: ArrayBlockProps & { id: string };
+};
+type StackItem = CanvasItem & {
+  type: "StackBlock";
+  props: StackBlockProps & { id: string };
+};
 type AutomatonItem = CanvasItem & {
   type: "AutomatonBlock";
   props: AutomatonBlockProps & { id: string };
+};
+type ContextFreeGrammarItem = CanvasItem & {
+  type: "ContextFreeGrammarBlock";
+  props: ContextFreeGrammarBlockProps & { id: string };
+};
+type RegularExpressionItem = CanvasItem & {
+  type: "RegularExpressionBlock";
+  props: RegularExpressionBlockProps & { id: string };
 };
 
 function cloneDocument(document: CanvasDocument): CanvasDocument {
@@ -40,7 +56,11 @@ function cloneItemWithNewIds(item: CanvasItem): CanvasItem {
   const props = clonedItem.props as { id?: string; content?: CanvasItem[] };
 
   if (props.id) {
-    props.id = createCanvasId(String(clonedItem.type).replace(/Block$/, "").toLowerCase());
+    props.id = createCanvasId(
+      String(clonedItem.type)
+        .replace(/Block$/, "")
+        .toLowerCase(),
+    );
   }
 
   if (Array.isArray(props.content)) {
@@ -64,6 +84,16 @@ function isStackItem(item: CanvasItem): item is StackItem {
 
 function isAutomatonItem(item: CanvasItem): item is AutomatonItem {
   return item.type === "AutomatonBlock";
+}
+
+function isContextFreeGrammarItem(item: CanvasItem): item is ContextFreeGrammarItem {
+  return item.type === "ContextFreeGrammarBlock";
+}
+
+function isRegularExpressionItem(
+  item: CanvasItem,
+): item is RegularExpressionItem {
+  return item.type === "RegularExpressionBlock";
 }
 
 /** Builds the `StackCapacity` a given stack block currently enforces. */
@@ -127,7 +157,8 @@ function itemLayoutCost(item: FrameContentItem) {
       // Optional title/caption rows consume real vertical space. Once the
       // teacher removes them, the visual can move up and leaves more room for
       // the rest of the frame.
-      const titleCost = typeof props.title === "string" && props.title.trim() ? 0.45 : 0;
+      const titleCost =
+        typeof props.title === "string" && props.title.trim() ? 0.45 : 0;
       const captionCost =
         typeof props.caption === "string" && props.caption.trim() ? 0.35 : 0;
       return 1.9 + titleCost + captionCost;
@@ -137,6 +168,8 @@ function itemLayoutCost(item: FrameContentItem) {
     case "SketchBlock":
       return 3.5;
     case "AutomatonBlock":
+    case "RegularExpressionBlock":
+    case "ContextFreeGrammarBlock":
       return 7.5;
     default:
       return 2;
@@ -154,7 +187,10 @@ export function getFrameContentUsage(
         0,
       )
     : 0;
-  const percent = Math.min(100, Math.round((used / FRAME_CONTENT_BUDGET) * 100));
+  const percent = Math.min(
+    100,
+    Math.round((used / FRAME_CONTENT_BUDGET) * 100),
+  );
 
   return { isFull: used >= FRAME_CONTENT_BUDGET, percent, used };
 }
@@ -164,8 +200,10 @@ export function canAddBlockToFrame(
   item: FrameContentItem,
 ) {
   return (
-    [...content, item].reduce((total, next) => total + itemLayoutCost(next), 0) <=
-    FRAME_CONTENT_BUDGET
+    [...content, item].reduce(
+      (total, next) => total + itemLayoutCost(next),
+      0,
+    ) <= FRAME_CONTENT_BUDGET
   );
 }
 
@@ -194,7 +232,9 @@ export function addsContentPastFrameCapacity(
   });
 }
 
-export function normalizeCanvasFrames(document: CanvasDocument): CanvasDocument {
+export function normalizeCanvasFrames(
+  document: CanvasDocument,
+): CanvasDocument {
   const nextDocument = cloneDocument(document);
 
   getSlides(nextDocument).forEach((slide, index) => {
@@ -209,9 +249,16 @@ function getSlideContent(slide: SlideItem): CanvasItem[] {
   return Array.isArray(slide.props.content) ? slide.props.content : [];
 }
 
-function getActiveSlide(document: CanvasDocument, activeSlideId: string | null) {
+function getActiveSlide(
+  document: CanvasDocument,
+  activeSlideId: string | null,
+) {
   const slides = getSlides(document);
-  return slides.find((slide) => slide.props.id === activeSlideId) ?? slides[0] ?? null;
+  return (
+    slides.find((slide) => slide.props.id === activeSlideId) ??
+    slides[0] ??
+    null
+  );
 }
 
 /**
@@ -265,7 +312,9 @@ function getTargetArray(
 }
 
 function getArrays(document: CanvasDocument) {
-  return getSlides(document).flatMap((slide) => getSlideContent(slide).filter(isArrayItem));
+  return getSlides(document).flatMap((slide) =>
+    getSlideContent(slide).filter(isArrayItem),
+  );
 }
 
 function getTargetAutomaton(
@@ -274,15 +323,53 @@ function getTargetAutomaton(
   activeSlideId: string | null,
 ) {
   const active = getActiveSlide(document, activeSlideId);
-  const onActive = active ? getSlideContent(active).filter(isAutomatonItem) : [];
+  const onActive = active
+    ? getSlideContent(active).filter(isAutomatonItem)
+    : [];
   if (componentId) {
-    return onActive.find((item) => item.props.id === componentId) ??
+    return (
+      onActive.find((item) => item.props.id === componentId) ??
       getSlides(document)
         .flatMap((slide) => getSlideContent(slide))
-        .find((item): item is AutomatonItem =>
-          isAutomatonItem(item) && item.props.id === componentId,
+        .find(
+          (item): item is AutomatonItem =>
+            isAutomatonItem(item) && item.props.id === componentId,
         ) ??
-      null;
+      null
+    );
+  }
+  return onActive.at(-1) ?? null;
+}
+
+function getTargetContextFreeGrammar(document: CanvasDocument, componentId: string, activeSlideId: string | null) {
+  const active = getActiveSlide(document, activeSlideId);
+  const onActive = active ? getSlideContent(active).filter(isContextFreeGrammarItem) : [];
+  return onActive.find((item) => item.props.id === componentId) ??
+    getSlides(document).flatMap((slide) => getSlideContent(slide)).find(
+      (item): item is ContextFreeGrammarItem => isContextFreeGrammarItem(item) && item.props.id === componentId,
+    ) ?? null;
+}
+
+function getTargetRegularExpression(
+  document: CanvasDocument,
+  componentId: string | undefined,
+  activeSlideId: string | null,
+) {
+  const active = getActiveSlide(document, activeSlideId);
+  const onActive = active
+    ? getSlideContent(active).filter(isRegularExpressionItem)
+    : [];
+  if (componentId) {
+    return (
+      onActive.find((item) => item.props.id === componentId) ??
+      getSlides(document)
+        .flatMap((slide) => getSlideContent(slide))
+        .find(
+          (item): item is RegularExpressionItem =>
+            isRegularExpressionItem(item) && item.props.id === componentId,
+        ) ??
+      null
+    );
   }
   return onActive.at(-1) ?? null;
 }
@@ -353,7 +440,7 @@ type FrameInsertResult = { inserted: boolean; slideId: string };
 function pushIntoActiveSlide(
   document: CanvasDocument,
   activeSlideId: string | null,
-  item: CanvasItem
+  item: CanvasItem,
 ): FrameInsertResult {
   let slide = getActiveSlide(document, activeSlideId);
 
@@ -372,7 +459,9 @@ function pushIntoActiveSlide(
   }
 
   const content = getSlideContent(slide);
-  if (!canAddBlockToFrame(content as FrameContentItem[], item as FrameContentItem)) {
+  if (
+    !canAddBlockToFrame(content as FrameContentItem[], item as FrameContentItem)
+  ) {
     return { inserted: false, slideId: slide.props.id };
   }
 
@@ -400,7 +489,9 @@ function findBlockOnSlide(
   const content = getSlideContent(slide);
   if (componentId) {
     return (
-      content.find((item) => (item.props as { id?: string }).id === componentId) ?? null
+      content.find(
+        (item) => (item.props as { id?: string }).id === componentId,
+      ) ?? null
     );
   }
   return content.find((item) => item.type === blockType) ?? null;
@@ -423,6 +514,8 @@ function blockLabel(blockType: string): string {
     MindMapBlock: "mind map",
     SketchBlock: "drawing",
     AutomatonBlock: "automaton",
+    RegularExpressionBlock: "regular expression",
+    ContextFreeGrammarBlock: "context-free grammar",
   };
   return labels[blockType] ?? blockType.replace(/Block$/, "").toLowerCase();
 }
@@ -431,7 +524,10 @@ export function getInitialSlideId(document: CanvasDocument): string | null {
   return getSlides(document)[0]?.props.id ?? null;
 }
 
-export function summarizeCanvas(document: CanvasDocument, activeSlideId: string | null) {
+export function summarizeCanvas(
+  document: CanvasDocument,
+  activeSlideId: string | null,
+) {
   const slides = getSlides(document);
   const arrays = getArrays(document);
   const activeSlide = getActiveSlide(document, activeSlideId);
@@ -439,10 +535,15 @@ export function summarizeCanvas(document: CanvasDocument, activeSlideId: string 
   return [
     `Title: ${document.root?.props?.title ?? "Untitled canvas"}`,
     `Frames: ${slides.length}`,
-    activeSlide ? `Active frame: ${activeSlide.props.title}` : "Active frame: none",
+    activeSlide
+      ? `Active frame: ${activeSlide.props.title}`
+      : "Active frame: none",
     arrays.length
       ? `Arrays: ${arrays
-          .map((array) => `${array.props.title}=[${array.props.values.map((item) => item.value).join(", ")}]`)
+          .map(
+            (array) =>
+              `${array.props.title}=[${array.props.values.map((item) => item.value).join(", ")}]`,
+          )
           .join("; ")}`
       : "Arrays: none",
   ].join("\n");
@@ -451,7 +552,7 @@ export function summarizeCanvas(document: CanvasDocument, activeSlideId: string 
 export function applyCanvasAction(
   document: CanvasDocument,
   activeSlideId: string | null,
-  action: CanvasAiAction
+  action: CanvasAiAction,
 ): CanvasCommandResult {
   const nextDocument = cloneDocument(document);
   let nextSlideId = activeSlideId;
@@ -464,7 +565,8 @@ export function applyCanvasAction(
       props: {
         id,
         frameLabel: `Frame ${getSlides(nextDocument).length + 1}`,
-        title: action.title?.trim() || `Frame ${getSlides(nextDocument).length + 1}`,
+        title:
+          action.title?.trim() || `Frame ${getSlides(nextDocument).length + 1}`,
         teachingBeat: "explain",
         //notes: action.notes?.trim() || "Add teaching notes for this frame.",
         content: [],
@@ -477,7 +579,9 @@ export function applyCanvasAction(
   if (action.action === "add_frame_below") {
     const slides = getSlides(nextDocument);
     const targetId = action.frameId ?? activeSlideId;
-    const targetIndex = slides.findIndex((slide) => slide.props.id === targetId);
+    const targetIndex = slides.findIndex(
+      (slide) => slide.props.id === targetId,
+    );
     const insertIndex = targetIndex >= 0 ? targetIndex + 1 : slides.length;
     const id = createCanvasId("slide");
     nextDocument.content.splice(insertIndex, 0, {
@@ -498,7 +602,9 @@ export function applyCanvasAction(
   if (action.action === "duplicate_frame") {
     const slides = getSlides(nextDocument);
     const targetId = action.frameId ?? activeSlideId;
-    const targetIndex = slides.findIndex((slide) => slide.props.id === targetId);
+    const targetIndex = slides.findIndex(
+      (slide) => slide.props.id === targetId,
+    );
     const targetSlide = targetIndex >= 0 ? slides[targetIndex] : null;
 
     if (targetSlide) {
@@ -515,13 +621,16 @@ export function applyCanvasAction(
   if (action.action === "delete_frame") {
     const slides = getSlides(nextDocument);
     const targetId = action.frameId ?? activeSlideId;
-    const targetIndex = slides.findIndex((slide) => slide.props.id === targetId);
+    const targetIndex = slides.findIndex(
+      (slide) => slide.props.id === targetId,
+    );
 
     if (targetIndex >= 0 && slides.length > 1) {
       nextDocument.content.splice(targetIndex, 1);
       const remainingSlides = getSlides(nextDocument);
       nextSlideId =
-        remainingSlides[Math.min(targetIndex, remainingSlides.length - 1)]?.props.id ?? null;
+        remainingSlides[Math.min(targetIndex, remainingSlides.length - 1)]
+          ?.props.id ?? null;
       message = "Deleted the frame.";
     } else if (slides.length <= 1) {
       message = "Keep at least one frame in the canvas.";
@@ -534,19 +643,26 @@ export function applyCanvasAction(
     const slides = getSlides(nextDocument);
     const requestedIndex =
       action.action === "go_to_slide" ? action.slideIndex : action.frameIndex;
-    const requestedId = action.action === "go_to_slide" ? action.slideId : action.frameId;
+    const requestedId =
+      action.action === "go_to_slide" ? action.slideId : action.frameId;
     const slide =
       typeof requestedIndex === "number"
         ? slides[Math.max(0, Math.min(slides.length - 1, requestedIndex))]
         : slides.find((item) => item.props.id === requestedId);
     nextSlideId = slide?.props.id ?? nextSlideId;
-    message = slide ? `Moved to ${slide.props.title}.` : "Could not find that frame.";
+    message = slide
+      ? `Moved to ${slide.props.title}.`
+      : "Could not find that frame.";
   }
 
-  if (action.action === "update_slide_title" || action.action === "update_frame_title") {
-    const requestedId = action.action === "update_slide_title" ? action.slideId : action.frameId;
+  if (
+    action.action === "update_slide_title" ||
+    action.action === "update_frame_title"
+  ) {
+    const requestedId =
+      action.action === "update_slide_title" ? action.slideId : action.frameId;
     const slide = getSlides(nextDocument).find(
-      (item) => item.props.id === (requestedId ?? activeSlideId)
+      (item) => item.props.id === (requestedId ?? activeSlideId),
     );
     if (slide) {
       slide.props.title = action.title;
@@ -560,10 +676,14 @@ export function applyCanvasAction(
     const result = pushIntoActiveSlide(
       nextDocument,
       nextSlideId,
-      createHeadingTextItem(action.heading?.trim() || action.body?.trim() || "New heading")
+      createHeadingTextItem(
+        action.heading?.trim() || action.body?.trim() || "New heading",
+      ),
     );
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added a heading block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added a heading block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   if (action.action === "add_subheading_block") {
@@ -650,7 +770,8 @@ export function applyCanvasAction(
       };
       props.code = action.code;
       if (action.language) props.language = action.language;
-      if (action.explanation !== undefined) props.explanation = action.explanation;
+      if (action.explanation !== undefined)
+        props.explanation = action.explanation;
       message = "Updated the code block.";
     } else {
       message = "There is no code block on this frame to update.";
@@ -698,14 +819,18 @@ export function applyCanvasAction(
       props: {
         id: createCanvasId("array"),
         title: action.title?.trim() || "A",
-        values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0", "1"]),
+        values: normalizeArrayValues(
+          action.values?.length ? action.values : ["8", "5", "0", "1"],
+        ),
         highlightedIndex: undefined,
         showIndices: true,
         caption: "",
       },
     });
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added an editable array block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added an editable array block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   if (action.action === "set_array_values") {
@@ -739,7 +864,11 @@ export function applyCanvasAction(
   }
 
   if (action.action === "set_automaton_block") {
-    const block = getTargetAutomaton(nextDocument, action.componentId, nextSlideId);
+    const block = getTargetAutomaton(
+      nextDocument,
+      action.componentId,
+      nextSlideId,
+    );
     if (block) {
       const componentId = block.props.id;
       block.props = {
@@ -752,13 +881,67 @@ export function applyCanvasAction(
     }
   }
 
+  if (action.action === "add_context_free_grammar_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "ContextFreeGrammarBlock",
+      props: { id: createCanvasId("context-free-grammar"), ...structuredClone(action.contextFreeGrammar) },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted ? "Added a context-free grammar block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_context_free_grammar_block") {
+    const block = getTargetContextFreeGrammar(nextDocument, action.componentId, nextSlideId);
+    if (block) {
+      block.props = { id: block.props.id, ...structuredClone(action.contextFreeGrammar) };
+      message = "Updated context-free grammar.";
+    } else {
+      message = "Could not find a context-free grammar block to update.";
+    }
+  }
+
+  if (action.action === "add_regular_expression_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "RegularExpressionBlock",
+      props: {
+        id: createCanvasId("regular-expression"),
+        ...structuredClone(action.regularExpression),
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted
+      ? "Added a regular expression block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_regular_expression_block") {
+    const block = getTargetRegularExpression(
+      nextDocument,
+      action.componentId,
+      nextSlideId,
+    );
+    if (block) {
+      const componentId = block.props.id;
+      block.props = {
+        id: componentId,
+        ...structuredClone(action.regularExpression),
+      };
+      message = `Updated regular expression "${action.regularExpression.expression}".`;
+    } else {
+      message = "Could not find a regular expression block to update.";
+    }
+  }
+
   if (action.action === "resize_array") {
     const array = getTargetArray(nextDocument, action.componentId, nextSlideId);
     if (array) {
       const nextLength = Math.max(0, Math.min(12, Math.round(action.length)));
       const currentValues = array.props.values.map((item) => item.value);
       array.props.values = normalizeArrayValues(
-        Array.from({ length: nextLength }, (_, index) => currentValues[index] ?? `${index}`)
+        Array.from(
+          { length: nextLength },
+          (_, index) => currentValues[index] ?? `${index}`,
+        ),
       );
       message = `Resized ${array.props.title} to ${nextLength} elements.`;
     } else {
@@ -819,13 +1002,19 @@ export function applyCanvasAction(
   }
 
   if (action.action === "duplicate_array_block") {
-    const source = getTargetArray(nextDocument, action.componentId, nextSlideId);
+    const source = getTargetArray(
+      nextDocument,
+      action.componentId,
+      nextSlideId,
+    );
     if (source) {
       const duplicate = cloneItemWithNewIds(source) as ArrayItem;
-      duplicate.props.title = action.title?.trim() || `${source.props.title} copy`;
+      duplicate.props.title =
+        action.title?.trim() || `${source.props.title} copy`;
       duplicate.props.highlightedIndex = undefined;
       if (action.appendValue !== undefined) {
-        const value = String(action.appendValue).trim() ||
+        const value =
+          String(action.appendValue).trim() ||
           String(duplicate.props.values.length);
         duplicate.props.values = [...duplicate.props.values, { value }];
       }
@@ -862,7 +1051,9 @@ export function applyCanvasAction(
       },
     });
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added a stack block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added a stack block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   if (action.action === "push_stack_value") {
@@ -873,7 +1064,8 @@ export function applyCanvasAction(
       if (!canPushStack(currentValues.length, capacity)) {
         message = `${stack.props.title} is full (capacity ${capacity.isFixed ? capacity.size : "∞"}); pop before pushing.`;
       } else {
-        const value = (action.value ?? "").trim() || String(currentValues.length);
+        const value =
+          (action.value ?? "").trim() || String(currentValues.length);
         stack.props.values = normalizeArrayValues(
           pushStack(currentValues, value, capacity),
         );
@@ -912,13 +1104,17 @@ export function applyCanvasAction(
       props: {
         id: createCanvasId("queue"),
         title: action.title?.trim() || "Queue A",
-        values: normalizeArrayValues(action.values?.length ? action.values : ["8", "5", "0"]),
+        values: normalizeArrayValues(
+          action.values?.length ? action.values : ["8", "5", "0"],
+        ),
         highlightedIndex: undefined,
         caption: "Enqueue adds to the back; dequeue removes from the front.",
       },
     });
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added a queue block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added a queue block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   if (action.action === "add_linked_list_block") {
@@ -927,12 +1123,16 @@ export function applyCanvasAction(
       props: {
         id: createCanvasId("list"),
         title: "Linked list",
-        nodes: normalizeArrayValues(action.values?.length ? action.values : ["head", "node", "tail"]),
+        nodes: normalizeArrayValues(
+          action.values?.length ? action.values : ["head", "node", "tail"],
+        ),
         caption: "Each node stores a value and a pointer to the next node.",
       },
     });
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added a linked list block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added a linked list block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   if (action.action === "add_checkpoint") {
@@ -940,12 +1140,15 @@ export function applyCanvasAction(
       type: "CheckpointBlock",
       props: {
         id: createCanvasId("checkpoint"),
-        question: action.question?.trim() || "What should students answer here?",
+        question:
+          action.question?.trim() || "What should students answer here?",
         answer: action.answer?.trim() || "Add the expected answer.",
       },
     });
     nextSlideId = result.slideId;
-    message = result.inserted ? "Added a checkpoint block to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+    message = result.inserted
+      ? "Added a checkpoint block to the active frame."
+      : FRAME_CONTENT_LIMIT_MESSAGE;
   }
 
   return {

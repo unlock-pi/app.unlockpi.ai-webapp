@@ -1,5 +1,7 @@
 import type { Data, Slot } from "@puckeditor/core";
 import type { AutomatonBlockProps } from "@/components/automata";
+import type { RegularExpressionBlockProps } from "@/components/regular-expression";
+import type { ContextFreeGrammarBlockProps } from "@/components/context-free-grammar";
 
 // TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
 // FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
@@ -28,10 +30,7 @@ export type CanvasTypographyScale = "base" | "medium" | "small";
  * axis (colors, not font) and is currently disabled in canvasThemeOptions.
  */
 export type CanvasFontFamily =
-  | "modern"
-  | "handwriting"
-  | "old-school"
-  | "chalkboard";
+  "modern" | "handwriting" | "old-school" | "chalkboard";
 
 export type CanvasRootProps = {
   title: string;
@@ -198,6 +197,8 @@ export type CanvasComponents = {
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
   AutomatonBlock: AutomatonBlockProps;
+  RegularExpressionBlock: RegularExpressionBlockProps;
+  ContextFreeGrammarBlock: ContextFreeGrammarBlockProps;
   SketchBlock: SketchBlockProps;
 };
 
@@ -223,11 +224,11 @@ export type CanvasAiAction =
   | { action: "add_slide"; title?: string; notes?: string }
   | { action: "add_frame"; title?: string; notes?: string }
   | {
-    action: "add_frame_below";
-    frameId?: string;
-    title?: string;
-    notes?: string;
-  }
+      action: "add_frame_below";
+      frameId?: string;
+      title?: string;
+      notes?: string;
+    }
   | { action: "duplicate_frame"; frameId?: string }
   | { action: "delete_frame"; frameId?: string }
   | { action: "go_to_slide"; slideIndex?: number; slideId?: string }
@@ -238,32 +239,43 @@ export type CanvasAiAction =
   | { action: "add_subheading_block"; text?: string }
   | { action: "add_body_block"; text?: string }
   | {
-    action: "add_code_block";
-    code?: string;
-    language?: CodeLanguage;
-    title?: string;
-    explanation?: string;
-  }
+      action: "add_code_block";
+      code?: string;
+      language?: CodeLanguage;
+      title?: string;
+      explanation?: string;
+    }
   | {
-    /** Rewrite the text of an existing text block on the active frame. */
-    action: "set_block_text";
-    componentId?: string;
-    blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
-    text: string;
-  }
+      /** Rewrite the text of an existing text block on the active frame. */
+      action: "set_block_text";
+      componentId?: string;
+      blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+      text: string;
+    }
   | {
-    action: "set_code_block";
-    componentId?: string;
-    code: string;
-    language?: CodeLanguage;
-    explanation?: string;
-  }
+      action: "set_code_block";
+      componentId?: string;
+      code: string;
+      language?: CodeLanguage;
+      explanation?: string;
+    }
   | { action: "remove_block"; componentId?: string; blockType?: string }
   /** Remove every block from the active frame, leaving the frame itself. */
   | { action: "clear_frame" }
   | { action: "add_array_block"; title?: string; values?: string[] }
   | { action: "set_array_values"; componentId?: string; values: string[] }
   | { action: "add_automaton_block"; automaton: AutomatonBlockProps }
+  | { action: "add_context_free_grammar_block"; contextFreeGrammar: ContextFreeGrammarBlockProps }
+  | { action: "set_context_free_grammar_block"; componentId: string; contextFreeGrammar: ContextFreeGrammarBlockProps }
+  | {
+      action: "add_regular_expression_block";
+      regularExpression: RegularExpressionBlockProps;
+    }
+  | {
+      action: "set_regular_expression_block";
+      componentId: string;
+      regularExpression: RegularExpressionBlockProps;
+    }
   | {
       action: "set_automaton_block";
       componentId: string;
@@ -273,14 +285,19 @@ export type CanvasAiAction =
   | { action: "highlight_array_index"; componentId?: string; index?: number }
   | { action: "append_array_value"; componentId?: string; value?: string }
   | { action: "pop_array_value"; componentId?: string }
-  | { action: "duplicate_array_block"; componentId?: string; title?: string; appendValue?: string }
   | {
-    action: "add_stack_block";
-    title?: string;
-    values?: string[];
-    isFixed?: boolean;
-    stackSize?: number;
-  }
+      action: "duplicate_array_block";
+      componentId?: string;
+      title?: string;
+      appendValue?: string;
+    }
+  | {
+      action: "add_stack_block";
+      title?: string;
+      values?: string[];
+      isFixed?: boolean;
+      stackSize?: number;
+    }
   | { action: "push_stack_value"; componentId?: string; value?: string }
   | { action: "pop_stack_value"; componentId?: string }
   | { action: "add_queue_block"; title?: string; values?: string[] }

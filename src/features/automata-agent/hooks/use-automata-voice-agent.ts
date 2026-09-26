@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { Automaton } from "@/components/automata/model";
+import { z } from "zod";
+import { TeachingTimeline, type TeachingStep } from "@/features/toc/construction/timeline";
+import { constructionView, type AutomataConstructionView } from "@/features/automata-agent/construction/automata-construction";
+import { createConstructionTools, type ConstructionController } from "@/features/automata-agent/construction/construction-tools";
+import { createAutomatonExecution, executeAutomaton, type Automaton, type AutomatonExecution } from "@/components/automata/model";
+import { completeExecutionPlayback, executionAtStep, executionBeforeStep } from "@/components/automata/use-execution-playback";
 import {
   appendEvent,
   EMPTY_LATENCY,
@@ -63,6 +68,48 @@ export function useAutomataVoiceAgent({
   const stateRef = useRef<AutomataAgentState>(initialState);
   const [snapshot, setSnapshot] = useState(() => structuredClone(initialState));
   const clientRef = useRef<OpenAIRealtimeClient | null>(null);
+  const constructionAutomatonRef = useRef<Automaton | null>(null);
+  const constructionExecutionRef = useRef<AutomatonExecution | null>(null);
+  const [construction, setConstruction] = useState<AutomataConstructionView | null>(null);
+  const responseModeRef = useRef(responseMode);
+  useEffect(() => { responseModeRef.current = responseMode; }, [responseMode]);
+  const [timeline] = useState(() => new TeachingTimeline({
+    prepare(step, token) {
+      if (responseModeRef.current === "silent") {
+        timeline.narrationStarted(token);
+        timeline.narrationCompleted(token);
+        return;
+      }
+      clientRef.current?.setTeachingTimelineActive(true);
+      if (!clientRef.current) throw new Error("Connect the agent before starting narrated construction.");
+      clientRef.current.prepareNarration(token, step.narration, {
+        start: () => { captionBufferRef.current = ""; setCaption(""); timeline.narrationStarted(token); },
+        complete: () => timeline.narrationCompleted(token),
+        fail: (message) => timeline.fail(token, message),
+      });
+    },
+    cancel(token) { clientRef.current?.cancelNarration(token); },
+  }, (state) => {
+    const automaton = constructionAutomatonRef.current;
+    const trace = constructionExecutionRef.current;
+    const view = automaton && state.mode !== "idle" && state.mode !== "complete" ? constructionView(automaton.id, state) : null;
+    if (view && trace) {
+      const action = state.steps[state.currentStep]?.action;
+      const completed = state.steps.slice(0, state.currentStep).filter((step) => step.action.type === "execute_step").length;
+      view.execution = action?.type === "execute_step" && state.mode === "building"
+        ? state.animation === "complete" ? executionAtStep(trace, action.stepIndex + 1) : executionBeforeStep(trace, action.stepIndex + 1)
+        : completed ? executionAtStep(trace, completed) : createAutomatonExecution(automaton!, trace.input);
+    }
+    setConstruction(view);
+    if (state.mode === "complete" && trace && automaton) {
+      completeExecutionPlayback(trace);
+      const next = structuredClone(stateRef.current);
+      next.executions[automaton.id] = trace;
+      stateRef.current = next;
+      setSnapshot(structuredClone(next));
+    }
+    if (state.mode === "complete" || state.mode === "idle" || state.mode === "error") clientRef.current?.setTeachingTimelineActive(false);
+  }));
   const usageSessionIdRef = useRef<string | null>(null);
   const contextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionBufferRef = useRef("");
@@ -126,13 +173,64 @@ export function useAutomataVoiceAgent({
   );
 
   // The getter is intentionally evaluated only when a tool executes.
-  // eslint-disable-next-line react-hooks/refs
-  const tools = useMemo(() => createAutomataTools(ctx), [ctx]);
+  const controller = useMemo<ConstructionController>(() => ({
+    start(automaton, steps, input) {
+      if (stateRef.current.automata[automaton.id]) throw new Error("Choose a new automaton ID for construction.");
+      if (responseModeRef.current !== "silent" && clientRef.current?.getStatus() !== "connected") throw new Error("Connect the voice agent before narrated construction.");
+      timeline.clear();
+      constructionAutomatonRef.current = automaton;
+      constructionExecutionRef.current = null;
+      ctx.commit(putAutomaton(ctx.state, automaton, input), { created: automaton });
+      timeline.load(steps);
+      timeline.resume();
+    },
+    control(action) {
+      if (!["resume", "step", "complete"].includes(action)) clientRef.current?.setTeachingTimelineActive(false);
+      if (!constructionAutomatonRef.current || timeline.snapshot().mode === "idle") throw new Error("No construction is active.");
+      if (action === "complete") {
+        if (timeline.snapshot().currentStep < timeline.snapshot().steps.length) throw new Error("Finish every construction step before completing.");
+        timeline.resume();
+      } else if (action === "step") timeline.resume(false);
+      else timeline[action]();
+    },
+    execute(input, narrations) {
+      if (["preparing", "building", "paused"].includes(timeline.snapshot().mode)) throw new Error("Finish the construction before an execution walkthrough.");
+      const automaton = selectedAutomaton(stateRef.current);
+      if (!automaton) throw new Error("Select an automaton first.");
+      const trace = executeAutomaton(automaton, input);
+      if (trace.status === "error") throw new Error(trace.error ?? "Input could not be evaluated.");
+      if (responseModeRef.current !== "silent" && clientRef.current?.getStatus() !== "connected") throw new Error("Connect the voice agent first.");
+      if (narrations && narrations.length !== trace.steps.length) throw new Error("Provide exactly one narration for each execution step: " + trace.steps.length);
+      const prefix: TeachingStep[] = [
+        ...automaton.states.map((state) => ({ id: "prepared-state:" + state.id, action: { type: "create_state" as const, stateId: state.id }, narration: "" })),
+        { id: "prepared-start", action: { type: "set_initial_state", stateId: automaton.startState }, narration: "" },
+        ...automaton.acceptStates.map((stateId) => ({ id: "prepared-accept:" + stateId, action: { type: "set_accepting_state" as const, stateId }, narration: "" })),
+        ...automaton.transitions.map((edge) => ({ id: "prepared-edge:" + edge.id, action: { type: "create_transition" as const, transitionId: edge.id }, narration: "" })),
+      ];
+      const steps: TeachingStep[] = trace.steps.map((step, index) => ({
+        id: "execution:" + index,
+        action: { type: "execute_step", stepIndex: index },
+        narration: narrations?.[index] ?? (step.symbol === null
+          ? "The empty input is " + trace.result + "."
+          : "From " + step.fromStates.join(", ") + ", read " + step.symbol + ". The reachable states are " + (step.toStates.join(", ") || "the empty set") + "." + (index === trace.steps.length - 1 ? " The input is " + trace.result + "." : "")),
+      }));
+      constructionAutomatonRef.current = automaton;
+      constructionExecutionRef.current = trace;
+      const next = structuredClone(stateRef.current);
+      next.executions[automaton.id] = createAutomatonExecution(automaton, input);
+      ctx.commit(next, { definitionChanged: automaton });
+      timeline.load([...prefix, ...steps], prefix.length);
+      timeline.resume();
+    },
+    narrate(stepId, text) { timeline.updateNarration(stepId, text); },
+    inspect: () => timeline.snapshot(),
+  }), [ctx, timeline]);
+  const tools = useMemo(() => ({ ...createAutomataTools(ctx), ...createConstructionTools(controller) }), [ctx, controller]);
 
   const runTool = useCallback(
     async (name: string, argumentsJson: string) => {
       const definition = tools[name as keyof typeof tools] as
-        | { execute?: (input: unknown, options: unknown) => unknown }
+        | { execute?: (input: unknown, options: unknown) => unknown; inputSchema?: unknown }
         | undefined;
       if (!definition?.execute) {
         return JSON.stringify({
@@ -140,7 +238,7 @@ export function useAutomataVoiceAgent({
           ok: false,
           error: {
             code: "INVALID_OPERATION",
-            message: `${name} is not one of the ten automata tools.`,
+            message: `${name} is not a registered automata tool.`,
           },
         });
       }
@@ -153,6 +251,14 @@ export function useAutomataVoiceAgent({
           ok: false,
           error: { code: "INVALID_OPERATION", message: "Arguments were not valid JSON." },
         });
+      }
+      if (definition.inputSchema instanceof z.ZodType) {
+        const parsed = definition.inputSchema.safeParse(input);
+        if (!parsed.success) return JSON.stringify({ success: false, ok: false, error: { code: "INVALID_TOOL_INPUT", message: "Tool arguments did not match the schema.", details: z.flattenError(parsed.error) } });
+        input = parsed.data;
+      }
+      if (!["start_construction", "control_construction", "animate_execution", "narrate_step", "inspect_automaton", "validate_automaton", "analyze_automaton"].includes(name) && ["preparing", "building", "paused"].includes(timeline.snapshot().mode)) {
+        return JSON.stringify({ success: false, ok: false, error: { code: "CONSTRUCTION_ACTIVE", message: "Finish construction before mutating or executing its automaton." } });
       }
       setLastToolCall(name);
       const startedAt = performance.now();
@@ -189,10 +295,11 @@ export function useAutomataVoiceAgent({
         });
       }
     },
-    [logEvent, tools],
+    [logEvent, tools, timeline],
   );
 
   const disconnect = useCallback(() => {
+    timeline.pause();
     finishRealtimeUsageSession(usageSessionIdRef.current);
     usageSessionIdRef.current = null;
     clientRef.current?.disconnect();
@@ -205,7 +312,7 @@ export function useAutomataVoiceAgent({
     setIsResponding(false);
     setMicEnabled(true);
     setStatus("idle");
-  }, []);
+  }, [timeline]);
 
   useEffect(() => disconnect, [disconnect]);
 
@@ -234,6 +341,8 @@ export function useAutomataVoiceAgent({
         logEvent({ kind: "error", at: Date.now(), text: message });
       },
       onRemoteStream: setRemoteStream,
+      onAudioPlaybackChange: setIsResponding,
+      onNarrationResponseDone: (response) => trackRealtimeResponse(usageSessionIdRef.current, response as RealtimeUsageResponse | undefined),
       onTranscriptDelta: (delta) => {
         captionBufferRef.current += delta;
         setCaption(captionBufferRef.current);
@@ -265,6 +374,7 @@ export function useAutomataVoiceAgent({
         );
       },
       onSpeechStarted: () => {
+        timeline.pause();
         setIsUserSpeaking(true);
         captionBufferRef.current = "";
         setCaption("");
@@ -277,10 +387,13 @@ export function useAutomataVoiceAgent({
     });
     clientRef.current = client;
     await client.connect();
-  }, [canvasId, lessonTitle, logEvent, pushLiveContext, responseMode, runTool, status]);
+  }, [canvasId, lessonTitle, logEvent, pushLiveContext, responseMode, runTool, status, timeline]);
 
   const adoptAutomata = useCallback(
     (snapshots: FrameAutomatonSnapshot[]) => {
+      timeline.clear();
+      constructionAutomatonRef.current = null;
+      constructionExecutionRef.current = null;
       let next = createInitialAutomataState(canvasId);
       for (const snapshot of snapshots) {
         next = putAutomaton(next, snapshot.automaton, snapshot.input);
@@ -291,7 +404,7 @@ export function useAutomataVoiceAgent({
       onSelectionChangeRef.current?.(next.selectedAutomatonId);
       scheduleLiveContext();
     },
-    [canvasId, scheduleLiveContext],
+    [canvasId, scheduleLiveContext, timeline],
   );
 
   const toggleMic = useCallback(() => {
@@ -312,10 +425,15 @@ export function useAutomataVoiceAgent({
     [tools],
   );
 
+  const onConstructionAnimationComplete = useCallback((token: string) => timeline.animationCompleted(token), [timeline]);
   const automaton = selectedAutomaton(snapshot);
   const execution = automaton ? snapshot.executions[automaton.id] ?? null : null;
 
   return {
+    construction,
+    onConstructionAnimationComplete,
+    pauseConstruction: () => { timeline.pause(); clientRef.current?.setTeachingTimelineActive(false); },
+    resumeConstruction: () => timeline.resume(),
     agentState: snapshot,
     automaton,
     execution,
@@ -332,8 +450,8 @@ export function useAutomataVoiceAgent({
     latency,
     micEnabled,
     remoteStream,
-    resetSelected: () => void runDirect("reset_execution"),
-    stepSelected: () => void runDirect("step_execution"),
+    resetSelected: () => construction ? controller.control("reset") : void runDirect("reset_execution"),
+    stepSelected: () => construction ? timeline.resume(false) : void runDirect("step_execution"),
     status,
     toggleMic,
     tools,

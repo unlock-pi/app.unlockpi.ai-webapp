@@ -15,6 +15,8 @@ import {
   MicOffIcon,
   NetworkIcon,
   PowerIcon,
+  RegexIcon,
+  GitBranchIcon,
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
@@ -32,6 +34,8 @@ import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
 import { AutomataAgentViewProvider } from "@/components/automata";
+import { RegularExpressionAgentViewProvider } from "@/components/regular-expression";
+import { ContextFreeGrammarAgentViewProvider } from "@/components/context-free-grammar";
 import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -39,6 +43,10 @@ import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
 import { useAutomataAgentOnCanvas } from "@/features/automata-agent/hooks/use-automata-agent-on-canvas";
 import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name";
+import { useRegularExpressionAgentOnCanvas } from "@/features/regular-expression-agent/hooks/use-regular-expression-agent-on-canvas";
+import { REGULAR_EXPRESSION_AGENT_NAME } from "@/features/regular-expression-agent/lib/agent-name";
+import { useContextFreeGrammarAgentOnCanvas } from "@/features/context-free-grammar-agent/hooks/use-context-free-grammar-agent-on-canvas";
+import { CONTEXT_FREE_GRAMMAR_AGENT_NAME } from "@/features/context-free-grammar-agent/agent-name";
 import {
   PresenterDock,
   type DockAction,
@@ -223,6 +231,17 @@ export function CanvasPresenter({
     activeSlide?.type === "SlideBlock" &&
     Array.isArray(activeSlide.props.content) &&
     activeSlide.props.content.length >= 3;
+  const isSingleRegularExpressionFrame =
+    activeSlide?.type === "SlideBlock" &&
+    Array.isArray(activeSlide.props.content) &&
+    activeSlide.props.content.length === 1 &&
+    activeSlide.props.content[0]?.type === "RegularExpressionBlock";
+
+  const isSingleGrammarFrame =
+    activeSlide?.type === "SlideBlock" &&
+    Array.isArray(activeSlide.props.content) &&
+    activeSlide.props.content.length === 1 &&
+    activeSlide.props.content[0]?.type === "ContextFreeGrammarBlock";
 
   const goTo = useCallback(
     (nextIndex: number) => {
@@ -398,7 +417,8 @@ export function CanvasPresenter({
   // this frame") runs entirely before React re-renders. Reading the stale copy
   // is how the agent described a frame without the block it had just added.
   const arraysPresentation = useMemo<PresentationControls>(() => {
-    const liveFrames = () => getCanvasPresentationFrames(runtimeDocumentRef.current);
+    const liveFrames = () =>
+      getCanvasPresentationFrames(runtimeDocumentRef.current);
     const liveIndex = (list: ReturnType<typeof getCanvasPresentationFrames>) =>
       Math.max(
         0,
@@ -438,7 +458,8 @@ export function CanvasPresenter({
         const best = liveFrames()
           .map((frame) => ({
             frame,
-            score: words.filter((word) => frame.searchText.includes(word)).length,
+            score: words.filter((word) => frame.searchText.includes(word))
+              .length,
           }))
           .sort((left, right) => right.score - left.score)[0];
         return best?.score
@@ -474,15 +495,47 @@ export function CanvasPresenter({
     activeFrameId: activeFrame?.id ?? null,
     enabled: selectedMode === "automata",
   });
+  const regularExpression = useRegularExpressionAgentOnCanvas({
+    canvasId,
+    canvasTitle: title,
+    getDocument: getArraysDocument,
+    getActiveFrameId: getArraysFrameId,
+    applyDocument: applyArraysDocument,
+    activeFrameId: activeFrame?.id ?? null,
+    enabled: selectedMode === "regular-expression",
+  });
+
+  const contextFreeGrammar = useContextFreeGrammarAgentOnCanvas({
+    canvasId, canvasTitle: title,
+    getDocument: getArraysDocument, getActiveFrameId: getArraysFrameId,
+    applyDocument: applyArraysDocument, activeFrameId: activeFrame?.id ?? null,
+    enabled: selectedMode === "context-free-grammar",
+  });
 
   const isArraysMode = selectedMode === "arrays";
   const isAutomataMode = selectedMode === "automata";
+  const isRegularExpressionMode = selectedMode === "regular-expression";
+  const isContextFreeGrammarMode = selectedMode === "context-free-grammar";
   const specialistAgent = isArraysMode
     ? arrays.agent
     : isAutomataMode
       ? automata.agent
-      : null;
-  const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
+      : isRegularExpressionMode
+        ? regularExpression.agent
+        : isContextFreeGrammarMode
+          ? contextFreeGrammar.agent
+          : null;
+  const specialistName = isArraysMode
+    ? ARRAYS_AGENT_NAME
+    : isAutomataMode
+      ? AUTOMATA_AGENT_NAME
+      : isRegularExpressionMode
+        ? REGULAR_EXPRESSION_AGENT_NAME
+        : isContextFreeGrammarMode
+          ? CONTEXT_FREE_GRAMMAR_AGENT_NAME
+          : "the AI";
+  const isCopilotMode =
+    selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
   // `useTrackVolume`, which only ever reads `.mediaStream` and
@@ -561,6 +614,8 @@ export function CanvasPresenter({
     realtimeSession.disconnect();
     arrays.agent.disconnect();
     automata.agent.disconnect();
+    regularExpression.agent.disconnect();
+    contextFreeGrammar.agent.disconnect();
     setSelectedMode(nextMode);
   };
 
@@ -582,17 +637,21 @@ export function CanvasPresenter({
     realtimeSession.disconnect();
     arrays.agent.disconnect();
     automata.agent.disconnect();
+    regularExpression.agent.disconnect();
+    contextFreeGrammar.agent.disconnect();
     onClose?.();
   };
 
-  const voiceConnected = specialistAgent?.isConnected ?? realtimeSession.isConnected;
+  const voiceConnected =
+    specialistAgent?.isConnected ?? realtimeSession.isConnected;
   // `use-canvas-realtime-session` (the non-arrays modes) doesn't have an
   // automatic-reconnect path yet, so it has no "reconnecting" status to check.
   const voiceReconnecting =
     Boolean(specialistAgent) && specialistAgent?.status === "reconnecting";
   const voiceConnecting =
-    (specialistAgent ? specialistAgent.status === "connecting" : aiStatus === "connecting") ||
-    voiceReconnecting;
+    (specialistAgent
+      ? specialistAgent.status === "connecting"
+      : aiStatus === "connecting") || voiceReconnecting;
   const micLive = specialistAgent?.micEnabled ?? !realtimeSession.isPaused;
 
   const reveal = useChromeReveal({ hold: voiceConnecting });
@@ -617,19 +676,21 @@ export function CanvasPresenter({
       else realtimeSession.disconnect();
       return;
     }
-    void (specialistAgent ? specialistAgent.connect() : realtimeSession.connect());
+    void (specialistAgent
+      ? specialistAgent.connect()
+      : realtimeSession.connect());
   };
 
   const dockPrimary: DockAction[] = [
     {
       id: "power",
       label: voiceConnected
-        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`
+        ? `Stop ${specialistName}`
         : voiceReconnecting
           ? "Reconnecting…"
           : voiceConnecting
             ? "Connecting…"
-            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`,
+            : `Start ${specialistName}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
@@ -651,7 +712,8 @@ export function CanvasPresenter({
         const spoke = arrays.agent.speakNow(
           "Greet the class in one short sentence, then say what is on this frame.",
         );
-        if (!spoke) flashHint("It is already speaking — try again in a moment.");
+        if (!spoke)
+          flashHint("It is already speaking — try again in a moment.");
       },
     },
   ];
@@ -663,7 +725,11 @@ export function CanvasPresenter({
     dockPrimary.push({
       id: "mic",
       label: micLive ? "Mute your microphone" : "Unmute your microphone",
-      icon: micLive ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />,
+      icon: micLive ? (
+        <MicIcon className="size-4" />
+      ) : (
+        <MicOffIcon className="size-4" />
+      ),
       active: micLive,
       disabled: !voiceConnected,
       onClick: () => {
@@ -722,6 +788,20 @@ export function CanvasPresenter({
           onClick: () => selectMode("automata"),
         },
         {
+          id: "mode-regular-expression",
+          label: REGULAR_EXPRESSION_AGENT_NAME,
+          icon: <RegexIcon className="size-4" />,
+          active: isRegularExpressionMode,
+          onClick: () => selectMode("regular-expression"),
+        },
+        {
+          id: "mode-context-free-grammar",
+          label: CONTEXT_FREE_GRAMMAR_AGENT_NAME,
+          icon: <GitBranchIcon className="size-4" />,
+          active: isContextFreeGrammarMode,
+          onClick: () => selectMode("context-free-grammar"),
+        },
+        {
           id: "overview",
           label: "All frames",
           icon: <Grid2X2Icon className="size-4" />,
@@ -765,7 +845,7 @@ export function CanvasPresenter({
           ? "Connection dropped — reconnecting automatically…"
           : voiceConnected
             ? "Listening — just talk to change the board"
-            : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : isAutomataMode ? AUTOMATA_AGENT_NAME : "the AI"}`);
+            : `Press power to start ${specialistName}`);
 
   if (!activeFrame) {
     return (
@@ -795,7 +875,6 @@ export function CanvasPresenter({
         !publicView && "fixed inset-0 z-[100]",
       )}
     >
-
       {aiActivity ? (
         <div
           className={cn(
@@ -912,6 +991,10 @@ export function CanvasPresenter({
               // frame inside the available stage.
               "canvas-presenter-frame canvas-presenter-surface relative z-10 animate-in fade-in duration-300",
               isDenseFrame && "canvas-presenter-surface--dense",
+              isSingleGrammarFrame &&
+                "canvas-presenter-surface--context-free-grammar",
+              isSingleRegularExpressionFrame &&
+                "canvas-presenter-surface--regular-expression",
               direction === "forward"
                 ? "slide-in-from-right-8"
                 : "slide-in-from-left-8",
@@ -920,7 +1003,12 @@ export function CanvasPresenter({
             <ArraysAgentViewProvider
               {...(isArraysMode
                 ? arrays.viewProviderProps
-                : { blockId: null, view: null, showIndices: true, isAnimating: false })}
+                : {
+                    blockId: null,
+                    view: null,
+                    showIndices: true,
+                    isAnimating: false,
+                  })}
             >
               <AutomataAgentViewProvider
                 {...(isAutomataMode
@@ -933,10 +1021,28 @@ export function CanvasPresenter({
                       onReset: undefined,
                     })}
               >
-                <FittedPresentationFrame
-                  document={activeFrame.document}
-                  zoom={zoomPercent / 100}
-                />
+                <RegularExpressionAgentViewProvider
+                  {...(isRegularExpressionMode
+                    ? regularExpression.viewProviderProps
+                    : {
+                        blockId: null,
+                        state: null,
+                        onStep: undefined,
+                        onReset: undefined,
+                        onDisplayModeChange: undefined,
+                      })}
+                >
+                  <ContextFreeGrammarAgentViewProvider
+                    {...(isContextFreeGrammarMode
+                      ? contextFreeGrammar.viewProviderProps
+                      : { blockId: null, state: null, onStep: undefined, onReset: undefined })}
+                  >
+                    <FittedPresentationFrame
+                      document={activeFrame.document}
+                      zoom={zoomPercent / 100}
+                    />
+                  </ContextFreeGrammarAgentViewProvider>
+                </RegularExpressionAgentViewProvider>
               </AutomataAgentViewProvider>
             </ArraysAgentViewProvider>
           </div>
@@ -990,6 +1096,30 @@ export function CanvasPresenter({
             onClose={() => setActivityOpen(false)}
           />
         ) : null}
+        {!publicView && isContextFreeGrammarMode && activityOpen ? (
+          <ArraysAgentActivityPanel
+            events={contextFreeGrammar.agent.events}
+            latency={contextFreeGrammar.agent.latency}
+            status={contextFreeGrammar.agent.status}
+            isConnected={contextFreeGrammar.agent.isConnected}
+            isUserSpeaking={contextFreeGrammar.agent.isUserSpeaking}
+            isResponding={contextFreeGrammar.agent.isResponding}
+            isAnimating={false}
+            onClose={() => setActivityOpen(false)}
+          />
+        ) : null}
+        {!publicView && isRegularExpressionMode && activityOpen ? (
+          <ArraysAgentActivityPanel
+            events={regularExpression.agent.events}
+            latency={regularExpression.agent.latency}
+            status={regularExpression.agent.status}
+            isConnected={regularExpression.agent.isConnected}
+            isUserSpeaking={regularExpression.agent.isUserSpeaking}
+            isResponding={regularExpression.agent.isResponding}
+            isAnimating={false}
+            onClose={() => setActivityOpen(false)}
+          />
+        ) : null}
 
         {!publicView && isCopilotMode && panelOpen ? (
           <CopilotPanel
@@ -1006,7 +1136,10 @@ export function CanvasPresenter({
           and never slides out from under the pointer. */}
       <motion.div
         {...chromeMotion}
-        animate={{ opacity: reveal.visible ? 1 : 0, y: reveal.visible ? 0 : 24 }}
+        animate={{
+          opacity: reveal.visible ? 1 : 0,
+          y: reveal.visible ? 0 : 24,
+        }}
         className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex flex-col"
       >
         {/* A shared/embedded canvas has no AI session and no class to end. */}
@@ -1026,8 +1159,12 @@ export function CanvasPresenter({
           onPrevious={() => goTo(activeIndex - 1)}
           onNext={() => goTo(activeIndex + 1)}
           zoomPercent={zoomPercent}
-          onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
-          onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
+          onZoomIn={() =>
+            setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))
+          }
+          onZoomOut={() =>
+            setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))
+          }
           onZoomReset={() => setZoomPercent(100)}
           canZoomIn={zoomPercent < MAX_ZOOM}
           canZoomOut={zoomPercent > MIN_ZOOM}

@@ -1,7 +1,5 @@
-import { PlayIcon, RotateCcwIcon } from "lucide-react";
-
 import type { AutomatonExecution } from "@/components/automata/model";
-import { Button } from "@/components/ui/button";
+import { ExecutionControls } from "@/components/toc/shared/execution-controls";
 
 type ExecutionPanelProps = {
   disabled?: boolean;
@@ -10,42 +8,17 @@ type ExecutionPanelProps = {
   onStep: () => void;
 };
 
-export function ExecutionPanel({
-  disabled = false,
-  execution,
-  onReset,
-  onStep,
-}: ExecutionPanelProps) {
-  const terminal = execution.status === "accepted" || execution.status === "rejected";
-
+/** Backward-compatible automata wrapper around shared TOC playback controls. */
+export function ExecutionPanel({ disabled = false, execution, onReset, onStep }: ExecutionPanelProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2" aria-label="Automaton execution controls">
-      <Button
-        type="button"
-        size="sm"
-        disabled={disabled || terminal}
-        onClick={(event) => { event.stopPropagation(); onStep(); }}
-        className="automaton-control"
-      >
-        <PlayIcon className="size-3.5" />
-        Step
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={(event) => { event.stopPropagation(); onReset(); }}
-        className="automaton-control"
-      >
-        <RotateCcwIcon className="size-3.5" />
-        Reset
-      </Button>
-      <span
-        role="status"
-        className="min-w-16 text-xs font-semibold capitalize text-muted-foreground"
-      >
-        {execution.status}
-      </span>
-    </div>
+    <ExecutionControls
+      ariaLabel="Automaton execution controls"
+      className="automaton-control flex flex-wrap items-center gap-2"
+      disabled={disabled}
+      terminal={execution.status === "accepted" || execution.status === "rejected"}
+      status={execution.status}
+      onReset={onReset}
+      onStep={onStep}
+    />
   );
 }

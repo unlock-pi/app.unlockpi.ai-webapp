@@ -3,8 +3,6 @@ import { z } from "zod";
 
 import {
   createAutomatonExecution,
-  executeAutomaton,
-  stepAutomaton,
   validateAutomaton,
 } from "@/components/automata/model";
 import {
@@ -13,8 +11,11 @@ import {
   createAutomatonDefinition,
   putAutomaton,
   replaceAutomaton,
+  resetAutomatonExecutionState,
   resolveAutomaton,
   satisfyAutomatonGoal,
+  simulateAutomatonState,
+  stepAutomatonState,
   type AutomataAgentState,
   type AutomatonAnalysis,
   type AutomatonOperation,
@@ -64,7 +65,10 @@ const operationSchema = z.discriminatedUnion("type", [
     to: z.string().min(1),
     symbols: z.array(z.string().min(1)).min(1),
   }),
-  z.object({ type: z.literal("remove_transition"), transitionId: z.string().min(1) }),
+  z.object({
+    type: z.literal("remove_transition"),
+    transitionId: z.string().min(1),
+  }),
   z.object({
     type: z.literal("update_transition"),
     transitionId: z.string().min(1),
@@ -75,7 +79,10 @@ const operationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("set_start_state"), stateId: z.string().min(1) }),
   z.object({ type: z.literal("remove_start_state") }),
   z.object({ type: z.literal("set_accept_state"), stateId: z.string().min(1) }),
-  z.object({ type: z.literal("remove_accept_state"), stateId: z.string().min(1) }),
+  z.object({
+    type: z.literal("remove_accept_state"),
+    stateId: z.string().min(1),
+  }),
   z.object({ type: z.literal("add_symbol"), symbol: z.string().min(1) }),
   z.object({ type: z.literal("remove_symbol"), symbol: z.string().min(1) }),
 ]);
@@ -120,10 +127,14 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         transitions: z.array(transitionSchema).optional(),
         startState: z.string().optional(),
         acceptStates: z.array(z.string()).optional(),
-        input: z.string().optional().describe("Optional input shown below the automaton."),
+        input: z
+          .string()
+          .optional()
+          .describe("Optional input shown below the automaton."),
       }),
       execute: async (input) => {
-        const id = input.automatonId?.trim() ||
+        const id =
+          input.automatonId?.trim() ||
           `${input.type}-${String(ctx.state.automatonOrder.length + 1).padStart(2, "0")}`;
         if (ctx.state.automata[id]) {
           return fail(ctx, {
@@ -132,7 +143,10 @@ export function createAutomataTools(ctx: AutomataToolContext) {
             details: { automatonId: id },
           });
         }
-        const automaton = createAutomatonDefinition({ ...input, automatonId: id });
+        const automaton = createAutomatonDefinition({
+          ...input,
+          automatonId: id,
+        });
         const blocking = validateAutomaton(automaton).issues.filter(
           (issue) => !["NO_STATES", "NO_START_STATE"].includes(issue.code),
         );
@@ -168,7 +182,9 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         const next = structuredClone(ctx.state);
         next.selectedAutomatonId = automatonId;
         if (!next.executions[automatonId]) {
-          next.executions[automatonId] = createAutomatonExecution(next.automata[automatonId]);
+          next.executions[automatonId] = createAutomatonExecution(
+            next.automata[automatonId],
+          );
         }
         return commitState(ctx, next, `Selected ${automatonId}.`, {
           automaton: next.automata[automatonId],
@@ -182,14 +198,18 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         "Read authoritative automaton or execution state. Use this instead of conversational memory before making context-dependent changes.",
       inputSchema: z.object({
         automatonId: z.string().optional(),
-        sections: z.array(z.enum([
-          "states",
-          "transitions",
-          "alphabet",
-          "start_state",
-          "accepting_states",
-          "execution",
-        ])).optional(),
+        sections: z
+          .array(
+            z.enum([
+              "states",
+              "transitions",
+              "alphabet",
+              "start_state",
+              "accepting_states",
+              "execution",
+            ]),
+          )
+          .optional(),
       }),
       execute: async ({ automatonId, sections }) => {
         const found = find(ctx, automatonId);
@@ -203,10 +223,14 @@ export function createAutomataTools(ctx: AutomataToolContext) {
           alphabet: automaton.alphabet,
           start_state: automaton.startState,
           accepting_states: automaton.acceptStates,
-          execution: ctx.state.executions[automaton.id] ?? createAutomatonExecution(automaton),
+          execution:
+            ctx.state.executions[automaton.id] ??
+            createAutomatonExecution(automaton),
         };
         const data = sections?.length
-          ? Object.fromEntries(sections.map((section) => [section, all[section]]))
+          ? Object.fromEntries(
+              sections.map((section) => [section, all[section]]),
+            )
           : all;
         return succeed(ctx, `Inspected ${automaton.id}.`, data);
       },
@@ -229,10 +253,14 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         if (!result.success) return fail(ctx, result.error);
         const next = replaceAutomaton(ctx.state, result.value);
         ctx.commit(next, { definitionChanged: result.value });
-        return succeed(ctx, `Applied ${operations.length} change(s) to ${result.value.id}.`, {
-          automaton: result.value,
-          validation: validateAutomaton(result.value),
-        });
+        return succeed(
+          ctx,
+          `Applied ${operations.length} change(s) to ${result.value.id}.`,
+          {
+            automaton: result.value,
+            validation: validateAutomaton(result.value),
+          },
+        );
       },
     }),
 
@@ -262,20 +290,10 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         input: z.string(),
       }),
       execute: async ({ automatonId, input }) => {
-        const found = find(ctx, automatonId);
-        if (!found.automaton) return found.outcome;
-        const validation = validateAutomaton(found.automaton);
-        if (!validation.valid) {
-          return fail(ctx, {
-            code: "INVALID_AUTOMATON",
-            message: "Fix validation errors before simulating.",
-            details: { validationIssues: validation.issues },
-          });
-        }
-        const execution = executeAutomaton(found.automaton, input);
-        const next = structuredClone(ctx.state);
-        next.executions[found.automaton.id] = execution;
-        ctx.commit(next);
+        const result = simulateAutomatonState(ctx.state, input, automatonId);
+        if (!result.success) return fail(ctx, result.error);
+        const { execution } = result.value;
+        ctx.commit(result.value.state);
         return succeed(ctx, `Input "${input}" was ${execution.result}.`, {
           result: execution.result,
           finalStates: execution.currentStates,
@@ -295,33 +313,22 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         input: z.string().optional(),
       }),
       execute: async ({ automatonId, input }) => {
-        const found = find(ctx, automatonId);
-        if (!found.automaton) return found.outcome;
-        const validation = validateAutomaton(found.automaton);
-        if (!validation.valid) {
-          return fail(ctx, {
-            code: "INVALID_AUTOMATON",
-            message: "Fix validation errors before stepping.",
-            details: { validationIssues: validation.issues },
-          });
-        }
-        let execution = ctx.state.executions[found.automaton.id] ??
-          createAutomatonExecution(found.automaton, input ?? "");
-        if (input !== undefined && input !== execution.input) {
-          execution = createAutomatonExecution(found.automaton, input);
-        }
-        execution = stepAutomaton(found.automaton, execution);
-        const next = structuredClone(ctx.state);
-        next.executions[found.automaton.id] = execution;
-        ctx.commit(next);
-        return succeed(ctx, `Advanced ${found.automaton.id} to step ${execution.stepIndex} (${execution.status}).`, {
-          currentStates: execution.currentStates,
-          currentInputSymbol: execution.steps.at(-1)?.symbol ?? null,
-          activeTransitions: execution.activeTransitions,
-          inputPosition: execution.inputIndex,
-          executionStep: execution.steps.at(-1) ?? null,
-          execution,
-        });
+        const result = stepAutomatonState(ctx.state, input, automatonId);
+        if (!result.success) return fail(ctx, result.error);
+        const { automaton, execution } = result.value;
+        ctx.commit(result.value.state);
+        return succeed(
+          ctx,
+          `Advanced ${automaton.id} to step ${execution.stepIndex} (${execution.status}).`,
+          {
+            currentStates: execution.currentStates,
+            currentInputSymbol: execution.steps.at(-1)?.symbol ?? null,
+            activeTransitions: execution.activeTransitions,
+            inputPosition: execution.inputIndex,
+            executionStep: execution.steps.at(-1) ?? null,
+            execution,
+          },
+        );
       },
     }),
 
@@ -333,17 +340,20 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         input: z.string().optional(),
       }),
       execute: async ({ automatonId, input }) => {
-        const found = find(ctx, automatonId);
-        if (!found.automaton) return found.outcome;
-        const previous = ctx.state.executions[found.automaton.id];
-        const execution = createAutomatonExecution(
-          found.automaton,
-          input ?? previous?.input ?? "",
+        const result = resetAutomatonExecutionState(
+          ctx.state,
+          input,
+          automatonId,
         );
-        const next = structuredClone(ctx.state);
-        next.executions[found.automaton.id] = execution;
-        ctx.commit(next);
-        return succeed(ctx, `Reset execution for ${found.automaton.id}.`, { execution });
+        if (!result.success) return fail(ctx, result.error);
+        ctx.commit(result.value.state);
+        return succeed(
+          ctx,
+          `Reset execution for ${result.value.automaton.id}.`,
+          {
+            execution: result.value.execution,
+          },
+        );
       },
     }),
 
@@ -367,11 +377,15 @@ export function createAutomataTools(ctx: AutomataToolContext) {
         const last = result.value.verification.at(-1);
         if (last) next.executions[result.value.automaton.id] = last.execution;
         ctx.commit(next, { definitionChanged: result.value.automaton });
-        return succeed(ctx, `Goal satisfied for ${goal.inputs.length} input(s) with ${result.value.changes.length} change(s).`, {
-          changes: result.value.changes,
-          validation: validateAutomaton(result.value.automaton),
-          verification: result.value.verification,
-        });
+        return succeed(
+          ctx,
+          `Goal satisfied for ${goal.inputs.length} input(s) with ${result.value.changes.length} change(s).`,
+          {
+            changes: result.value.changes,
+            validation: validateAutomaton(result.value.automaton),
+            verification: result.value.verification,
+          },
+        );
       },
     }),
 
@@ -385,11 +399,18 @@ export function createAutomataTools(ctx: AutomataToolContext) {
       execute: async ({ automatonId, analysis }) => {
         const found = find(ctx, automatonId);
         if (!found.automaton) return found.outcome;
-        const result = analyzeAutomaton(found.automaton, analysis as AutomatonAnalysis);
-        return succeed(ctx, `Computed ${analysis.replaceAll("_", " ")} for ${found.automaton.id}.`, {
-          analysis,
-          result,
-        });
+        const result = analyzeAutomaton(
+          found.automaton,
+          analysis as AutomatonAnalysis,
+        );
+        return succeed(
+          ctx,
+          `Computed ${analysis.replaceAll("_", " ")} for ${found.automaton.id}.`,
+          {
+            analysis,
+            result,
+          },
+        );
       },
     }),
   };

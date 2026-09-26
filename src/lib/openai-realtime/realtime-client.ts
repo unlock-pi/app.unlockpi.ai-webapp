@@ -79,6 +79,118 @@ export class OpenAIRealtimeClient {
   private contextItemIds = new Map<string, string>();
   private contextItemCounter = 0;
 
+  private teachingActive = false;
+  private defaultAudioResponses = new Set<string>();
+  private teachingResponseIds = new Set<string>();
+  private narration = new Map<string, {
+    responseId?: string;
+    cancelled: boolean;
+    started: boolean;
+    sent?: boolean;
+    request?: Record<string, unknown>;
+    start: () => void;
+    complete: () => void;
+    fail: (message: string) => void;
+  }>();
+
+  setTeachingTimelineActive(active: boolean) {
+    this.teachingActive = active;
+    if (!active) this.requestFollowUpIfReady();
+  }
+
+  prepareNarration(token: string, text: string, lifecycle: {
+    start: () => void; complete: () => void; fail: (message: string) => void;
+  }) {
+    if (this.dataChannel?.readyState !== "open") throw new Error("Connect the voice session before narrated construction.");
+    this.narration.set(token, { ...lifecycle, started: false, cancelled: false, request: {
+      type: "response.create",
+      event_id: "narration:" + token,
+      response: {
+        conversation: "none",
+        metadata: { teaching_token: token },
+        output_modalities: ["audio"],
+        tool_choice: "none",
+        tools: [],
+        instructions: "Read the following classroom explanation exactly, without introductions, additions, or tool calls: " + text,
+        input: [],
+      },
+    } });
+    this.flushNarrationQueue();
+  }
+
+  private flushNarrationQueue() {
+    if (this.responseActive || this.userSpeaking || this.defaultAudioResponses.size) return;
+    if ([...this.narration.values()].some((item) => item.sent)) return;
+    const item = [...this.narration.values()].find((item) => !item.cancelled && item.request);
+    if (!item?.request) return;
+    item.sent = true;
+    this.sendEvent(item.request);
+  }
+
+  cancelNarration(token: string) {
+    const item = this.narration.get(token);
+    if (!item || item.cancelled) return;
+    item.cancelled = true;
+    if (!item.sent) { this.narration.delete(token); this.flushNarrationQueue(); return; }
+    if (item.responseId) this.sendEvent({ type: "response.cancel", response_id: item.responseId });
+    this.sendEvent({ type: "output_audio_buffer.clear" });
+  }
+
+  private handleNarrationEvent(event: Record<string, unknown>): boolean {
+    const response = event.response as { id?: string; metadata?: { teaching_token?: string }; status?: string; output?: Array<{ content?: Array<{ type?: string }> }> } | undefined;
+    const token = response?.metadata?.teaching_token;
+    if (event.type === "response.created" && token) {
+      if (response?.id) {
+        this.teachingResponseIds.add(response.id);
+        if (this.teachingResponseIds.size > 1_024) this.teachingResponseIds.delete(this.teachingResponseIds.values().next().value!);
+      }
+      const item = this.narration.get(token);
+      if (item) {
+        item.responseId = response?.id;
+        if (item.cancelled && item.responseId) this.sendEvent({ type: "response.cancel", response_id: item.responseId });
+      }
+      return true;
+    }
+    const id = (event.response_id as string | undefined) ?? response?.id;
+    const entry = [...this.narration.entries()].find(([key, item]) => key === token || (id && item.responseId === id));
+    if (!entry) {
+      if (token || (id && this.teachingResponseIds.has(id))) {
+        if (event.type === "response.done") this.options.onNarrationResponseDone?.(response);
+        return true;
+      }
+      return false;
+    }
+    const [key, item] = entry;
+    if (event.type === "output_audio_buffer.started" && !item.cancelled) {
+      item.started = true;
+      this.options.onAudioPlaybackChange?.(true);
+      item.start();
+    }
+    if (event.type === "output_audio_buffer.stopped") {
+      this.options.onAudioPlaybackChange?.(false);
+      this.narration.delete(key);
+      if (!item.cancelled && item.started) item.complete();
+      else if (!item.cancelled) item.fail("Narration ended without a playback-start event.");
+      this.flushNarrationQueue();
+    }
+    if (event.type === "output_audio_buffer.cleared") {
+      this.options.onAudioPlaybackChange?.(false);
+      this.narration.delete(key);
+      if (!item.cancelled) item.fail("Narration was interrupted.");
+      this.flushNarrationQueue();
+    }
+    if (event.type === "response.done") {
+      this.options.onNarrationResponseDone?.(response);
+      if (response?.status !== "completed" || !response.output?.some((output) => output.content?.some((part) => part.type === "audio"))) {
+        this.narration.delete(key);
+        if (!item.cancelled) item.fail("Narration response did not complete with audio.");
+        this.flushNarrationQueue();
+      }
+    }
+    if (typeof event.delta === "string" && event.type === "response.output_audio_transcript.delta" && !item.cancelled) this.options.onTranscriptDelta?.(event.delta);
+    return true;
+  }
+
   constructor(private readonly options: OpenAIRealtimeClientOptions) {}
 
   getStatus(): RealtimeStatus {
@@ -257,6 +369,11 @@ export class OpenAIRealtimeClient {
    * to survive into the next attempt).
    */
   private teardownConnection(): void {
+    for (const item of this.narration.values()) if (!item.cancelled) item.fail("Voice connection closed during narration.");
+    this.narration.clear();
+    this.teachingResponseIds.clear();
+    this.defaultAudioResponses.clear();
+    this.teachingActive = false;
     this.dataChannel?.close();
     this.dataChannel = null;
     this.peerConnection?.getSenders().forEach((sender) => sender.track?.stop());
@@ -479,6 +596,7 @@ export class OpenAIRealtimeClient {
    */
   private requestFollowUpIfReady() {
     if (
+      this.teachingActive ||
       !this.followUpNeeded ||
       this.responseActive ||
       this.pendingCallIds.size > 0 ||
@@ -539,10 +657,19 @@ export class OpenAIRealtimeClient {
     // event shapes depending on timing; normalize them here so the rest of
     // the client only deals with one RealtimeToolCall shape.
     const type = event.type as string | undefined;
+    if (this.handleNarrationEvent(event)) return;
 
     // Server errors used to fall through unhandled, which is how a rejected
     // follow-up could stall the agent with no trace anywhere.
     if (type === "error") {
+      const eventId = (event.error as { event_id?: string } | undefined)?.event_id;
+      if (eventId?.startsWith("narration:")) {
+        const token = eventId.slice("narration:".length);
+        const item = this.narration.get(token);
+        this.narration.delete(token);
+        if (item && !item.cancelled) item.fail("Narration request was rejected.");
+        this.flushNarrationQueue();
+      }
       const error = event.error as { message?: string; code?: string } | undefined;
       this.options.onServerError?.(
         error?.message ?? "The realtime API reported an error.",
@@ -572,6 +699,8 @@ export class OpenAIRealtimeClient {
       // their follow-up is not held back waiting on a response that is over.
       this.responseActive = false;
       this.awaitingFirstOutput = false;
+      const response = event.response as { id?: string; output?: Array<{ content?: Array<{ type?: string }> }> } | undefined;
+      if (response?.id && response.output?.some((item) => item.content?.some((part) => part.type === "audio"))) this.defaultAudioResponses.add(response.id);
       this.options.onResponseDone?.(event.response);
       // `response.output` carries function calls when the model emitted them
       // as part of a completed response rather than streaming them.
@@ -586,6 +715,7 @@ export class OpenAIRealtimeClient {
           });
         }
       });
+      this.flushNarrationQueue();
       this.requestFollowUpIfReady();
       return;
     }
@@ -624,13 +754,16 @@ export class OpenAIRealtimeClient {
     }
 
     if (type === "output_audio_buffer.started") {
+      if (typeof event.response_id === "string") this.defaultAudioResponses.add(event.response_id);
       this.markFirstOutput();
       this.options.onAudioPlaybackChange?.(true);
       return;
     }
 
-    if (type === "output_audio_buffer.stopped") {
+    if (type === "output_audio_buffer.stopped" || type === "output_audio_buffer.cleared") {
+      if (typeof event.response_id === "string") this.defaultAudioResponses.delete(event.response_id);
       this.options.onAudioPlaybackChange?.(false);
+      this.flushNarrationQueue();
       return;
     }
 

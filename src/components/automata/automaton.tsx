@@ -1,13 +1,10 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { useAutomataAgentView } from "@/components/automata/agent-view-context";
-import {
-  TRANSITION_ARRIVAL_DELAY_MS,
-  TRANSITION_FLOW_DURATION_MS,
-  TransitionDiagram,
-} from "@/components/automata/transition-diagram";
+import { TransitionDiagram } from "@/components/automata/transition-diagram";
+import { useExecutionPlayback } from "@/components/automata/use-execution-playback";
 import { reconcileAutomatonProps } from "@/components/automata/authoring";
 import { ExecutionPanel } from "@/components/automata/execution-panel";
 import { InputString } from "@/components/automata/input-string";
@@ -18,7 +15,6 @@ import {
   tokenizeAutomatonInput,
   validateAutomaton,
   type Automaton,
-  type AutomatonExecution,
   type AutomatonType,
   type AutomatonVisualStatus,
 } from "@/components/automata/model";
@@ -53,188 +49,6 @@ export type AutomatonBlockProps = {
 
 type AutomatonBlockRenderProps = AutomatonBlockProps & { id: string };
 
-const TRANSITION_SETTLE_DELAY_MS = 140;
-
-// Puck can remount a block when transient agent state changes. Keep the
-// completed-step cursor outside the component so a remount continues from the
-// last reached state instead of replaying the trace from step zero.
-const playbackCursorByExecution = new Map<string, number>();
-const transitionStartedAtByExecution = new Map<
-  string,
-  { stepCount: number; startedAt: number }
->();
-
-function playbackCursor(execution: AutomatonExecution) {
-  return Math.min(
-    playbackCursorByExecution.get(execution.executionId) ?? 0,
-    execution.steps.length,
-  );
-}
-
-function activeTransitionStart(executionId: string, stepCount: number) {
-  const active = transitionStartedAtByExecution.get(executionId);
-  return active?.stepCount === stepCount ? active.startedAt : null;
-}
-
-function flowProgressAt(startedAt: number | null) {
-  if (startedAt === null) return 0;
-  return Math.min(1, Math.max(0, (Date.now() - startedAt) / TRANSITION_FLOW_DURATION_MS));
-}
-
-function executionBeforeStep(execution: AutomatonExecution, stepCount: number): AutomatonExecution {
-  const steps = execution.steps.slice(0, stepCount);
-  const step = steps.at(-1);
-  if (!step) return execution;
-  const completedSteps = steps.slice(0, -1);
-
-  return {
-    ...execution,
-    status: "running",
-    result: "unknown",
-    inputIndex: step.inputIndex,
-    currentStates: step.fromStates,
-    activeTransitions: step.transitions,
-    transitionPhase: "traveling",
-    visitedStates: [
-      ...new Set(completedSteps.flatMap((item) => [...item.fromStates, ...item.toStates])),
-      ...step.fromStates,
-    ],
-    visitedTransitions: [...new Set(completedSteps.flatMap((item) => item.transitions))],
-    stepIndex: step.stepIndex,
-    steps,
-  };
-}
-
-function executionAtStep(execution: AutomatonExecution, stepCount: number): AutomatonExecution {
-  const steps = execution.steps.slice(0, stepCount);
-  const step = steps.at(-1);
-  if (!step) return execution;
-
-  return {
-    ...execution,
-    status: step.status,
-    result: step.result,
-    inputIndex: step.symbol === null ? step.inputIndex : step.inputIndex + 1,
-    currentStates: step.toStates,
-    activeTransitions: step.transitions,
-    transitionPhase: undefined,
-    visitedStates: [...new Set(steps.flatMap((item) => [...item.fromStates, ...item.toStates]))],
-    visitedTransitions: [...new Set(steps.flatMap((item) => item.transitions))],
-    stepIndex: step.stepIndex,
-    steps,
-  };
-}
-
-/**
- * Agent tools may evaluate a whole input string in one state update. Replay its
- * recorded steps locally so every state-to-state transition remains visible.
- */
-function useExecutionPlayback(execution: AutomatonExecution) {
-  const initialCursor = playbackCursor(execution);
-  const [displayedExecution, setDisplayedExecution] = useState(() =>
-    execution.steps[initialCursor]
-      ? executionBeforeStep(execution, initialCursor + 1)
-      : execution,
-  );
-  const [isTransitioning, setIsTransitioning] = useState(
-    () => Boolean(execution.steps[initialCursor]?.transitions.length),
-  );
-  const [flowProgress, setFlowProgress] = useState(() =>
-    flowProgressAt(activeTransitionStart(execution.executionId, initialCursor + 1)),
-  );
-  const latestExecutionRef = useRef(execution);
-  const playbackRef = useRef({
-    executionId: execution.executionId,
-    nextStep: initialCursor,
-    timeout: null as ReturnType<typeof setTimeout> | null,
-  });
-  const advanceRef = useRef<() => void>(() => {});
-
-  // Agent updates can append steps while the signal is moving. Keep the current
-  // timer alive and read the newest trace only when this step actually arrives.
-  useEffect(() => {
-    latestExecutionRef.current = execution;
-    advanceRef.current = () => {
-      const playback = playbackRef.current;
-      if (playback.timeout) return;
-      const latest = latestExecutionRef.current;
-      if (latest.executionId !== playback.executionId) return;
-      const step = latest.steps[playback.nextStep];
-      if (!step) {
-        setIsTransitioning(false);
-        setFlowProgress(0);
-        setDisplayedExecution(latest);
-        return;
-      }
-  
-      const stepCount = playback.nextStep + 1;
-      if (!step.transitions.length) {
-        setIsTransitioning(false);
-        setDisplayedExecution(executionAtStep(latest, stepCount));
-        playback.nextStep = stepCount;
-        playbackCursorByExecution.set(playback.executionId, stepCount);
-        transitionStartedAtByExecution.delete(playback.executionId);
-        setFlowProgress(1);
-        playback.timeout = setTimeout(() => {
-          playback.timeout = null;
-          advanceRef.current();
-        }, TRANSITION_SETTLE_DELAY_MS);
-        return;
-      }
-  
-      const existingStart = activeTransitionStart(playback.executionId, stepCount);
-      const startedAt = existingStart ?? Date.now();
-      if (!existingStart) {
-        transitionStartedAtByExecution.set(playback.executionId, { stepCount, startedAt });
-      }
-      setIsTransitioning(true);
-      setFlowProgress(flowProgressAt(startedAt));
-      setDisplayedExecution(executionBeforeStep(latest, stepCount));
-      const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? 0
-        : Math.max(0, TRANSITION_ARRIVAL_DELAY_MS - (Date.now() - startedAt));
-      playback.timeout = setTimeout(() => {
-        const current = latestExecutionRef.current;
-        if (current.executionId !== playback.executionId) return;
-        setDisplayedExecution(executionAtStep(current, stepCount));
-        playback.nextStep = stepCount;
-        playbackCursorByExecution.set(playback.executionId, stepCount);
-        transitionStartedAtByExecution.delete(playback.executionId);
-        setFlowProgress(0);
-        playback.timeout = setTimeout(() => {
-          playback.timeout = null;
-          setIsTransitioning(false);
-          advanceRef.current();
-        }, TRANSITION_SETTLE_DELAY_MS);
-      }, duration);
-    };
-
-    const playback = playbackRef.current;
-    if (playback.executionId !== execution.executionId ||
-        execution.steps.length < playback.nextStep) {
-      if (playback.timeout) clearTimeout(playback.timeout);
-      playback.timeout = null;
-      transitionStartedAtByExecution.delete(playback.executionId);
-      playback.executionId = execution.executionId;
-      playback.nextStep = playbackCursor(execution);
-    }
-    if (!playback.timeout) {
-      playback.timeout = setTimeout(() => {
-        playback.timeout = null;
-        advanceRef.current();
-      }, 0);
-    }
-  }, [execution]);
-
-  useEffect(() => () => {
-    const playback = playbackRef.current;
-    if (playback.timeout) clearTimeout(playback.timeout);
-    playback.timeout = null;
-  }, []);
-
-  return { displayedExecution, flowProgress, isTransitioning };
-}
-
 // Puck recreates block-prop objects during unrelated editor updates. Compare
 // persisted values so those updates do not disturb diagram animation.
 function automatonBlockPropsKey(props: AutomatonBlockRenderProps) {
@@ -267,14 +81,24 @@ export function toAutomaton(props: AutomatonBlockRenderProps): Automaton {
   return {
     id: authored.automatonId?.trim() || props.id,
     type: authored.type,
-    alphabet: [...new Set(authored.alphabet.split(",").map(normaliseSymbol).filter(Boolean))],
+    alphabet: [
+      ...new Set(
+        authored.alphabet.split(",").map(normaliseSymbol).filter(Boolean),
+      ),
+    ],
     states,
     transitions: authored.transitions.map((transition) => ({
       ...transition,
-      symbols: [...new Set(transition.symbols.split(",").map(normaliseSymbol).filter(Boolean))],
+      symbols: [
+        ...new Set(
+          transition.symbols.split(",").map(normaliseSymbol).filter(Boolean),
+        ),
+      ],
     })),
     startState,
-    acceptStates: states.filter((state) => state.accepting).map((state) => state.id),
+    acceptStates: states
+      .filter((state) => state.accepting)
+      .map((state) => state.id),
   };
 }
 
@@ -325,10 +149,14 @@ function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
   const [lastExecutionKey, setLastExecutionKey] = useState(executionKey);
   if (!agent && lastExecutionKey !== executionKey) {
     setLastExecutionKey(executionKey);
-    setLocalExecution(createAutomatonExecution(authoredAutomaton, authoredInput));
+    setLocalExecution(
+      createAutomatonExecution(authoredAutomaton, authoredInput),
+    );
   }
   const execution = agent?.execution ?? localExecution;
-  const { displayedExecution, flowProgress, isTransitioning } = useExecutionPlayback(execution);
+  const { displayedExecution, flowProgress, isTransitioning } =
+    useExecutionPlayback(execution);
+  const visualExecution = agent?.construction?.execution ?? displayedExecution;
 
   return (
     <section
@@ -340,19 +168,24 @@ function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
           automaton={automaton}
           execution={displayedExecution}
           flowProgress={flowProgress}
+          construction={agent?.construction}
+          onConstructionAnimationComplete={agent?.onConstructionAnimationComplete}
         />
       </div>
 
-      {props.showTransitionTable ? (
+      {props.showTransitionTable && !agent?.construction ? (
         <section className="grid min-w-0 gap-2" aria-label="Transition table">
           <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Transition table
           </h4>
-          <TransitionTable automaton={automaton} execution={displayedExecution} />
+          <TransitionTable
+            automaton={automaton}
+            execution={displayedExecution}
+          />
         </section>
       ) : null}
 
-      {!validation.valid ? (
+      {!validation.valid && !agent?.construction ? (
         <p
           role="status"
           className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning"
@@ -361,18 +194,32 @@ function AutomatonBlockComponent(props: AutomatonBlockRenderProps) {
         </p>
       ) : null}
 
+      {agent?.construction ? <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{agent.construction.timeline.currentStep} / {agent.construction.timeline.steps.length}</span>
+        <div className="flex gap-2">
+          <button type="button" className="rounded-md border border-border px-3 py-1" onClick={agent.construction.timeline.mode === "paused" ? agent.onResumeConstruction : agent.onPauseConstruction}>{agent.construction.timeline.mode === "paused" ? "Continue" : "Pause"}</button>
+          {agent.construction.timeline.error ? <span role="alert">{agent.construction.timeline.error}</span> : null}
+        </div>
+      </div> : null}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pt-1">
-        <InputString symbols={input} currentIndex={displayedExecution.inputIndex} />
+        <InputString
+          symbols={input}
+          currentIndex={visualExecution.inputIndex}
+        />
         <ExecutionPanel
-          disabled={!validation.valid || isTransitioning}
-          execution={execution}
+          disabled={!validation.valid || isTransitioning || agent?.construction?.timeline.mode === "building" || agent?.construction?.timeline.mode === "preparing"}
+          execution={agent?.construction ? visualExecution : execution}
           onStep={
             agent?.onStep ??
-            (() => setLocalExecution((current) => stepAutomaton(automaton, current)))
+            (() =>
+              setLocalExecution((current) => stepAutomaton(automaton, current)))
           }
           onReset={
             agent?.onReset ??
-            (() => setLocalExecution(createAutomatonExecution(automaton, authoredInput)))
+            (() =>
+              setLocalExecution(
+                createAutomatonExecution(automaton, authoredInput),
+              ))
           }
         />
       </div>

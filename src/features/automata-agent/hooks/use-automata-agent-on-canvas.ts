@@ -80,6 +80,10 @@ export function useAutomataAgentOnCanvas({
     agent,
     viewProviderProps: {
       blockId: targetBlockId,
+      construction: agent.construction,
+      onConstructionAnimationComplete: agent.onConstructionAnimationComplete,
+      onPauseConstruction: agent.pauseConstruction,
+      onResumeConstruction: agent.resumeConstruction,
       automaton: agent.automaton,
       execution: agent.execution,
       onStep: agent.stepSelected,
