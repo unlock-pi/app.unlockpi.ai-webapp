@@ -9,23 +9,16 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import {
+  DEFAULT_RULE_COLORS,
+  colorFor,
+  gradientStop,
+  matchesFor,
+  type HighlightRule,
+} from "@/components/data-structure/number-cell-shared";
 import { cn } from "@/lib/utils";
 
-/** One combinable highlight rule. A number can match several at once. */
-export type HighlightRule = {
-  id: string;
-  label: string;
-  predicate: (value: number) => boolean;
-  /** Tailwind classes for the cell's ring/fill when only this rule matches. */
-  colorClass?: string;
-};
-
-const DEFAULT_RULE_COLORS = [
-  "border-primary/60 bg-primary text-primary-foreground",
-  "border-amber-500/60 bg-amber-500 text-white",
-  "border-emerald-500/60 bg-emerald-500 text-white",
-  "border-fuchsia-500/60 bg-fuchsia-500 text-white",
-];
+export type { HighlightRule } from "@/components/data-structure/number-cell-shared";
 
 export type NumberPaginationStripProps = {
   /** Highest number in the list. Numbers always start at 1. Supports 1..1000. */
@@ -147,15 +140,6 @@ function buildItems({
 
 const CELL_SPRING = { type: "spring" as const, stiffness: 300, damping: 30, mass: 0.6 };
 const TRACK_SPRING = { type: "spring" as const, stiffness: 260, damping: 28, mass: 0.5 };
-
-/** Every rule matching `value`, in rule order. */
-function matchesFor(value: number, highlights: HighlightRule[]): HighlightRule[] {
-  return highlights.filter((rule) => rule.predicate(value));
-}
-
-function colorFor(rule: HighlightRule, index: number): string {
-  return rule.colorClass ?? DEFAULT_RULE_COLORS[index % DEFAULT_RULE_COLORS.length];
-}
 
 /** How many pulled-out numbers the tray renders before summarizing the rest. */
 const MAX_TRAY_CELLS = 48;
@@ -554,10 +538,4 @@ function FragmentWithSeparator({
       {children}
     </>
   );
-}
-
-function gradientStop(rule: HighlightRule, index: number): string {
-  if (rule.colorClass) return "var(--primary)";
-  const palette = ["var(--primary)", "#f59e0b", "#10b981", "#d946ef"];
-  return palette[index % palette.length];
 }

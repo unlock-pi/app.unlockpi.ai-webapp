@@ -191,6 +191,8 @@ export function useCountingVoiceAgent({
           strip.cursor = final.cursor ?? null;
           strip.accumulator = final.accumulator ?? null;
           strip.extracted = final.extracted ?? false;
+          strip.view = final.view ?? "strip";
+          strip.gridPage = final.gridPage ?? 0;
           bumpState();
         }
         if (!result.rejected && result.frames.length > 1) {
@@ -231,6 +233,8 @@ export function useCountingVoiceAgent({
         strip.cursor = null;
         strip.accumulator = null;
         strip.extracted = false;
+        strip.view = "strip";
+        strip.gridPage = 0;
         bumpState();
         setOverlays([]);
         player.controls.clear();
@@ -244,6 +248,8 @@ export function useCountingVoiceAgent({
         strip.cursor = null;
         strip.accumulator = null;
         strip.extracted = false;
+        strip.view = "strip";
+        strip.gridPage = 0;
         bumpState();
         setOverlays([]);
         player.controls.clear();
@@ -443,6 +449,8 @@ export function useCountingVoiceAgent({
       strip.cursor = null;
       strip.accumulator = null;
       strip.extracted = false;
+      strip.view = "strip";
+      strip.gridPage = 0;
       bumpState();
       player.controls.clear();
       setOverlays([]);
@@ -480,8 +488,8 @@ export function useCountingVoiceAgent({
 
   const view: CountingFrame = useMemo(() => {
     if (player.frame) return player.frame;
-    const { total, order, mode, highlights, division, cursor, accumulator, extracted } = snapshot.strip;
-    return { total, order, mode, highlights, division, cursor, accumulator, extracted, note: "" };
+    const { total, order, mode, highlights, division, cursor, accumulator, extracted, view, gridPage } = snapshot.strip;
+    return { total, order, mode, highlights, division, cursor, accumulator, extracted, view, gridPage, note: "" };
   }, [player.frame, snapshot]);
 
   return {

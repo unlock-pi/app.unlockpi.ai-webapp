@@ -14,6 +14,7 @@ import { createTeachingTools } from "@/features/arrays-agent/tools/array/teachin
 import { createTraversalTools } from "@/features/arrays-agent/tools/array/traversal";
 import { createBlockTools } from "@/features/arrays-agent/tools/blocks";
 import { createPresentationTools } from "@/features/arrays-agent/tools/presentation";
+import { createTextHighlightTools } from "@/features/canvas/tools/text-highlight-tools";
 
 /**
  * The agent's whole vocabulary, as an AI SDK ToolSet.
@@ -40,6 +41,7 @@ export function createArrayTools(ctx: ArrayToolContext) {
     ...createTeachingTools(ctx),
     ...createPresentationTools(ctx),
     ...createBlockTools(ctx),
+    ...createTextHighlightTools(ctx),
   };
 }
 

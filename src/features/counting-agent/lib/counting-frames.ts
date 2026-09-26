@@ -5,6 +5,7 @@ import type {
   HighlightRule,
   Mode,
   Order,
+  View,
 } from "@/features/counting-agent/lib/counting-types";
 
 /**
@@ -25,9 +26,17 @@ export function frame(
     cursor?: number | null;
     accumulator?: Accumulator;
     extracted?: boolean;
+    view?: View;
+    gridPage?: number;
   },
   note: string,
-  overrides: { cursor?: number | null; accumulator?: Accumulator; extracted?: boolean } = {},
+  overrides: {
+    cursor?: number | null;
+    accumulator?: Accumulator;
+    extracted?: boolean;
+    view?: View;
+    gridPage?: number;
+  } = {},
 ): CountingFrame {
   return {
     total: strip.total,
@@ -38,6 +47,8 @@ export function frame(
     cursor: overrides.cursor !== undefined ? overrides.cursor : (strip.cursor ?? null),
     accumulator: overrides.accumulator !== undefined ? overrides.accumulator : (strip.accumulator ?? null),
     extracted: overrides.extracted !== undefined ? overrides.extracted : (strip.extracted ?? false),
+    view: overrides.view !== undefined ? overrides.view : (strip.view ?? "strip"),
+    gridPage: overrides.gridPage !== undefined ? overrides.gridPage : (strip.gridPage ?? 0),
     note,
   };
 }

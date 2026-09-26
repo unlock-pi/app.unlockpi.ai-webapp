@@ -652,6 +652,39 @@ export function applyCanvasAction(
     }
   }
 
+  if (action.action === "set_block_highlights") {
+    const block = findBlockOnSlide(
+      nextDocument,
+      nextSlideId,
+      action.blockType,
+      action.componentId,
+    );
+    if (block) {
+      (block.props as { wordHighlights?: typeof action.highlights }).wordHighlights =
+        action.highlights;
+      message = `Highlighted ${action.highlights.length} ${
+        action.highlights.length === 1 ? "word" : "words"
+      } in the ${blockLabel(action.blockType)}.`;
+    } else {
+      message = `There is no ${blockLabel(action.blockType)} on this frame to highlight.`;
+    }
+  }
+
+  if (action.action === "clear_block_highlights") {
+    const block = findBlockOnSlide(
+      nextDocument,
+      nextSlideId,
+      action.blockType,
+      action.componentId,
+    );
+    if (block) {
+      (block.props as { wordHighlights?: unknown[] }).wordHighlights = [];
+      message = `Cleared the highlights from the ${blockLabel(action.blockType)}.`;
+    } else {
+      message = `There is no ${blockLabel(action.blockType)} on this frame.`;
+    }
+  }
+
   if (action.action === "set_code_block") {
     const block = findBlockOnSlide(
       nextDocument,

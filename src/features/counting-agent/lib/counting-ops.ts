@@ -18,7 +18,9 @@ import type {
   HighlightRule,
   Mode,
   Order,
+  View,
 } from "@/features/counting-agent/lib/counting-types";
+import { GRID_BLOCK_SIZE } from "@/features/counting-agent/lib/counting-types";
 
 export type StripInput = {
   total: number;
@@ -29,6 +31,8 @@ export type StripInput = {
   cursor?: number | null;
   accumulator?: Accumulator;
   extracted?: boolean;
+  view?: View;
+  gridPage?: number;
 };
 
 /** A refusal that still renders: no change, one frame explaining why. */
@@ -50,6 +54,8 @@ export function setCount(strip: StripInput, total: number, order?: Order): Count
     division: null,
     cursor: null,
     extracted: false,
+    view: "strip",
+    gridPage: 0,
     accumulator: null,
   };
   return {
@@ -77,6 +83,8 @@ export function createFactorialStrip(strip: StripInput, n: number, order?: Order
     cursor: null,
     accumulator: null,
     extracted: false,
+    view: "strip",
+    gridPage: 0,
   };
   const values = valuesInStrip(next.total, next.order);
   const result = traverseValues(next, values, {
@@ -218,10 +226,15 @@ function traverseValues(
     }
 
     const isLast = index === values.length - 1;
+    // In grid view a traversal must drag the PAGE along with it too, the same
+    // way the strip's own window follows the cursor — otherwise the class
+    // watches the cursor vanish the moment it crosses a hundred boundary.
+    const gridPage =
+      strip.view === "grid" ? Math.floor((value - 1) / GRID_BLOCK_SIZE) : strip.gridPage;
     return frame(
       { ...strip, accumulator },
       noteFor(value, index),
-      { cursor: isLast ? null : value },
+      { cursor: isLast ? null : value, gridPage },
     );
   });
 
@@ -395,4 +408,53 @@ export function explainFactorialDivisibility(
     frames,
     summary: `${verdict} (${expression})`,
   };
+}
+
+// ── View: strip vs. grid ───────────────────────────────────────────────────
+
+function totalGridPages(total: number): number {
+  return Math.max(1, Math.ceil(total / GRID_BLOCK_SIZE));
+}
+
+export function setView(strip: StripInput, view: View): CountingOpResult {
+  if ((strip.view ?? "strip") === view) {
+    return refuse(strip, view === "grid" ? "Already showing the grid." : "Already showing the strip.");
+  }
+  const next: StripInput = { ...strip, view, gridPage: view === "grid" ? 0 : (strip.gridPage ?? 0) };
+  return {
+    frames: [
+      frame(
+        next,
+        view === "grid"
+          ? `Switching to rows and columns, ${GRID_BLOCK_SIZE} at a time.`
+          : "Switching back to the horizontal strip.",
+      ),
+    ],
+    summary: view === "grid" ? "Showing the numbers as a grid." : "Showing the numbers as a strip.",
+  };
+}
+
+export function goToHundredBlock(strip: StripInput, block: number): CountingOpResult {
+  const pages = totalGridPages(strip.total);
+  if (!Number.isInteger(block) || block < 1 || block > pages) {
+    return refuse(strip, `There ${pages === 1 ? "is" : "are"} only ${pages} block${pages === 1 ? "" : "s"} of ${GRID_BLOCK_SIZE} — say a number between 1 and ${pages}.`);
+  }
+  const gridPage = block - 1;
+  const next: StripInput = { ...strip, view: "grid", gridPage };
+  const start = gridPage * GRID_BLOCK_SIZE + 1;
+  const end = Math.min(strip.total, start + GRID_BLOCK_SIZE - 1);
+  return {
+    frames: [frame(next, `Block ${block} of ${pages}: ${start}–${end}.`)],
+    summary: `Showing ${start} to ${end}.`,
+  };
+}
+
+export function stepHundredBlock(strip: StripInput, delta: 1 | -1): CountingOpResult {
+  const pages = totalGridPages(strip.total);
+  const currentPage = strip.view === "grid" ? (strip.gridPage ?? 0) : 0;
+  const nextPage = currentPage + delta;
+  if (nextPage < 0 || nextPage >= pages) {
+    return refuse(strip, delta > 0 ? "Already on the last block." : "Already on the first block.");
+  }
+  return goToHundredBlock(strip, nextPage + 1);
 }

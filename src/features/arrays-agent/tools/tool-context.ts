@@ -9,6 +9,7 @@ import type {
   ArrayValue,
   Complexity,
 } from "@/features/arrays-agent/lib/array-types";
+import type { TextHighlightMark } from "@/features/canvas/types/canvas-types";
 
 /** Supporting material shown beside the strip, never inside it. */
 export type ArrayOverlay =
@@ -128,6 +129,13 @@ export type BlockControls = {
    * the current frame's blocks instead of starting empty.
    */
   addFrame: (options: { title?: string; copyCurrent?: boolean }) => string;
+  /** Mark specific words/phrases inside a text block with the highlight tool. */
+  highlight: (
+    target: "heading" | "subheading" | "body",
+    marks: TextHighlightMark[],
+  ) => string;
+  /** Remove every highlight mark from a text block. */
+  clearHighlights: (target: "heading" | "subheading" | "body") => string;
 };
 
 export type PresentationControls = {

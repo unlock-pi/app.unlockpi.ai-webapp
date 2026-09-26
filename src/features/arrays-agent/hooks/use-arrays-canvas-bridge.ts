@@ -430,6 +430,41 @@ export function useArraysCanvasBridge({
         return result.message;
       },
 
+      highlight(target, marks) {
+        const blockType = {
+          heading: "HeadingTextBlock",
+          subheading: "SubheadingTextBlock",
+          body: "BodyTextBlock",
+        }[target] as "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+
+        const document = getDocument();
+        const frameId = getActiveFrameId();
+        const result = applyCanvasAction(document, frameId, {
+          action: "set_block_highlights",
+          blockType,
+          highlights: marks,
+        });
+        applyDocument(result.document, result.activeSlideId);
+        return result.message;
+      },
+
+      clearHighlights(target) {
+        const blockType = {
+          heading: "HeadingTextBlock",
+          subheading: "SubheadingTextBlock",
+          body: "BodyTextBlock",
+        }[target] as "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+
+        const document = getDocument();
+        const frameId = getActiveFrameId();
+        const result = applyCanvasAction(document, frameId, {
+          action: "clear_block_highlights",
+          blockType,
+        });
+        applyDocument(result.document, result.activeSlideId);
+        return result.message;
+      },
+
       remove(target) {
         const blockType = {
           heading: "HeadingTextBlock",

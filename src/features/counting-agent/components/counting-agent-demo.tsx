@@ -63,6 +63,10 @@ const SPOKEN_EXAMPLES: Array<{
     said: "Does 7 to the power 30 divide 200 factorial?",
     calls: [["find_highest_power_dividing_factorial", { n: 200, p: 7, targetExponent: 30 }]],
   },
+  { said: "Show them in rows and columns.", calls: [["show_as_grid", {}]] },
+  { said: "Go to the next hundred.", calls: [["go_to_next_hundred", {}]] },
+  { said: "Go to the third hundred.", calls: [["go_to_hundred_block", { block: 3 }]] },
+  { said: "Go back to the strip.", calls: [["show_as_strip", {}]] },
   { said: "Divide by 5.", calls: [["divide_by", { divisor: 5 }]] },
   { said: "Divide by 7.", calls: [["divide_by", { divisor: 7 }]] },
   { said: "Clear the division.", calls: [["clear_division", {}]] },
@@ -143,7 +147,10 @@ export function CountingAgentDemo() {
       </div>
 
       <div className="rounded-2xl border border-border/60 bg-card/40 p-6">
-        <CountingAgentBoard view={agent.view} />
+        <CountingAgentBoard
+          view={agent.view}
+          onGridPageChange={(page) => void runExample([["go_to_hundred_block", { block: page + 1 }]])}
+        />
         {agent.caption ? (
           <p className="pt-2 text-center text-sm italic text-muted-foreground">
             &ldquo;{agent.caption}&rdquo;

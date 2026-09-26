@@ -7,6 +7,7 @@ import type {
   CountingAgentState,
   CountingOpResult,
 } from "@/features/counting-agent/lib/counting-types";
+import type { TextHighlightMark } from "@/features/canvas/types/canvas-types";
 
 /** Supporting material shown beside the strip, never inside it. */
 export type CountingOverlay =
@@ -45,6 +46,13 @@ export type BlockControls = {
   remove: (target: "heading" | "subheading" | "body" | "strip") => string;
   clearFrame: () => string;
   addFrame: (options: { title?: string; copyCurrent?: boolean }) => string;
+  /** Mark specific words/phrases inside a text block with the highlight tool. */
+  highlight: (
+    target: "heading" | "subheading" | "body",
+    marks: TextHighlightMark[],
+  ) => string;
+  /** Remove every highlight mark from a text block. */
+  clearHighlights: (target: "heading" | "subheading" | "body") => string;
 };
 
 export type PresentationControls = {

@@ -11,6 +11,10 @@
 
 export type Order = "ascending" | "descending";
 export type Mode = "list" | "factorial";
+/** "strip" is the horizontal pagination strip; "grid" is rows-and-columns, paginated in fixed blocks. */
+export type View = "strip" | "grid";
+/** Numbers per grid page — "the next hundred". */
+export const GRID_BLOCK_SIZE = 100;
 
 /** How an operation plays out. See `array-types.ts` for the rationale. */
 export type AnimationSpeed = "instant" | "normal" | "slow";
@@ -58,6 +62,10 @@ export type CountingFrame = {
    * landing, so the split itself is a motion, not a snap.
    */
   extracted?: boolean;
+  /** How the numbers are laid out. Defaults to "strip". */
+  view?: View;
+  /** Which block of GRID_BLOCK_SIZE numbers is showing, 0-indexed. Only meaningful when view is "grid". */
+  gridPage?: number;
   /** One short line explaining this beat. */
   note: string;
 };
@@ -92,6 +100,8 @@ export type CountingAgentState = {
     cursor: number | null;
     accumulator: Accumulator;
     extracted: boolean;
+    view: View;
+    gridPage: number;
   };
   teaching: {
     topic: string | null;
@@ -117,6 +127,8 @@ export function createInitialAgentState(
       cursor: null,
       accumulator: null,
       extracted: false,
+      view: "strip",
+      gridPage: 0,
     },
     teaching: { topic: null, speed: "normal" },
   };
@@ -138,6 +150,10 @@ export function describeAgentState(state: CountingAgentState): string {
     : "";
   const division = strip.division ? `; divided by ${strip.division.divisor}` : "";
   const result = strip.accumulator ? `; showing ${strip.accumulator.label} ${strip.accumulator.value}` : "";
+  const view =
+    strip.view === "grid"
+      ? `; shown as a grid, block ${strip.gridPage + 1} of ${Math.max(1, Math.ceil(strip.total / GRID_BLOCK_SIZE))}`
+      : "";
 
-  return `Strip 1..${strip.total} (${order}${mode})${highlights}${division}${result}`;
+  return `Strip 1..${strip.total} (${order}${mode})${highlights}${division}${result}${view}`;
 }

@@ -28,6 +28,7 @@ import Logo from "@/components/logo";
 import { ArrayStrip } from "@/components/data-structure/array-strip";
 import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
+import { NumberGrid } from "@/components/data-structure/number-grid";
 import { NumberPaginationStrip } from "@/components/data-structure/number-pagination-strip";
 import { QueueStrip } from "@/components/data-structure/queue-strip";
 import { StackStrip } from "@/components/data-structure/stack-strip";
@@ -43,6 +44,7 @@ import {
   sketchWidthOptions,
 } from "@/features/canvas/lib/sketch-sizes";
 import { readPendingSketch } from "@/features/canvas/lib/sketch-transfer";
+import { renderHighlightedText } from "@/features/canvas/lib/text-highlight";
 import type {
   ArrayBlockProps,
   BodyTextBlockProps,
@@ -389,35 +391,35 @@ function SlideBlock({
   );
 }
 
-function HeadingTextBlock({ text }: HeadingTextBlockProps) {
+function HeadingTextBlock({ text, wordHighlights }: HeadingTextBlockProps) {
   return (
     <h1
       className="max-w-4xl text-balance font-bold leading-[0.95] tracking-[-0.04em] text-foreground [font-size:var(--canvas-heading-size)]"
       style={headingFontStyle}
     >
-      {text}
+      {renderHighlightedText(text, wordHighlights)}
     </h1>
   );
 }
 
-function SubheadingTextBlock({ text }: SubheadingTextBlockProps) {
+function SubheadingTextBlock({ text, wordHighlights }: SubheadingTextBlockProps) {
   return (
     <h2
       className="max-w-4xl text-balance leading-tight tracking-[-0.03em] text-foreground [font-size:var(--canvas-subheading-size)]"
       style={subheadingFontStyle}
     >
-      {text}
+      {renderHighlightedText(text, wordHighlights)}
     </h2>
   );
 }
 
-function BodyTextBlock({ text }: BodyTextBlockProps) {
+function BodyTextBlock({ text, wordHighlights }: BodyTextBlockProps) {
   return (
     <p
       className="max-w-3xl text-pretty text-muted-foreground [font-size:var(--canvas-body-size)] [line-height:var(--canvas-body-leading)]"
       style={bodyFontStyle}
     >
-      {text}
+      {renderHighlightedText(text, wordHighlights)}
     </p>
   );
 }
@@ -518,24 +520,38 @@ function CountingStripBlock({
 
   if (agent) {
     const view = agent.view;
+    const liveHighlights = view.highlights.map((rule) => ({
+      id: rule.id,
+      label: rule.label,
+      predicate: (n: number) => n % rule.of === 0,
+    }));
     return blockShell(
       "canvas-frame-block--compact canvas-array-block number-strip-block",
       <div className="grid w-full gap-4">
-        <NumberPaginationStrip
-          className="max-w-none"
-          total={view.total}
-          order={view.order}
-          mode={view.mode}
-          highlights={view.highlights.map((rule) => ({
-            id: rule.id,
-            label: rule.label,
-            predicate: (n: number) => n % rule.of === 0,
-          }))}
-          division={view.division}
-          cursor={view.cursor ?? null}
-          accumulator={view.accumulator ?? null}
-          extracted={view.extracted ?? false}
-        />
+        {view.view === "grid" ? (
+          <NumberGrid
+            className="max-w-none"
+            total={view.total}
+            page={view.gridPage ?? 0}
+            highlights={liveHighlights}
+            division={view.division}
+            cursor={view.cursor ?? null}
+            accumulator={view.accumulator ?? null}
+            extracted={view.extracted ?? false}
+          />
+        ) : (
+          <NumberPaginationStrip
+            className="max-w-none"
+            total={view.total}
+            order={view.order}
+            mode={view.mode}
+            highlights={liveHighlights}
+            division={view.division}
+            cursor={view.cursor ?? null}
+            accumulator={view.accumulator ?? null}
+            extracted={view.extracted ?? false}
+          />
+        )}
         {agent.isAnimating && view.note ? (
           <p className="canvas-array-step text-muted-foreground">{view.note}</p>
         ) : null}

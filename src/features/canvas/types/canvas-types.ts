@@ -47,11 +47,61 @@ export type SlideBlockProps = {
   content: Slot;
 };
 
+/**
+ * The "multiple ways to highlight" a teacher can ask for. `"mark"` is the
+ * plain web convention — a solid background behind the text plus a matching
+ * font color, like a `<mark>` tag or a highlighter pen in a PDF reader. The
+ * rest are rough-notation's hand-drawn marks, which paint an SVG stroke
+ * around the text instead of recoloring it.
+ */
+export type TextHighlightStyle =
+  | "mark"
+  | "highlight"
+  | "underline"
+  | "box"
+  | "circle"
+  | "strike-through"
+  | "crossed-off"
+  | "bracket";
+
+/**
+ * What KIND of word a mark is calling out. Each has a default style/color
+ * (see `src/features/canvas/lib/text-highlight.ts`) so "highlight the
+ * pronouns" always looks the same everywhere, without the model having to
+ * invent a style and color every time.
+ */
+export type TextHighlightCategory = "pronoun" | "transition" | "structure" | "custom";
+
+/**
+ * One word or phrase to mark inside a text block's own string, found by exact
+ * substring match rather than a stored character range — the range would go
+ * stale the moment the text is edited, while the substring keeps matching.
+ */
+export type TextHighlightMark = {
+  id: string;
+  /** Exact word or phrase to find in the block's text, case-insensitively. */
+  text: string;
+  /** Which occurrence of `text` to mark when it appears more than once. Defaults to the first (0). */
+  occurrence?: number;
+  category: TextHighlightCategory;
+  /** Overrides the category's default annotation style. */
+  style?: TextHighlightStyle;
+  /** Overrides the category's default color — the stroke color for a rough-notation style, or the background for "mark". */
+  color?: string;
+  /** Overrides the category's default font color. Only meaningful for the "mark" style. */
+  textColor?: string;
+  /** Reveal order — marks animate in one after another, lowest first. Defaults to array position. */
+  order?: number;
+  label?: string;
+};
+
 export type HeadingTextBlockProps = {
   // The heading text is the main title or heading for a section of content. It should be concise and descriptive, providing a clear indication of the topic or subject matter being addressed in the following content.
   // TODO: Consider adding support for different heading levels (e.g., h1, h2, h3) in the future to allow for more flexible content structuring. For now, we only have a single heading level.
   // FIX: The heading text is currently limited to a single string in the HeadingTextBlockProps. We should consider allowing for more complex heading structures (e.g., multiple lines, formatting) in the future.
   text: string;
+  /** Words/phrases marked up on this block by the highlight tool. */
+  wordHighlights?: TextHighlightMark[];
 };
 
 export type SubheadingTextBlockProps = {
@@ -59,10 +109,14 @@ export type SubheadingTextBlockProps = {
   // TODO: Consider adding support for different subheading levels (e.g., h4, h5) in the future to allow for more flexible content structuring. For now, we only have a single subheading level.
   // FIX: The subheading text is currently limited to a single string in the SubheadingTextBlockProps. We should consider allowing for more complex subheading structures (e.g., multiple lines, formatting) in the future.
   text: string;
+  /** Words/phrases marked up on this block by the highlight tool. */
+  wordHighlights?: TextHighlightMark[];
 };
 
 export type BodyTextBlockProps = {
   text: string;
+  /** Words/phrases marked up on this block by the highlight tool. */
+  wordHighlights?: TextHighlightMark[];
 };
 
 export type ArrayBlockProps = {
@@ -266,6 +320,18 @@ export type CanvasAiAction =
     code: string;
     language?: CodeLanguage;
     explanation?: string;
+  }
+  | {
+    /** Replace every highlight mark on an existing text block. */
+    action: "set_block_highlights";
+    componentId?: string;
+    blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+    highlights: TextHighlightMark[];
+  }
+  | {
+    action: "clear_block_highlights";
+    componentId?: string;
+    blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
   }
   | { action: "remove_block"; componentId?: string; blockType?: string }
   /** Remove every block from the active frame, leaving the frame itself. */

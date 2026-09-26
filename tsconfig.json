@@ -36,7 +36,7 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "src/app/(public)/highlighting-demo"  ],
   "exclude": [
     "node_modules"
   ]

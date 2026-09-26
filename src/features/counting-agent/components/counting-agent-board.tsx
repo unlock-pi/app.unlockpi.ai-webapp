@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 
+import { NumberGrid } from "@/components/data-structure/number-grid";
 import {
   NumberPaginationStrip,
   type HighlightRule as StripHighlightRule,
@@ -13,15 +14,19 @@ import { cn } from "@/lib/utils";
 type Props = {
   view: CountingFrame;
   className?: string;
+  /** Called with the 0-indexed page when the grid's own pager arrows are used directly (not via voice). */
+  onGridPageChange?: (page: number) => void;
 };
 
 /**
  * Renders one strip beat. Mirrors `arrays-agent-board.tsx`: everything it
  * needs is in `view`, so the same component works for a voice command, a
  * demo button, or a replay. `highlights` predicates are derived here from
- * the serializable `{ of }` rules the agent state carries.
+ * the serializable `{ of }` rules the agent state carries. Switches between
+ * the horizontal strip and the rows-and-columns grid purely on `view.view` —
+ * the two visual components stay independent of each other.
  */
-export function CountingAgentBoard({ view, className }: Props) {
+export function CountingAgentBoard({ view, className, onGridPageChange }: Props) {
   const highlights: StripHighlightRule[] = useMemo(
     () =>
       view.highlights.map((rule) => ({
@@ -39,6 +44,18 @@ export function CountingAgentBoard({ view, className }: Props) {
           <p className="text-sm text-muted-foreground">
             No strip on the board. Say &ldquo;show numbers from 1 to 100&rdquo; to start.
           </p>
+        ) : view.view === "grid" ? (
+          <NumberGrid
+            total={view.total}
+            page={view.gridPage ?? 0}
+            highlights={highlights}
+            division={view.division}
+            cursor={view.cursor ?? null}
+            accumulator={view.accumulator ?? null}
+            extracted={view.extracted ?? false}
+            onPageChange={onGridPageChange}
+            className="max-w-none"
+          />
         ) : (
           <NumberPaginationStrip
             total={view.total}
