@@ -115,11 +115,20 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
 
   const vector = normalize(to.x - from.x, to.y - from.y);
   const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-  if (reciprocal) {
+  // Route a returning edge below the forward path. This also keeps a
+  // long back-edge from cutting through states between its endpoints.
+  const backward = to.x < from.x - 1;
+  const sameColumnReciprocal = reciprocal && Math.abs(to.x - from.x) <= 1;
+  if (backward || sameColumnReciprocal) {
     const normal = { x: -vector.y, y: vector.x };
+    const side = backward ? (normal.y >= 0 ? 1 : -1) : 1;
+    const span = Math.hypot(to.x - from.x, to.y - from.y);
+    const bend = backward
+      ? Math.min(250, Math.max(115, span * 0.58))
+      : Math.min(145, Math.max(90, span * 0.45));
     const control = {
-      x: middle.x + normal.x * 58,
-      y: middle.y + normal.y * 58,
+      x: middle.x + normal.x * side * bend,
+      y: middle.y + normal.y * side * bend,
     };
     const startDirection = normalize(control.x - from.x, control.y - from.y);
     const endDirection = normalize(to.x - control.x, to.y - control.y);
@@ -140,8 +149,8 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
       pipePath: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${pipeEnd.x} ${pipeEnd.y}`,
       tip: arrowTip(end, endDirection),
       labelAt: {
-        x: middle.x + normal.x * 32,
-        y: middle.y + normal.y * 32 - 13,
+        x: (start.x + 2 * control.x + end.x) / 4,
+        y: (start.y + 2 * control.y + end.y) / 4 - 14,
       },
     };
   }
@@ -166,7 +175,7 @@ function edgeGeometry(from: PlacedState, to: PlacedState, reciprocal: boolean) {
   };
 }
 
-function buildDiagram(automaton: Automaton, compactSpacing = false): Diagram {
+export function buildDiagram(automaton: Automaton, compactSpacing = false): Diagram {
   const levelGap = compactSpacing ? 170 : LEVEL_GAP;
   const levels = stateLevels(automaton);
   const rows = new Map<number, AutomatonState[]>();
@@ -243,7 +252,12 @@ function edgeStatus(
   execution: AutomatonExecution,
   automaton: Automaton,
 ) {
-  if (edge.transitionIds.some((id) => execution.activeTransitions.includes(id)))
+  // Keep completed NFA branches muted. `activeTransitions` records the last
+  // mathematical move, but is visually active only while its signal travels.
+  if (
+    execution.transitionPhase === "traveling" &&
+    edge.transitionIds.some((id) => execution.activeTransitions.includes(id))
+  )
     return "active";
   const transitions = automaton.transitions.filter((transition) =>
     edge.transitionIds.includes(transition.id),
@@ -301,7 +315,11 @@ function TransitionDiagramView({
   const token = construction?.timeline.token;
   const action = construction?.timeline.steps[construction.timeline.currentStep]?.action;
   const constructionRunning = construction?.timeline.mode === "building";
-  const constructionDuration = reduceMotion ? 0 : (construction?.timeline.steps[construction.timeline.currentStep]?.animationMs ?? ((action?.type === "animate_transition" || action?.type === "execute_step") ? 2_000 : 700)) / 1_000;
+  const defaultConstructionMs = action?.type === "create_transition" ? 1_150
+    : action?.type === "create_state" ? 850
+    : action?.type === "animate_transition" || action?.type === "execute_step" ? 2_000
+    : 650;
+  const constructionDuration = reduceMotion ? 0 : (construction?.timeline.steps[construction.timeline.currentStep]?.animationMs ?? defaultConstructionMs) / 1_000;
   const completedEdges = useRef<{ token: string | null; edges: Set<string> }>({ token: null, edges: new Set() });
   const acknowledgeEdge = (edgeId: string) => {
     if (action?.type !== "execute_step") { acknowledge(); return; }
@@ -423,14 +441,13 @@ function TransitionDiagramView({
           const pulseKey = `${execution.executionId}:${execution.stepIndex}:${edge.id}`;
           return (
             <motion.g key={targeted ? edge.id + ":" + token : edge.id}
-              initial={targeted ? { opacity: 0.4 } : false} animate={{ opacity: 1 }}
-              transition={{ duration: constructionDuration }}
+              initial={targeted ? { opacity: action?.type === "create_transition" ? 1 : 0.4 } : false} animate={{ opacity: 1 }}
+              transition={{ duration: constructionDuration, ease: [0.22, 1, 0.36, 1] }}
               onAnimationComplete={targeted && action?.type === "highlight_transition" ? acknowledge : undefined}>
               <motion.path
                 initial={targeted && action?.type === "create_transition" ? { pathLength: 0 } : false}
                 animate={{ pathLength: 1 }}
-                onAnimationComplete={targeted && action?.type === "create_transition" ? acknowledge : undefined}
-                transition={{ duration: constructionDuration }}
+                transition={{ duration: constructionDuration, ease: [0.45, 0, 0.25, 1] }}
                 d={edge.path}
                 fill="none"
                 stroke={restingColor}
@@ -481,13 +498,25 @@ function TransitionDiagramView({
                   />
                 </g>
               ) : null}
-              <polygon
+              <motion.polygon
                 points={edge.tip}
+                initial={targeted && action?.type === "create_transition" ? { opacity: 0 } : false}
+                animate={{ opacity: 1 }}
+                transition={targeted && action?.type === "create_transition"
+                  ? { duration: reduceMotion ? 0 : 0.15, delay: reduceMotion ? 0 : Math.max(0, constructionDuration - 0.15) }
+                  : { duration: 0 }}
+                onAnimationComplete={targeted && action?.type === "create_transition" ? acknowledge : undefined}
                 fill={restingColor}
                 className="transition-[stroke,fill,stroke-width] duration-[260ms] ease-out motion-reduce:transition-none"
               />
               {shownLabel ? (
-                <g transform={`translate(${edge.labelAt.x} ${edge.labelAt.y})`}>
+                <motion.g
+                  initial={targeted && action?.type === "create_transition" ? { opacity: 0 } : false}
+                  animate={{ opacity: 1 }}
+                  transition={targeted && action?.type === "create_transition"
+                    ? { duration: reduceMotion ? 0 : 0.15, delay: reduceMotion ? 0 : Math.max(0, constructionDuration - 0.15) }
+                    : { duration: 0 }}
+                  transform={`translate(${edge.labelAt.x} ${edge.labelAt.y})`}>
                   <rect
                     x={-Math.max(17, edge.label.length * 4.1 + 8)}
                     y={-13}
@@ -507,7 +536,7 @@ function TransitionDiagramView({
                   >
                     {shownLabel}
                   </text>
-                </g>
+                </motion.g>
               ) : null}
             </motion.g>
           );
@@ -539,18 +568,25 @@ function TransitionDiagramView({
                 : "var(--foreground)";
           return (
             <motion.g key={targeted ? state.id + ":" + token : state.id}
-              initial={targeted ? { opacity: action?.type === "create_state" ? 0 : 0.65 } : false} animate={{ opacity: 1 }}
-              transition={{ duration: constructionDuration }}
+              initial={targeted ? action?.type === "create_state" ? { opacity: 0, scale: 0.86 } : { opacity: 0.65 } : false}
+              animate={{ opacity: 1, scale: 1 }}
+              style={{ transformOrigin: `${state.x}px ${state.y}px` }}
+              transition={{ duration: constructionDuration, ease: [0.22, 1, 0.36, 1] }}
               onAnimationComplete={targeted && (action?.type === "create_state" || action?.type === "highlight_state") ? acknowledge : undefined}>
               {(construction ? construction.initialState : automaton.startState) === state.id ? (
                 <g fill="none" stroke="var(--foreground)" strokeWidth={1.8}>
                   <motion.path
                     initial={targeted && action?.type === "set_initial_state" ? { pathLength: 0 } : false}
-                    animate={{ pathLength: 1 }} transition={{ duration: constructionDuration }}
-                    onAnimationComplete={targeted && action?.type === "set_initial_state" ? acknowledge : undefined}
+                    animate={{ pathLength: 1 }} transition={{ duration: constructionDuration, ease: [0.45, 0, 0.25, 1] }}
                     d={`M ${state.x - state.radius - 82} ${state.y} L ${state.x - state.radius - 8} ${state.y}`}
                   />
-                  <path
+                  <motion.path
+                    initial={targeted && action?.type === "set_initial_state" ? { opacity: 0 } : false}
+                    animate={{ opacity: 1 }}
+                    transition={targeted && action?.type === "set_initial_state"
+                      ? { duration: reduceMotion ? 0 : 0.18, delay: reduceMotion ? 0 : Math.max(0, constructionDuration - 0.18) }
+                      : { duration: 0 }}
+                    onAnimationComplete={targeted && action?.type === "set_initial_state" ? acknowledge : undefined}
                     d={`M ${state.x - state.radius - 17} ${state.y - 5} L ${state.x - state.radius - 8} ${state.y} L ${state.x - state.radius - 17} ${state.y + 5}`}
                   />
                 </g>
@@ -567,7 +603,7 @@ function TransitionDiagramView({
               {(construction ? construction.acceptingStates.includes(state.id) : state.accepting) ? (
                 <motion.circle
                   initial={targeted && action?.type === "set_accepting_state" ? { pathLength: 0 } : false}
-                  animate={{ pathLength: 1 }} transition={{ duration: constructionDuration }}
+                  animate={{ pathLength: 1 }} transition={{ duration: constructionDuration, ease: [0.45, 0, 0.25, 1] }}
                   onAnimationComplete={targeted && action?.type === "set_accepting_state" ? acknowledge : undefined}
                   cx={state.x}
                   cy={state.y}

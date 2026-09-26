@@ -168,6 +168,10 @@ function RegularExpressionBlockComponent(props: RenderProps) {
     view?.generatedAutomaton ?? view?.generatedDfa ?? view?.sourceAutomaton ?? null;
   const graphAutomaton = visibleAutomaton?.type === "nfa" ? visibleAutomaton : null;
   const generatedDfa = visibleAutomaton?.type === "dfa" ? visibleAutomaton : null;
+  const pendingConstruction = agent?.automatonConstruction;
+  const graphConstruction = pendingConstruction?.automatonId === visibleAutomaton?.id
+    ? (pendingConstruction ?? null)
+    : null;
   const fallbackExecution = useMemo(
     () =>
       graphAutomaton
@@ -323,6 +327,8 @@ function RegularExpressionBlockComponent(props: RenderProps) {
               execution={graphExecution}
               flowProgress={graphFlowProgress}
               flowDurationMs={3_000}
+              construction={graphConstruction}
+              onConstructionAnimationComplete={agent?.onConstructionAnimationComplete}
               viewportClassName="mt-2 h-[18rem] sm:h-[20rem] xl:h-auto xl:min-h-[18rem] xl:flex-1"
             />
         </section>
@@ -339,6 +345,8 @@ function RegularExpressionBlockComponent(props: RenderProps) {
               execution={dfaExecution}
               flowProgress={dfaFlowProgress}
               flowDurationMs={3_000}
+              construction={graphConstruction}
+              onConstructionAnimationComplete={agent?.onConstructionAnimationComplete}
               viewportClassName="mt-2 h-[18rem] sm:h-[20rem] xl:h-auto xl:min-h-[18rem] xl:flex-1"
             />
           </section>
@@ -376,6 +384,7 @@ function RegularExpressionBlockComponent(props: RenderProps) {
               (Boolean(graphAutomaton) && isSourceTransitioning) ||
               (Boolean(generatedDfa) && isDfaTransitioning) ||
               !view?.generatedAutomaton ||
+              Boolean(graphConstruction) ||
               constructionComplete ||
               conversionComplete ||
               (!agent && !canStep)

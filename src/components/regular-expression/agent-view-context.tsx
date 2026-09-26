@@ -6,6 +6,7 @@ import type {
   RegularExpressionDisplayMode,
   RegularExpressionViewState,
 } from "@/components/regular-expression/types";
+import type { AutomataConstructionView } from "@/features/automata-agent/construction/automata-construction";
 
 type RegularExpressionAgentViewValue = {
   blockId: string | null;
@@ -14,6 +15,8 @@ type RegularExpressionAgentViewValue = {
   onReset?: () => void;
   onPlaybackComplete?: (executionId: string, stepCount: number) => void;
   onDisplayModeChange?: (mode: RegularExpressionDisplayMode) => void;
+  automatonConstruction?: AutomataConstructionView | null;
+  onConstructionAnimationComplete?: (token: string) => void;
 };
 
 const EMPTY: RegularExpressionAgentViewValue = {
@@ -35,6 +38,8 @@ export function RegularExpressionAgentViewProvider({
   onReset,
   onPlaybackComplete,
   onDisplayModeChange,
+  automatonConstruction,
+  onConstructionAnimationComplete,
   children,
 }: RegularExpressionAgentViewValue & { children: ReactNode }) {
   const value = useMemo(
@@ -45,8 +50,10 @@ export function RegularExpressionAgentViewProvider({
       onReset,
       onPlaybackComplete,
       onDisplayModeChange,
+      automatonConstruction,
+      onConstructionAnimationComplete,
     }),
-    [blockId, onDisplayModeChange, onPlaybackComplete, onReset, onStep, state],
+    [automatonConstruction, blockId, onConstructionAnimationComplete, onDisplayModeChange, onPlaybackComplete, onReset, onStep, state],
   );
 
   return (

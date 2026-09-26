@@ -12,6 +12,8 @@ import { RegularExpressionAgentViewProvider } from "@/components/regular-express
 import { createAutomatonExecution } from "@/components/automata/model";
 import { TransitionDiagram } from "@/components/automata/transition-diagram";
 import { convertNfaToDfa } from "@/features/automata-agent/lib/subset-construction";
+import { constructionView } from "@/features/automata-agent/construction/automata-construction";
+import { timelineFromAutomaton } from "@/features/automata-agent/construction/trace-adapters";
 import { parseRegularExpression } from "@/features/regular-expression/parser";
 import { constructEpsilonNFA } from "@/features/regular-expression/thompson";
 
@@ -69,6 +71,30 @@ describe("regular expression single-frame layout", () => {
     expect(html.includes('aria-label="Generated DFA"')).toBe(false);
   });
 
+  test("uses the shared construction view to reveal only the first RE automaton state", () => {
+    const parsed = parseRegularExpression(props.expression);
+    if (!parsed.ok) throw new Error("Expected valid expression");
+    const construction = constructEpsilonNFA(parsed.value.root);
+    if (!construction.success) throw new Error("Expected ε-NFA");
+    const automaton = construction.value.automaton;
+    const steps = timelineFromAutomaton(automaton);
+    const firstFrame = constructionView(automaton.id, {
+      mode: "building", steps, currentStep: 0, token: "first", animation: "running", narration: "complete",
+    });
+    const html = renderToStaticMarkup(
+      <RegularExpressionAgentViewProvider blockId={props.id} state={{
+        generatedAutomaton: automaton,
+        generatedAutomatonExecution: createAutomatonExecution(automaton),
+      }} automatonConstruction={firstFrame}>
+        <RegularExpressionBlock {...props} />
+      </RegularExpressionAgentViewProvider>,
+    );
+    const diagram = html.split('aria-label="NFA state diagram"')[1]?.split("</svg>")[0] ?? "";
+    expect(diagram.includes("<circle")).toBe(true);
+    expect((diagram.match(/<circle/g) ?? []).length).toBe(1);
+    expect(diagram.includes("<polygon")).toBe(false);
+  });
+
   test("shows only the selected DFA while retaining its source NFA internally", () => {
     const parsed = parseRegularExpression(props.expression);
     if (!parsed.ok) throw new Error("Expected valid expression");
@@ -96,6 +122,34 @@ describe("regular expression single-frame layout", () => {
     expect(html.includes('aria-label="Generated automaton"')).toBe(false);
     expect(html.includes('aria-label="Generated DFA"')).toBe(true);
     expect(html.includes("xl:grid-cols-[")).toBe(true);
+  });
+
+  test("reveals only the DFA start state during direct conversion playback", () => {
+    const parsed = parseRegularExpression(props.expression);
+    if (!parsed.ok) throw new Error("Expected valid expression");
+    const construction = constructEpsilonNFA(parsed.value.root);
+    if (!construction.success) throw new Error("Expected ε-NFA");
+    const converted = convertNfaToDfa(construction.value.automaton);
+    if (!converted.success) throw new Error("Expected DFA");
+    const dfa = converted.value.automaton;
+    const steps = timelineFromAutomaton(dfa);
+    const firstFrame = constructionView(dfa.id, {
+      mode: "building", steps, currentStep: 0, token: "first", animation: "running", narration: "complete",
+    });
+    const html = renderToStaticMarkup(
+      <RegularExpressionAgentViewProvider blockId={props.id} state={{
+        generatedAutomaton: dfa,
+        generatedAutomatonExecution: createAutomatonExecution(dfa),
+        sourceAutomaton: construction.value.automaton,
+      }} automatonConstruction={firstFrame}>
+        <RegularExpressionBlock {...props} />
+      </RegularExpressionAgentViewProvider>,
+    );
+    const diagram = html.split('aria-label="DFA state diagram"')[1]?.split("</svg>")[0] ?? "";
+    expect(html.includes('aria-label="Generated DFA"')).toBe(true);
+    expect(html.includes('aria-label="Generated automaton"')).toBe(false);
+    expect((diagram.match(/<circle/g) ?? []).length).toBe(1);
+    expect(diagram.includes("<polygon")).toBe(false);
   });
 
   test("shows only the ε-NFA when Thompson playback is selected after DFA conversion", () => {

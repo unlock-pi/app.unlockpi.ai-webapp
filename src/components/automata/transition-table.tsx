@@ -73,6 +73,7 @@ export function TransitionTable({
                   ),
                 ];
                 const isTraversed = matching.some((transition) =>
+                  execution.transitionPhase === "traveling" &&
                   execution.activeTransitions.includes(transition.id),
                 );
                 return (
