@@ -14,7 +14,8 @@ import {
 import { LinePath } from "@visx/shape";
 import { useEffect, useMemo, useState } from "react";
 
-import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArrayView } from "@/components/data-structure/array";
+import type { ArrayViewProps } from "@/components/data-structure/array";
 import {
   type ArrayRealtimeUiAction,
   useArrayRealtimeTutor,
@@ -28,22 +29,32 @@ import { cn } from "@/lib/utils";
 
 type ArrayValue = string | number;
 
+/**
+ * The array-display fields are PICKED from `ArrayViewProps`, not hand-copied
+ * — a lesson frame is "the props for one ArrayView, plus a caption and a
+ * navigation kind", so it reuses the component's own contract instead of a
+ * parallel one that silently drifts every time ArrayView gains a prop.
+ */
 type VisualArrayFrame = {
   kind: "visual";
   caption: React.ReactNode;
   visual: "tree" | "integer-array" | "char-array" | "string-array";
-  data?: ArrayValue[];
-  dimElements?: boolean;
-  dimIndices?: boolean;
-  highlightElements?: boolean;
-  highlightIndices?: boolean;
-  activeIndex?: number;
-  disabledElements?: number[];
-  arrayName?: string;
-  nameHint?: string;
-  accessExpression?: string;
-  showIndex?: boolean;
-};
+} & Partial<
+  Pick<
+    ArrayViewProps,
+    | "data"
+    | "name"
+    | "nameHint"
+    | "accessExpression"
+    | "showIndex"
+    | "activeIndex"
+    | "disabledElements"
+    | "dimElements"
+    | "dimIndices"
+    | "highlightElements"
+    | "highlightIndices"
+  >
+>;
 
 type CheckpointArrayFrame = {
   kind: "checkpoint";
@@ -59,7 +70,7 @@ type RuntimeArrayOverride = {
   caption?: string;
   highlightElements?: boolean;
   highlightIndices?: boolean;
-  arrayName?: string;
+  name?: string;
   nameHint?: string;
   showIndex?: boolean;
 };
@@ -79,14 +90,14 @@ const introFrames: ArrayFrame[] = [
     kind: "visual",
     visual: "integer-array",
     caption: "An array is a row of values you reach by index.",
-    arrayName: "A",
+    name: "A",
     nameHint: "(values)",
   },
   {
     kind: "visual",
     visual: "integer-array",
     caption: "The items in the row are called elements.",
-    arrayName: "A",
+    name: "A",
     nameHint: "(elements)",
     highlightElements: true,
   },
@@ -94,7 +105,7 @@ const introFrames: ArrayFrame[] = [
     kind: "visual",
     visual: "integer-array",
     caption: "Most languages start indexing at 0.",
-    arrayName: "A",
+    name: "A",
     nameHint: "(indices)",
     highlightIndices: true,
     dimElements: true,
@@ -103,7 +114,7 @@ const introFrames: ArrayFrame[] = [
     kind: "visual",
     visual: "integer-array",
     caption: "So `A[0]` means the first slot in the row.",
-    arrayName: "A",
+    name: "A",
     accessExpression: "A[0]",
     activeIndex: 0,
     disabledElements: [1, 2, 3, 4, 5, 6],
@@ -122,7 +133,7 @@ const introFrames: ArrayFrame[] = [
     kind: "visual",
     visual: "string-array",
     caption: "A shared name like `A` refers to the whole array.",
-    arrayName: "A",
+    name: "A",
     nameHint: "(name)",
   },
 ];
@@ -256,9 +267,9 @@ function VisualSlide({ frame }: { frame: VisualArrayFrame }) {
       {frame.visual === "tree" ? (
         <DataStructureTree dimElements={frame.dimElements} />
       ) : (
-        <ArrayStrip
+        <ArrayView
           data={values}
-          name={frame.arrayName}
+          name={frame.name}
           nameHint={frame.nameHint}
           accessExpression={frame.accessExpression}
           showIndex={frame.showIndex ?? true}
@@ -362,7 +373,7 @@ function getNextLessonScreenState({
         frameIndex,
         runtimeOverride: {
           ...runtimeOverride,
-          arrayName: action.array_name?.trim() || "A",
+          name: action.array_name?.trim() || "A",
           caption:
             action.caption ??
             `This array is now named ${action.array_name?.trim() || "A"}.`,
@@ -422,7 +433,7 @@ function applyRuntimeOverride(
     visual: frame.visual === "tree" ? "string-array" : frame.visual,
     data,
     caption: override.caption ?? frame.caption,
-    arrayName: override.arrayName ?? frame.arrayName,
+    name: override.name ?? frame.name,
     nameHint: override.nameHint ?? frame.nameHint,
     showIndex: override.showIndex ?? frame.showIndex,
     activeIndex,
@@ -473,7 +484,7 @@ function buildScreenContext({
     `Lesson: ${lesson.title}`,
     `Frame: ${frameIndex + 1} of ${frameCount}`,
     `Screen type: ${frame.visual}`,
-    `Array name: ${frame.arrayName ?? "none"}`,
+    `Array name: ${frame.name ?? "none"}`,
     `Indexes visible: ${frame.showIndex !== false}`,
     `Visible values: [${values.join(", ")}]`,
     `Visible indices: ${values.map((_value, index) => index).join(", ")}`,
@@ -687,7 +698,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           kind: "visual",
           visual: "string-array",
           caption: "Know the index, jump straight to the slot.",
-          arrayName: "A",
+          name: "A",
           nameHint: "(access by index)",
           accessExpression: "A[2]",
           activeIndex: lesson.activeIndex,
@@ -697,7 +708,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           kind: "visual",
           visual: "string-array",
           caption: "Index 2 means the third position in the row.",
-          arrayName: "A",
+          name: "A",
           highlightIndices: true,
           dimElements: true,
         },
@@ -710,7 +721,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "string-array",
           caption: "Updating changes the value, not the slot.",
           data: ["A", "B", "C", "D"],
-          arrayName: "A",
+          name: "A",
           activeIndex: 2,
         },
         {
@@ -718,7 +729,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "string-array",
           caption: "After the update, the row still has the same shape.",
           data: ["A", "B", "Z", "D"],
-          arrayName: "A",
+          name: "A",
           activeIndex: 2,
           highlightElements: true,
         },
@@ -730,7 +741,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "integer-array",
           caption: "Insert here and the slots after it need room.",
           data: [8, 13, 21, 34],
-          arrayName: "A",
+          name: "A",
           activeIndex: 1,
         },
         {
@@ -738,7 +749,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "integer-array",
           caption: "That shift is why middle inserts cost more work.",
           data: [8, 13, 21, 34],
-          arrayName: "A",
+          name: "A",
           activeIndex: 1,
           highlightElements: true,
           dimIndices: true,
@@ -752,7 +763,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "integer-array",
           caption: "Traversal moves one slot at a time.",
           data: [2, 4, 6, 8, 10],
-          arrayName: "A",
+          name: "A",
           activeIndex: 0,
         },
         {
@@ -760,7 +771,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "integer-array",
           caption: "You can sweep left to right and inspect every value.",
           data: [2, 4, 6, 8, 10],
-          arrayName: "A",
+          name: "A",
           activeIndex: 2,
           highlightElements: true,
         },
@@ -769,7 +780,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "integer-array",
           caption: "By the end, every slot has been visited.",
           data: [2, 4, 6, 8, 10],
-          arrayName: "A",
+          name: "A",
           activeIndex: 4,
         },
       ];
@@ -780,7 +791,7 @@ function buildFramesFromLesson(lesson: ArrayLessonDefinition): ArrayFrame[] {
           visual: "string-array",
           caption: lesson.overview,
           data: lesson.cells.map((cell) => cell.value),
-          arrayName: "A",
+          name: "A",
           activeIndex: lesson.activeIndex,
           disabledElements: lesson.cells.reduce<number[]>((acc, _cell, index) => {
             if (index !== lesson.activeIndex) {

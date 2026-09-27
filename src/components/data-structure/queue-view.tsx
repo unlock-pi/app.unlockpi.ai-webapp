@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 type QueueValue = string | number;
 
-export type QueueStripProps = {
+export type QueueViewProps = {
   data: QueueValue[];
   name?: string;
   activeIndex?: number;
@@ -18,7 +18,7 @@ export type QueueStripProps = {
 
 const EMPTY_VISITED_INDICES: number[] = [];
 
-// Same springs ArrayStrip and StackStrip use, so all four visualisers settle
+// Same springs ArrayView and StackView use, so all four visualisers settle
 // with identical weight.
 const CELL_SPRING = {
   type: "spring" as const,
@@ -33,7 +33,7 @@ const VALUE_SPRING = {
   mass: 0.5,
 };
 
-export function QueueStrip({
+export function QueueView({
   data,
   name,
   activeIndex,
@@ -41,7 +41,7 @@ export function QueueStrip({
   traversalTarget,
   showLabels = true,
   className,
-}: QueueStripProps) {
+}: QueueViewProps) {
   const backIndex = data.length - 1;
   const isTraversing = traversalTarget !== undefined;
 

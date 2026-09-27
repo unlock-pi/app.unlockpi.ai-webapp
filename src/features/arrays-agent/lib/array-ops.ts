@@ -1,3 +1,22 @@
+/**
+ * The array's structural operations: create, access, traverse, insert,
+ * delete. Every export is a pure function — `(currentValues, ...args) =>
+ * ArrayOpResult` — that never mutates its input and never touches React, the
+ * DOM, or the network. `ArrayOpResult.frames` is the whole animation as a
+ * list of snapshots; nothing downstream needs to know HOW an operation works,
+ * only that it hands back frames to play.
+ *
+ * This file does not own every array operation — it's split by category, not
+ * dumped into one file:
+ *   - array-search.ts    linear/binary search, find-all
+ *   - array-sorting.ts   the five sort algorithms
+ *   - array-analysis.ts  frequency, duplicates, min/max, stats
+ *   - array-combine.ts   concatenate, element-wise combine, merge-sorted
+ *   - array-code.ts      rendering an array as a source-code declaration
+ * All six share the same `frame()`/`ArrayOpResult` contract from
+ * array-frames.ts and array-types.ts, which is what lets one player
+ * (use-array-player.ts) and one renderer (ArrayView) run all of them.
+ */
 import {
   COMPLEXITY,
   MAX_ARRAY_LENGTH,

@@ -1,48 +1,27 @@
-import type {
-  ArrayFrame,
-  ArrayValue,
-  Complexity,
-} from "@/features/arrays-agent/lib/array-types";
-
 /**
- * Hard cap so a voice command can never blow past the fixed 16:9 frame.
- * Ten cells is what stays readable from the back of a room at presentation
- * scale; beyond that the strip shrinks faster than it teaches.
+ * Operation-level helpers: coercion, bounds-checking with teaching-language
+ * messages, and the Big-O complexity table spoken alongside every operation.
+ *
+ * `MAX_ARRAY_LENGTH` and `frame()` used to live here too, but they're really
+ * the array component's concerns (the cap is a rendering limit; `frame()`
+ * builds the component's own contract) — they're re-exported below for every
+ * existing caller in this feature, but their real home is
+ * `@/components/data-structure/array`. Import from there directly in new code.
  */
-export const MAX_ARRAY_LENGTH = 10;
+import {
+  frame,
+  MAX_ARRAY_LENGTH,
+  type ArrayValue,
+} from "@/components/data-structure/array/array-frame";
+import type { Complexity } from "@/features/arrays-agent/lib/array-types";
 
-/**
- * Cells are a fixed square, so a long value has to fit rather than widen the
- * strip. Past this many characters the display is truncated (the full value
- * stays in the data and in the cell's tooltip).
- */
-export const MAX_VALUE_DISPLAY_CHARS = 9;
+export { frame, MAX_ARRAY_LENGTH };
 
-/** Shortens one value for display only — never changes what is stored. */
-export function truncateValue(value: string): string {
-  return value.length > MAX_VALUE_DISPLAY_CHARS
-    ? `${value.slice(0, MAX_VALUE_DISPLAY_CHARS - 1)}…`
-    : value;
-}
-
-export function frame(
-  values: ArrayValue[],
-  note: string,
-  overrides: Partial<Omit<ArrayFrame, "values" | "note">> = {},
-): ArrayFrame {
-  return {
-    values: [...values],
-    active: overrides.active ?? [],
-    visited: overrides.visited ?? [],
-    settled: overrides.settled ?? [],
-    found: overrides.found,
-    marker: overrides.marker,
-    held: overrides.held,
-    caret: overrides.caret,
-    gap: overrides.gap,
-    note,
-  };
-}
+// `truncateValue`/`MAX_VALUE_DISPLAY_CHARS` used to be duplicated here — a
+// second, unused copy of the exact logic `ArrayView` already ran for cell
+// display. Nothing in this feature ever called this file's copy; if
+// something here needs it, import `truncateValue` from
+// `@/components/data-structure/array` directly.
 
 export function toDisplayValues(values: Array<string | number>): ArrayValue[] {
   return values.map((value) => String(value).trim());

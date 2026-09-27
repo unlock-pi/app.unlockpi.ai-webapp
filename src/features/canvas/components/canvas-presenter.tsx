@@ -400,7 +400,8 @@ export function CanvasPresenter({
   // this frame") runs entirely before React re-renders. Reading the stale copy
   // is how the agent described a frame without the block it had just added.
   const arraysPresentation = useMemo<PresentationControls>(() => {
-    const liveFrames = () => getCanvasPresentationFrames(runtimeDocumentRef.current);
+    const liveFrames = () =>
+      getCanvasPresentationFrames(runtimeDocumentRef.current);
     const liveIndex = (list: ReturnType<typeof getCanvasPresentationFrames>) =>
       Math.max(
         0,
@@ -440,7 +441,8 @@ export function CanvasPresenter({
         const best = liveFrames()
           .map((frame) => ({
             frame,
-            score: words.filter((word) => frame.searchText.includes(word)).length,
+            score: words.filter((word) => frame.searchText.includes(word))
+              .length,
           }))
           .sort((left, right) => right.score - left.score)[0];
         return best?.score
@@ -485,7 +487,8 @@ export function CanvasPresenter({
 
   const isArraysMode = selectedMode === "arrays";
   const isCountingMode = selectedMode === "counting";
-  const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
+  const isCopilotMode =
+    selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
   // `useTrackVolume`, which only ever reads `.mediaStream` and
@@ -628,7 +631,13 @@ export function CanvasPresenter({
   };
 
   const toggleVoice = () => {
-    if (voiceConnected) {
+    // Connecting and reconnecting are both "there is an attempt in flight
+    // someone might want out of" — same disconnect() as stopping a live
+    // session, not a separate cancel path. Its own generation/abort
+    // machinery is what makes that safe: the in-flight connect() notices
+    // and unwinds itself rather than finishing and resurrecting a
+    // connection the teacher just tried to call off.
+    if (voiceConnected || voiceConnecting) {
       if (isArraysMode) arrays.agent.disconnect();
       else if (isCountingMode) counting.agent.disconnect();
       else realtimeSession.disconnect();
@@ -653,14 +662,17 @@ export function CanvasPresenter({
       label: voiceConnected
         ? `Stop ${agentLabel}`
         : voiceReconnecting
-          ? "Reconnecting…"
+          ? "Cancel reconnecting"
           : voiceConnecting
-            ? "Connecting…"
-            : `Start ${agentLabel}`,
+            ? "Cancel connecting"
+            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
-      disabled: selectedMode === "manual" || voiceConnecting,
+      // Stays clickable while connecting/reconnecting — that's what lets a
+      // teacher back out of an attempt instead of being stuck watching a
+      // spinner they can't stop.
+      disabled: selectedMode === "manual",
       onClick: toggleVoice,
     },
   ];
@@ -678,7 +690,8 @@ export function CanvasPresenter({
         const spoke = arrays.agent.speakNow(
           "Greet the class in one short sentence, then say what is on this frame.",
         );
-        if (!spoke) flashHint("It is already speaking — try again in a moment.");
+        if (!spoke)
+          flashHint("It is already speaking — try again in a moment.");
       },
     },
   ];
@@ -800,10 +813,12 @@ export function CanvasPresenter({
       : selectedMode === "manual"
         ? "Manual mode · ← → to move between frames"
         : voiceReconnecting
-          ? "Connection dropped — reconnecting automatically…"
-          : voiceConnected
-            ? "Listening — just talk to change the board"
-            : `Press power to start ${agentLabel}`);
+          ? "Connection dropped — reconnecting automatically… press power to give up"
+          : voiceConnecting
+            ? "Connecting… press power to cancel"
+            : voiceConnected
+              ? "Listening — just talk to change the board"
+              : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
 
   if (!activeFrame) {
     return (
@@ -833,7 +848,6 @@ export function CanvasPresenter({
         !publicView && "fixed inset-0 z-[100]",
       )}
     >
-
       {aiActivity ? (
         <div
           className={cn(
@@ -958,7 +972,12 @@ export function CanvasPresenter({
             <ArraysAgentViewProvider
               {...(isArraysMode
                 ? arrays.viewProviderProps
-                : { blockId: null, view: null, showIndices: true, isAnimating: false })}
+                : {
+                    blockId: null,
+                    view: null,
+                    showIndices: true,
+                    isAnimating: false,
+                  })}
             >
               <CountingAgentViewProvider
                 {...(isCountingMode
@@ -1035,12 +1054,15 @@ export function CanvasPresenter({
           and never slides out from under the pointer. */}
       <motion.div
         {...chromeMotion}
-        animate={{ opacity: reveal.visible ? 1 : 0, y: reveal.visible ? 0 : 24 }}
+        animate={{
+          opacity: reveal.visible ? 1 : 0,
+          y: reveal.visible ? 0 : 24,
+        }}
         className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex flex-col"
       >
         {/* A shared/embedded canvas has no AI session and no class to end. */}
         {publicView ? null : (
-          <div className="flex justify-center px-4 pb-3">
+          <div className="pointer-events-auto flex justify-center px-4 pb-3">
             <PresenterDock
               primary={dockPrimary}
               secondary={dockSecondary}
@@ -1055,8 +1077,12 @@ export function CanvasPresenter({
           onPrevious={() => goTo(activeIndex - 1)}
           onNext={() => goTo(activeIndex + 1)}
           zoomPercent={zoomPercent}
-          onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
-          onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
+          onZoomIn={() =>
+            setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))
+          }
+          onZoomOut={() =>
+            setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))
+          }
           onZoomReset={() => setZoomPercent(100)}
           canZoomIn={zoomPercent < MAX_ZOOM}
           canZoomOut={zoomPercent > MIN_ZOOM}
@@ -1071,11 +1097,13 @@ export function CanvasPresenter({
         `arrays.agent.error` but nothing ever rendered it. A teacher whose
         session silently gave up had no way to know why the board went quiet.
       */}
-      {(isArraysMode
-        ? arrays.agent.error
-        : isCountingMode
-          ? counting.agent.error
-          : realtimeSession.error) ? (
+      {(
+        isArraysMode
+          ? arrays.agent.error
+          : isCountingMode
+            ? counting.agent.error
+            : realtimeSession.error
+      ) ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
           {isArraysMode
             ? arrays.agent.error

@@ -62,6 +62,17 @@ export class OpenAIRealtimeClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private disconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
   private networkListenersBound = false;
+  /**
+   * Bumped on every `connect()` call; a run checks its own number against
+   * this after each `await` to notice it's been superseded — by a cancel, or
+   * by a newer `connect()` starting before it finished. That's what lets a
+   * teacher click "cancel" mid-handshake: the in-flight attempt doesn't get
+   * torn down forcibly, it notices on its own next step and stops itself
+   * rather than going on to open a connection nobody asked for anymore.
+   */
+  private connectGeneration = 0;
+  /** Aborts the connect attempt's own fetches — the fast half of cancelling; the slow half is the generation check. */
+  private connectAbort: AbortController | null = null;
 
   // ── Turn bookkeeping ─────────────────────────────────────────────────
   // The API rejects `response.create` while a response is still running
@@ -113,6 +124,12 @@ export class OpenAIRealtimeClient {
     // teacher-initiated connect (autoReconnecting false) shows "connecting".
     this.setStatus(this.autoReconnecting ? "reconnecting" : "connecting");
 
+    const generation = ++this.connectGeneration;
+    const abort = new AbortController();
+    this.connectAbort = abort;
+    /** True once this run has been cancelled or overtaken by a newer `connect()`. */
+    const isStale = () => generation !== this.connectGeneration;
+
     try {
       // Step 0: `navigator.mediaDevices` is only defined in a secure context
       // (https, or literally the hostname "localhost") and can be withheld
@@ -134,8 +151,11 @@ export class OpenAIRealtimeClient {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(this.options.tokenBody ?? {}),
+        signal: abort.signal,
       });
+      if (isStale()) return;
       const tokenData = await tokenResponse.json();
+      if (isStale()) return;
       if (!tokenResponse.ok) {
         throw new Error(tokenData.error ?? "Unable to start the realtime session.");
       }
@@ -181,6 +201,12 @@ export class OpenAIRealtimeClient {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
+      if (isStale()) {
+        // Cancelled while the mic permission prompt was up. `disconnect()`
+        // had nothing of this run's to tear down yet — release the mic now.
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       this.localStream = mediaStream;
       mediaStream.getAudioTracks().forEach((track) => peerConnection.addTrack(track, mediaStream));
 
@@ -209,7 +235,9 @@ export class OpenAIRealtimeClient {
       // instead of a signaling server — OpenAI's endpoint *is* the signaling
       // server here.
       const offer = await peerConnection.createOffer();
+      if (isStale()) return;
       await peerConnection.setLocalDescription(offer);
+      if (isStale()) return;
       const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         body: offer.sdp,
@@ -217,7 +245,9 @@ export class OpenAIRealtimeClient {
           Authorization: `Bearer ${ephemeralKey}`,
           "Content-Type": "application/sdp",
         },
+        signal: abort.signal,
       });
+      if (isStale()) return;
       if (!sdpResponse.ok) {
         // Read the body. This used to throw a generic "OpenAI rejected the
         // realtime connection", which looks identical whether the account is
@@ -226,11 +256,18 @@ export class OpenAIRealtimeClient {
         const detail = await sdpResponse.text().catch(() => "");
         throw new Error(describeApiFailure(sdpResponse.status, detail));
       }
-      await peerConnection.setRemoteDescription({
-        type: "answer",
-        sdp: await sdpResponse.text(),
-      });
+      const answerSdp = await sdpResponse.text();
+      if (isStale()) return;
+      await peerConnection.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (error) {
+      // A cancelled `fetch` rejects with an AbortError — that's `isStale()`
+      // by another name (the abort IS the cancellation), not a real failure.
+      // Nothing to report: `disconnect()` already put the status back to
+      // "idle" and cleaned up whatever this run had built so far.
+      if (isStale() || (error instanceof DOMException && error.name === "AbortError")) {
+        return;
+      }
+
       this.teardownConnection();
       const message =
         error instanceof Error ? error.message : "The realtime session could not connect.";
@@ -274,6 +311,14 @@ export class OpenAIRealtimeClient {
     this.options.onRemoteStream?.(null);
   }
 
+  /**
+   * Stop everything: a live session, a connection attempt still in the
+   * middle of its handshake, or a pending automatic retry. All three are
+   * "there is a session someone would have to want" — the teacher deciding
+   * mid-click that they don't is the same action regardless of which one it
+   * was, so this is the one method for it, not `disconnect()` plus a
+   * separate `cancelConnect()`.
+   */
   disconnect(): void {
     // The one place this is set true: everything else on this page treats a
     // dropped connection as something to fix, so this is what tells that
@@ -284,6 +329,13 @@ export class OpenAIRealtimeClient {
     this.clearDisconnectGrace();
     this.clearReconnectTimer();
     this.unbindNetworkListeners();
+    // Invalidates any `connect()` mid-flight: its own `isStale()` checks
+    // start returning true, and its fetch is cut instead of left to finish
+    // pointlessly in the background. It notices and unwinds itself — see the
+    // comment on `connectGeneration`.
+    this.connectGeneration++;
+    this.connectAbort?.abort();
+    this.connectAbort = null;
     this.teardownConnection();
     this.setStatus("idle");
   }

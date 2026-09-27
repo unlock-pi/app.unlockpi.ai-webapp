@@ -25,20 +25,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/logo";
-import { ArrayStrip } from "@/components/data-structure/array-strip";
-import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
+import { ArrayView } from "@/components/data-structure/array";
+import { LinkedListView } from "@/components/data-structure/linked-list-view";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
-import { NumberGrid } from "@/components/data-structure/number-grid";
-import { NumberPaginationStrip } from "@/components/data-structure/number-pagination-strip";
-import {
-  createPointsListItem,
-  dedupePointIds,
-  defaultPointsListItems,
-  PointsList,
-  PointsListQuickAddField,
-} from "@/components/data-structure/points-list";
-import { QueueStrip } from "@/components/data-structure/queue-strip";
-import { StackStrip } from "@/components/data-structure/stack-strip";
+import { QueueView } from "@/components/data-structure/queue-view";
+import { StackView } from "@/components/data-structure/stack-view";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -87,6 +78,15 @@ import {
   getCanvasThemeStyle,
 } from "@/features/canvas/lib/canvas-theme";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { NumberPaginationStrip } from "@/components/data-structure/number-pagination-strip";
+import { NumberGrid } from "@/components/data-structure/number-grid";
+import {
+  createPointsListItem,
+  dedupePointIds,
+  defaultPointsListItems,
+  PointsList,
+  PointsListQuickAddField,
+} from "@/components/data-structure/points-list";
 
 const headingFontStyle = {
   fontFamily: "var(--font-canvas-heading), var(--font-system), sans-serif",
@@ -416,7 +416,10 @@ function HeadingTextBlock({ text, wordHighlights }: HeadingTextBlockProps) {
   );
 }
 
-function SubheadingTextBlock({ text, wordHighlights }: SubheadingTextBlockProps) {
+function SubheadingTextBlock({
+  text,
+  wordHighlights,
+}: SubheadingTextBlockProps) {
   return (
     <h2
       className="max-w-4xl text-balance leading-tight tracking-[-0.03em] text-foreground [font-size:var(--canvas-subheading-size)]"
@@ -470,7 +473,7 @@ function ArrayBlock({
     return blockShell(
       "canvas-frame-block--compact canvas-array-block",
       <div className="grid w-full gap-4">
-        <ArrayStrip
+        <ArrayView
           className="max-w-none justify-start"
           data={agent.view.values}
           name="A"
@@ -485,7 +488,9 @@ function ArrayBlock({
           held={agent.view.held}
         />
         {agent.isAnimating && agent.view.note ? (
-          <p className="canvas-array-step text-muted-foreground">{agent.view.note}</p>
+          <p className="canvas-array-step text-muted-foreground">
+            {agent.view.note}
+          </p>
         ) : null}
       </div>,
     );
@@ -494,7 +499,7 @@ function ArrayBlock({
   return blockShell(
     "canvas-frame-block--compact canvas-array-block",
     <div className="grid w-full gap-4">
-      <ArrayStrip
+      <ArrayView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -586,7 +591,9 @@ function CountingStripBlock({
           label: rule.label,
           predicate: (n: number) => n % rule.of === 0,
         }))}
-        division={typeof divisionBy === "number" ? { divisor: divisionBy } : null}
+        division={
+          typeof divisionBy === "number" ? { divisor: divisionBy } : null
+        }
       />
     </div>,
   );
@@ -614,7 +621,7 @@ function StackBlock({
     !title || !caption ? "canvas-frame-block--compact" : undefined,
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <StackStrip
+      <StackView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -652,10 +659,13 @@ function QueueBlock({
   );
 
   return blockShell(
-    cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
+    cn(
+      "overflow-x-auto",
+      (!title || !caption) && "canvas-frame-block--compact",
+    ),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <QueueStrip
+      <QueueView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -690,10 +700,13 @@ function LinkedListBlock({
   );
 
   return blockShell(
-    cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
+    cn(
+      "overflow-x-auto",
+      (!title || !caption) && "canvas-frame-block--compact",
+    ),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <LinkedListStrip
+      <LinkedListView
         nodes={nodes}
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
@@ -721,21 +734,37 @@ function MindMapBlock({ title, center, branches }: MindMapBlockProps) {
   );
 }
 
-function PointsListBlock({ points, listStyle, defaultExpanded }: PointsListBlockProps) {
+function PointsListBlock({
+  points,
+  listStyle,
+  defaultExpanded,
+}: PointsListBlockProps) {
   return blockShell(
     undefined,
-    <PointsList points={points} listStyle={listStyle} defaultExpanded={defaultExpanded} />,
+    <PointsList
+      points={points}
+      listStyle={listStyle}
+      defaultExpanded={defaultExpanded}
+    />,
   );
 }
 
-function TopologyBlock({ id, title, preset, scene: storedScene }: TopologyBlockProps & { id: string }) {
+function TopologyBlock({
+  id,
+  title,
+  preset,
+  scene: storedScene,
+}: TopologyBlockProps & { id: string }) {
   const live = useTopologyAgentView(id);
-  const scene = live?.view.scene ?? storedScene ?? applyPreset(preset ?? "hybrid").scene;
+  const scene =
+    live?.view.scene ?? storedScene ?? applyPreset(preset ?? "hybrid").scene;
 
   return blockShell(
     "grid gap-3",
     <>
-      {title ? <h3 className="text-lg font-semibold tracking-tight">{title}</h3> : null}
+      {title ? (
+        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+      ) : null}
       <TopologyAgentBoard
         scene={scene}
         note={live?.view.note}
@@ -750,7 +779,8 @@ function TopologyBlock({ id, title, preset, scene: storedScene }: TopologyBlockP
       />
       {!live ? (
         <p className="text-xs text-muted-foreground">
-          Connect Mesh (the network topology agent) from the presentation dock to edit this board live — by voice or by hand.
+          Connect Mesh (the network topology agent) from the presentation dock
+          to edit this board live — by voice or by hand.
         </p>
       ) : null}
     </>,
@@ -1021,7 +1051,6 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       title: "Text",
       components: ["HeadingTextBlock", "SubheadingTextBlock", "BodyTextBlock"],
       defaultExpanded: true,
-      
     },
     blocks: {
       title: "Blocks",
@@ -1045,7 +1074,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
   components: {
     SlideBlock: {
       label: "Frame",
-      
+
       fields: {
         title: { type: "text", label: "Frame title" },
         teachingBeat: {
@@ -1094,7 +1123,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     HeadingTextBlock: {
       label: "Heading",
       fields: {
-        text: { type: "text", label: "Heading text" , contentEditable: true},
+        text: { type: "text", label: "Heading text", contentEditable: true },
       },
       defaultProps: {
         text: "Heading",
@@ -1218,7 +1247,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     StackBlock: {
       label: "Stack",
       fields: {
-        title: { type: "text", label: "Title" , contentEditable: true },
+        title: { type: "text", label: "Title", contentEditable: true },
         values: {
           type: "array",
           label: "Stack values (bottom to top)",
@@ -1268,7 +1297,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     QueueBlock: {
       label: "Queue",
       fields: {
-        title: { type: "text", label: "Title" , contentEditable: true },
+        title: { type: "text", label: "Title", contentEditable: true },
         values: {
           type: "array",
           label: "Queue values (front to back)",
@@ -1523,7 +1552,9 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         quickAdd: {
           type: "custom",
           label: "Paste multiple points",
-          render: ({ readOnly }) => <PointsListQuickAddField readOnly={readOnly} />,
+          render: ({ readOnly }) => (
+            <PointsListQuickAddField readOnly={readOnly} />
+          ),
         },
         points: {
           type: "array",
@@ -1538,7 +1569,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             },
           },
           defaultItemProps: () => createPointsListItem(),
-          getItemSummary: (item, index) => item.content || `Point ${(index ?? 0) + 1}`,
+          getItemSummary: (item, index) =>
+            item.content || `Point ${(index ?? 0) + 1}`,
         },
       },
       defaultProps: {
@@ -1551,7 +1583,9 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       // (it only re-ids nested slot fields), so a duplicated point would
       // otherwise share its source's id — fix that up after every change.
       resolveData: (data) => {
-        const points = Array.isArray(data.props.points) ? data.props.points : [];
+        const points = Array.isArray(data.props.points)
+          ? data.props.points
+          : [];
         const deduped = dedupePointIds(points);
         if (deduped === points) {
           return data;
@@ -1563,7 +1597,11 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     TopologyBlock: {
       label: "Network topology",
       fields: {
-        title: { type: "text", label: "Title (optional)", contentEditable: true },
+        title: {
+          type: "text",
+          label: "Title (optional)",
+          contentEditable: true,
+        },
         preset: {
           type: "select",
           label: "Layout",

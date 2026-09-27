@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
+import { LinkedListView } from "@/components/data-structure/linked-list-view";
 
 const INITIAL_NODES = ["head", "middle", "tail"];
 
@@ -125,7 +125,7 @@ export default function Page() {
 
             <div className="my-12 overflow-x-auto pb-4">
               {nodes.length ? (
-                <LinkedListStrip
+                <LinkedListView
                   nodes={nodes.map((node) => ({ value: node }))}
                   activeIndex={activeIndex}
                   visitedIndices={visitedIndices}

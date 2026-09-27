@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArrayView } from "@/components/data-structure/array";
 import { cn } from "@/lib/utils";
 
 const INITIAL_DATA = [10, 20, 30, 40, 50];
@@ -186,7 +186,7 @@ export default function Page() {
     <div className="flex min-h-screen flex-col items-center gap-10 px-4 py-12 sm:px-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          ArrayStrip Demo
+          ArrayView Demo
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Interactive showcase of all component states and animations
@@ -194,7 +194,7 @@ export default function Page() {
       </div>
 
       <div className="relative flex min-h-[140px] w-full items-center justify-center">
-        <ArrayStrip
+        <ArrayView
           data={data}
           name={name}
           nameHint={nameHint}

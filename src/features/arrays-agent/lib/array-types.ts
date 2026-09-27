@@ -6,10 +6,18 @@
  * snapshot of what the strip should look like at one moment, so the player
  * never has to know which operation produced it. That is what lets twenty-odd
  * operations and five sorting algorithms drive one renderer.
+ *
+ * `ArrayFrame` and `ArrayValue` are re-exported here for convenience — this
+ * file is the one-stop import for the agent's vocabulary — but they are NOT
+ * defined here. Their real home is
+ * `@/components/data-structure/array/array-frame`: that shape belongs to the
+ * array component, not to this feature, because a pre-authored lesson or any
+ * other future producer of frames needs the exact same contract without
+ * depending on the agent.
  */
+import type { ArrayFrame, ArrayValue } from "@/components/data-structure/array/array-frame";
 
-/** Canvas array cells are strings; numeric ops coerce on the way in. */
-export type ArrayValue = string;
+export type { ArrayFrame, ArrayValue };
 
 /**
  * How an operation plays out.
@@ -26,53 +34,6 @@ export type Complexity = {
   space: string;
   /** Why it is that complexity, in one classroom-ready sentence. */
   reason: string;
-};
-
-/**
- * One beat of an animation: a full snapshot, not a delta. Deltas would force
- * the player to replay history to know the current state; snapshots let it
- * seek, pause, and resume anywhere.
- */
-export type ArrayFrame = {
-  values: ArrayValue[];
-  /**
-   * The ONE cell the eye should be on (two only when a sort compares a pair).
-   * Never more: a beat that lights up several cells gives the class nowhere
-   * to look.
-   */
-  active: number[];
-  /** Cells ruled out by a search or sort — rendered dim. Nothing else uses it. */
-  visited: number[];
-  /**
-   * Cells that are final: sorted into place, or a result. Never used to mean
-   * "untouched" — an insert's prefix is simply left neutral.
-   */
-  settled: number[];
-  /** The cell that answers the question: a search hit. Rendered green. */
-  found?: number;
-  /** A labelled pointer under one cell, e.g. `{ index: 3, label: "pivot" }`. */
-  marker?: { index: number; label: string };
-  /**
-   * A POSITION rather than a value: "insert here", "remove this one". Drawn
-   * under the index row, because the question an insert or delete answers is
-   * which index, not which value happens to be sitting there.
-   */
-  caret?: { index: number; label?: string };
-  /**
-   * An empty slot inside `values` (its value is a placeholder). The strip
-   * draws it as a hole and keys it as a new cell, so the real elements slide
-   * around it instead of their values morphing in place.
-   */
-  gap?: number;
-  /**
-   * A value currently lifted OUT of the array — insertion sort's held element,
-   * or merge sort's buffered value. Without this the strip briefly shows the
-   * same number twice (the copy and the original) and reads as a rendering
-   * bug; showing what is in hand makes the duplicate legible as a copy.
-   */
-  held?: { value: string; label: string };
-  /** One short line explaining this beat. */
-  note: string;
 };
 
 /** What every array tool hands back to the executor. */

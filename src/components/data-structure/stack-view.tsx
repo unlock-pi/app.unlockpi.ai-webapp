@@ -7,7 +7,7 @@ import { Badge } from "../ui/badge";
 
 type StackValue = string | number;
 
-export type StackStripProps = {
+export type StackViewProps = {
   /**
    * Values from BOTTOM of stack to TOP. `data[0]` is the bottom (drawn
    * deepest in the bucket); the LAST element is the top and gets the "Top"
@@ -17,7 +17,7 @@ export type StackStripProps = {
    * @example
    * ```tsx
    * // Bottom -> top: "8" was pushed first, "0" is on top right now.
-   * <StackStrip data={["8", "5", "0"]} />
+   * <StackView data={["8", "5", "0"]} />
    * ```
    */
   data: StackValue[];
@@ -41,7 +41,7 @@ export type StackStripProps = {
    *
    * @example
    * ```tsx
-   * <StackStrip data={data} isFixed stackSize={5} />
+   * <StackView data={data} isFixed stackSize={5} />
    * ```
    */
   isFixed?: boolean;
@@ -70,7 +70,7 @@ const POP_ANIM = {
   transition: { duration: 0.28, ease: [0.4, 0, 0.2, 1] as const },
 };
 
-export function StackStrip({
+export function StackView({
   data,
   name,
   activeIndex,
@@ -80,7 +80,7 @@ export function StackStrip({
   className,
   isFixed = false,
   stackSize = 5,
-}: StackStripProps) {
+}: StackViewProps) {
   const topIndex = data.length - 1;
   const isTraversing = traversalTarget !== undefined;
 

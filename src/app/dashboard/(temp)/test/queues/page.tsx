@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { QueueStrip } from "@/components/data-structure/queue-strip";
+import { QueueView } from "@/components/data-structure/queue-view";
 
 const INITIAL_QUEUE = ["first", "second", "third"];
 
@@ -105,7 +105,7 @@ export default function Page() {
             </div>
 
             <div className="my-12 overflow-x-auto pb-4">
-              <QueueStrip
+              <QueueView
                 data={queue}
                 name="Q"
                 activeIndex={activeIndex}

@@ -1,3 +1,10 @@
+/**
+ * Search: linear and binary, plus find-all-occurrences.
+ *
+ * Same pure `(values, ...args) => ArrayOpResult` shape as array-ops.ts — see
+ * that file's docstring for how the operation split works and why frames are
+ * the whole contract.
+ */
 import {
   COMPLEXITY,
   frame,
