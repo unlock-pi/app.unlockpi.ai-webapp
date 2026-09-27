@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MicIcon, MicOffIcon } from "lucide-react";
 
-import { IconSwap } from "@/components/ui/icon-swap";
 import { TopologyAgentBoard } from "@/features/topologies/ui/components/topology-agent-board";
 import { TopologyAgentOverlays } from "@/features/topologies/ui/components/topology-agent-overlays";
 import { useTopologyVoiceAgent } from "@/features/topologies/hooks/use-topology-voice-agent";
@@ -133,6 +131,16 @@ export function TopologyAgentDemo() {
     }
   };
 
+  const runTool = (name: string, input: Record<string, unknown>) => void runExample([[name, input]]);
+
+  const handleMove = (id: string, x: number, y: number) => runTool("move_device", { id, x, y });
+  const handleConnect = (a: string, b: string, kind: string) => runTool("connect_devices", { a, b, kind });
+  const handleDisconnect = (a: string, b: string) => runTool("disconnect_devices", { a, b });
+  const handleSetLinkKind = (a: string, b: string, kind: string) => {
+    runTool("disconnect_devices", { a, b });
+    runTool("connect_devices", { a, b, kind });
+  };
+
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 pb-10 sm:px-8">
       <header className="grid gap-1">
@@ -168,11 +176,19 @@ export function TopologyAgentDemo() {
       </div>
 
       <div className="rounded-2xl border border-border/60 bg-card/40 p-6">
+        <p className="pb-3 text-xs text-muted-foreground">
+          Drag a device to move it — every link follows. Use &ldquo;Connect&rdquo; to pick two devices and wire them,
+          or click a link to change its kind or delete it.
+        </p>
         <TopologyAgentBoard
           scene={agent.view.scene}
           note={agent.view.note}
           packetsAnimating={agent.agentState.packetsAnimating}
           onSelect={agent.selectDevice}
+          onMove={handleMove}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          onSetLinkKind={handleSetLinkKind}
         />
         {agent.caption ? (
           <p className="pt-2 text-center text-sm italic text-muted-foreground">

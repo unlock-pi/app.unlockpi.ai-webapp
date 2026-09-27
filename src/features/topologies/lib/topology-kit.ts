@@ -560,7 +560,39 @@ function strip(ax: number, ay: number, bx: number, by: number, w: number, z: num
   return poly({ x: 0, y: 0, z: 0 }, z, pts);
 }
 
-export function drawLink(iso: Isomer, pts: number[][], kind: LinkKind): void {
+/** A small triangle pointing from `back` to `tip` — the arrowhead at a link's destination. */
+function arrowHead(tipX: number, tipY: number, dirX: number, dirY: number, size = 0.1): number[][] {
+  const backX = tipX - dirX * size;
+  const backY = tipY - dirY * size;
+  const nx = -dirY;
+  const ny = dirX;
+  const w = size * 0.55;
+  return [
+    [tipX, tipY],
+    [backX + nx * w, backY + ny * w],
+    [backX - nx * w, backY - ny * w],
+  ];
+}
+
+/** Small dashes flowing along the path — the "data is moving" look, replacing a discrete packet cube. */
+function drawDashFlow(iso: Isomer, pts: number[][], color: Color, time: number, phase: number): void {
+  const spacing = 0.28;
+  const dashLen = 0.1;
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    total += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+  }
+  if (total <= 0) return;
+
+  const offset = ((time * 0.9 + phase) % spacing + spacing) % spacing;
+  for (let d = offset; d < total; d += spacing) {
+    const from = pointAt(pts, d / total);
+    const to = pointAt(pts, Math.min(d + dashLen, total) / total);
+    iso.add(strip(from[0], from[1], to[0], to[1], 0.045, 0.009), color);
+  }
+}
+
+export function drawLink(iso: Isomer, pts: number[][], kind: LinkKind, opts: { time?: number | null; phase?: number } = {}): void {
   const k = LINKS[kind] ?? LINKS.ethernet;
   const c = col(k.hex);
   for (let i = 0; i < pts.length - 1; i++) {
@@ -587,6 +619,17 @@ export function drawLink(iso: Isomer, pts: number[][], kind: LinkKind): void {
         );
       }
     }
+  }
+
+  if (opts.time != null) drawDashFlow(iso, pts, c, opts.time, opts.phase ?? 0);
+
+  const tip = pts[pts.length - 1];
+  const back = pts[pts.length - 2];
+  if (tip && back) {
+    const dx = tip[0] - back[0];
+    const dy = tip[1] - back[1];
+    const len = Math.hypot(dx, dy) || 1;
+    iso.add(poly({ x: 0, y: 0, z: 0 }, 0.01, arrowHead(tip[0], tip[1], dx / len, dy / len)), c);
   }
 }
 
@@ -667,17 +710,175 @@ export type TopoScene = {
   selected?: string | null;
 };
 
-function route(link: SceneLink, A: SceneNode, B: SceneNode | undefined): number[][] {
-  const a = [A.x + 0.5, A.y + 0.5];
-  if (link.to) return [a, link.to];
-  const b = [(B?.x ?? A.x) + 0.5, (B?.y ?? A.y) + 0.5];
-  if (link.via) return [a, ...link.via, b];
-  if (link.route === "xy" && a[0] !== b[0] && a[1] !== b[1]) return [a, [b[0], a[1]], b];
-  if (link.route === "yx" && a[0] !== b[0] && a[1] !== b[1]) return [a, [a[0], b[1]], b];
-  return [a, b];
+const EPS_GRID = 0.001;
+
+/** How far inside a cell a segment has to run before it counts as "cutting through" — a line that only skims the outer margin (where nothing is drawn) doesn't collide. */
+const CELL_MARGIN = 0.16;
+
+/** Does the axis-aligned segment p0→p1 cut across the (inset) interior of `cell` (a unit grid square)? */
+function segmentCrossesCell(p0: number[], p1: number[], cell: { x: number; y: number }): boolean {
+  const lo = CELL_MARGIN;
+  const hi = 1 - CELL_MARGIN;
+  if (Math.abs(p0[1] - p1[1]) < EPS_GRID) {
+    const y = p0[1];
+    if (y <= cell.y + lo || y >= cell.y + hi) return false;
+    const xa = Math.min(p0[0], p1[0]);
+    const xb = Math.max(p0[0], p1[0]);
+    return xb > cell.x + lo && xa < cell.x + hi;
+  }
+  if (Math.abs(p0[0] - p1[0]) < EPS_GRID) {
+    const x = p0[0];
+    if (x <= cell.x + lo || x >= cell.x + hi) return false;
+    const ya = Math.min(p0[1], p1[1]);
+    const yb = Math.max(p0[1], p1[1]);
+    return yb > cell.y + lo && ya < cell.y + hi;
+  }
+  return false;
 }
 
-function pointAt(pts: number[][], u: number): number[] {
+function pathIsClear(pts: number[][], obstacles: Array<{ x: number; y: number }>): boolean {
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (const ob of obstacles) {
+      if (segmentCrossesCell(pts[i], pts[i + 1], ob)) return false;
+    }
+  }
+  return true;
+}
+
+type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
+const BFS_STEP = 0.5;
+
+function isBlockedPoint(x: number, y: number, obstacles: Array<{ x: number; y: number }>): boolean {
+  const lo = CELL_MARGIN;
+  const hi = 1 - CELL_MARGIN;
+  return obstacles.some((o) => x > o.x + lo && x < o.x + hi && y > o.y + lo && y < o.y + hi);
+}
+
+/**
+ * Guaranteed fallback: a breadth-first search over a half-cell grid, treating
+ * every obstacle's (inset) footprint as blocked. Always finds an
+ * obstacle-free orthogonal route when one exists within `bounds` — which it
+ * does whenever the destination itself isn't blocked, since the search area
+ * extends past the outermost device — because a ring of devices around a
+ * hub (see the "star" preset) has no 1- or 2-turn path that avoids all of
+ * them; only a real search finds the way around.
+ */
+function bfsPath(a: number[], b: number[], obstacles: Array<{ x: number; y: number }>, bounds: Bounds): number[][] | null {
+  const key = (x: number, y: number) => `${x.toFixed(2)},${y.toFixed(2)}`;
+  const startKey = key(a[0], a[1]);
+  const goalKey = key(b[0], b[1]);
+  if (startKey === goalKey) return [a];
+
+  const cameFrom = new Map<string, string>();
+  const posByKey = new Map<string, number[]>([[startKey, a], [goalKey, b]]);
+  const visited = new Set([startKey]);
+  const queue: number[][] = [a];
+
+  for (let qi = 0; qi < queue.length; qi++) {
+    const cur = queue[qi];
+    const curKey = key(cur[0], cur[1]);
+    if (curKey === goalKey) break;
+
+    for (const [dx, dy] of [[BFS_STEP, 0], [-BFS_STEP, 0], [0, BFS_STEP], [0, -BFS_STEP]]) {
+      const nx = cur[0] + dx;
+      const ny = cur[1] + dy;
+      if (nx < bounds.minX || nx > bounds.maxX || ny < bounds.minY || ny > bounds.maxY) continue;
+      const nKey = key(nx, ny);
+      if (visited.has(nKey)) continue;
+      if (nKey !== goalKey && isBlockedPoint(nx, ny, obstacles)) continue;
+      visited.add(nKey);
+      cameFrom.set(nKey, curKey);
+      posByKey.set(nKey, [nx, ny]);
+      queue.push([nx, ny]);
+    }
+  }
+
+  if (!visited.has(goalKey)) return null;
+
+  const keys: string[] = [goalKey];
+  let k = goalKey;
+  while (k !== startKey) {
+    const prev = cameFrom.get(k);
+    if (!prev) return null;
+    keys.push(prev);
+    k = prev;
+  }
+  keys.reverse();
+
+  const pts = keys.map((kk) => posByKey.get(kk)!);
+  const compressed: number[][] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = compressed[compressed.length - 1];
+    const cur = pts[i];
+    const next = pts[i + 1];
+    const sameX = Math.abs(prev[0] - cur[0]) < EPS_GRID && Math.abs(cur[0] - next[0]) < EPS_GRID;
+    const sameY = Math.abs(prev[1] - cur[1]) < EPS_GRID && Math.abs(cur[1] - next[1]) < EPS_GRID;
+    if (!sameX && !sameY) compressed.push(cur);
+  }
+  compressed.push(pts[pts.length - 1]);
+  return compressed;
+}
+
+/**
+ * Grid-locked orthogonal routing: every segment runs parallel to an axis, and
+ * turns land on grid lines rather than cutting a diagonal or clipping through
+ * a device it isn't connecting to. Tries the direct elbow first (the common
+ * case, and the cheapest), then falls back to a real search so a link always
+ * finds a clean way around whatever is in its way.
+ */
+function orthogonalPath(a: number[], b: number[], obstacles: Array<{ x: number; y: number }>, bounds: Bounds): number[][] {
+  if (Math.abs(a[0] - b[0]) < EPS_GRID || Math.abs(a[1] - b[1]) < EPS_GRID) return [a, b];
+
+  const elbows: number[][][] = [
+    [a, [b[0], a[1]], b],
+    [a, [a[0], b[1]], b],
+  ];
+  for (const path of elbows) if (pathIsClear(path, obstacles)) return path;
+
+  return bfsPath(a, b, obstacles, bounds) ?? elbows[0];
+}
+
+/** Every other node's cell is an obstacle for a link that doesn't terminate there. */
+function obstaclesFor(scene: TopoScene, exclude: string[]): Array<{ x: number; y: number }> {
+  return scene.nodes.filter((n) => !exclude.includes(n.id)).map((n) => ({ x: n.x, y: n.y }));
+}
+
+function route(scene: TopoScene, link: SceneLink, A: SceneNode, B: SceneNode | undefined): number[][] {
+  const a = [A.x + 0.5, A.y + 0.5];
+  const bounds: Bounds = { minX: -2, maxX: scene.w + 2, minY: -2, maxY: scene.d + 2 };
+  if (link.via) {
+    const b = [(B?.x ?? A.x) + 0.5, (B?.y ?? A.y) + 0.5];
+    return [a, ...link.via, b];
+  }
+  if (link.to) return orthogonalPath(a, link.to, obstaclesFor(scene, [A.id]), bounds);
+  const b = [(B?.x ?? A.x) + 0.5, (B?.y ?? A.y) + 0.5];
+  return orthogonalPath(a, b, obstaclesFor(scene, B ? [A.id, B.id] : [A.id]), bounds);
+}
+
+/**
+ * Every link's resolved path, in scene.links order — shared by rendering,
+ * link labels, and hit-testing. Cached per scene object: a scene is always
+ * replaced, never mutated, by the operations layer, so identity is a valid
+ * cache key — which matters because this runs on every animation frame
+ * while packets are flowing, and the router itself can fall back to a BFS
+ * search for a crowded layout (see `orthogonalPath`).
+ */
+const routeCache = new WeakMap<TopoScene, number[][][]>();
+
+export function computeRoutes(scene: TopoScene): number[][][] {
+  const cached = routeCache.get(scene);
+  if (cached) return cached;
+
+  const nodes: Record<string, SceneNode> = {};
+  scene.nodes.forEach((n) => {
+    nodes[n.id] = n;
+  });
+  const routes = scene.links.map((l) => route(scene, l, nodes[l.a], l.b ? nodes[l.b] : undefined));
+  routeCache.set(scene, routes);
+  return routes;
+}
+
+export function pointAt(pts: number[][], u: number): number[] {
   const lens: number[] = [];
   let total = 0;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -696,20 +897,20 @@ function pointAt(pts: number[][], u: number): number[] {
   return pts[pts.length - 1];
 }
 
-type DrawObj = { d: number; n?: SceneNode; p?: number[]; hex?: string };
+type DrawObj = { d: number; n: SceneNode };
 
-/** Painter's algorithm across objects: larger x + y (farther) first. */
+/**
+ * Painter's algorithm across objects: larger x + y (farther) first. Links are
+ * drawn as a separate, earlier pass — floor → zones → cables → objects — so
+ * they always sit under every device, never through one (see `computeRoutes`
+ * for how a link's path avoids the footprint of any node it doesn't touch).
+ */
 export function renderScene(iso: Isomer, scene: TopoScene, theme: SceneTheme, time?: number | null): void {
-  const nodes: Record<string, SceneNode> = {};
-  scene.nodes.forEach((n) => {
-    nodes[n.id] = n;
-  });
-
   drawFloor(iso, scene.w, scene.d, theme);
   (scene.zones ?? []).forEach((z) => drawZone(iso, z, theme));
 
   if (scene.selected) {
-    const s = nodes[scene.selected];
+    const s = scene.nodes.find((n) => n.id === scene.selected);
     if (s) {
       iso.add(
         top({ x: 0, y: 0, z: 0 }, 0.003, s.x + 0.04, s.x + 0.96, s.y + 0.04, s.y + 0.96),
@@ -718,37 +919,29 @@ export function renderScene(iso: Isomer, scene: TopoScene, theme: SceneTheme, ti
     }
   }
 
-  const routes = scene.links.map((l) => route(l, nodes[l.a], l.b ? nodes[l.b] : undefined));
-  scene.links.forEach((l, i) => drawLink(iso, routes[i], l.kind));
+  const routes = computeRoutes(scene);
+  scene.links.forEach((l, i) => {
+    const phase = (i * 0.37) % 1;
+    const t = time == null ? null : l.reverse ? -time - phase : time + phase;
+    drawLink(iso, routes[i], l.kind, { time: t, phase: 0 });
+  });
 
   const objs: DrawObj[] = scene.nodes.map((n) => ({ d: n.x + n.y + 1, n }));
-
-  if (time != null) {
-    scene.links.forEach((l, i) => {
-      const A = nodes[l.a];
-      const B = l.b ? nodes[l.b] : undefined;
-      if (!A) return;
-      const pts = routes[i];
-      let L = 0;
-      for (let k = 0; k < pts.length - 1; k++) L += Math.hypot(pts[k + 1][0] - pts[k][0], pts[k + 1][1] - pts[k][1]);
-      let u = ((time * 1.2) / L + i * 0.37) % 1;
-      if (l.reverse) u = 1 - u;
-      const p = pointAt(pts, u);
-      const inside = (N: SceneNode) => p[0] > N.x + 0.05 && p[0] < N.x + 0.95 && p[1] > N.y + 0.05 && p[1] < N.y + 0.95;
-      if (inside(A) || (B && inside(B))) return;
-      objs.push({ d: p[0] + p[1], p, hex: l.kind === "wireless" ? HEX.wireless : HEX.packet });
-    });
-  }
-
   objs.sort((a, b) => b.d - a.d);
   objs.forEach((ob) => {
-    if (ob.n) {
-      const def = byId[ob.n.type];
-      if (def) def.draw(iso, { x: ob.n.x, y: ob.n.y, z: 0 });
-    } else if (ob.p) {
-      drawPacket(iso, ob.p[0], ob.p[1], ob.hex);
-    }
+    const def = byId[ob.n.type];
+    if (def) def.draw(iso, { x: ob.n.x, y: ob.n.y, z: 0 });
   });
+}
+
+/** Inverts `project` at z = 0 — turns a screen point back into grid (x, y), for dragging a node. */
+export function unproject(iso: Isomer, screenX: number, screenY: number): { x: number; y: number } {
+  const c = Math.cos(Math.PI / 6);
+  const s = Math.sin(Math.PI / 6);
+  const k = iso.scale;
+  const diff = (screenX - iso.originX) / (k * c);
+  const sum = (iso.originY - screenY) / (k * s);
+  return { x: (sum + diff) / 2, y: (sum - diff) / 2 };
 }
 
 /** Mirrors Isomer's own internal projection — for labels and hit-testing outside `iso.add`. */
