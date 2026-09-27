@@ -1,3 +1,4 @@
+import { createBlockTools } from "@/features/topologies/tools/topology/blocks";
 import { createComponentTools } from "@/features/topologies/tools/topology/components";
 import { createConnectionTools } from "@/features/topologies/tools/topology/connections";
 import { createPresetTools } from "@/features/topologies/tools/topology/presets";
@@ -20,6 +21,7 @@ export function createTopologyTools(ctx: TopologyToolContext) {
     ...createZoneTools(ctx),
     ...createPresetTools(ctx),
     ...createViewTools(ctx),
+    ...createBlockTools(ctx),
   };
 }
 

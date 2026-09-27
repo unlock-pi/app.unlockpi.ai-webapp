@@ -13,6 +13,7 @@ import type {
   CountingStripBlockProps,
   SlideBlockProps,
   StackBlockProps,
+  TopologyBlockProps,
 } from "@/features/canvas/types/canvas-types";
 import { createCanvasId } from "@/features/canvas/lib/canvas-templates";
 
@@ -29,6 +30,10 @@ type StackItem = CanvasItem & { type: "StackBlock"; props: StackBlockProps & { i
 type CountingStripItem = CanvasItem & {
   type: "CountingStripBlock";
   props: CountingStripBlockProps & { id: string };
+};
+type TopologyItem = CanvasItem & {
+  type: "TopologyBlock";
+  props: TopologyBlockProps & { id: string };
 };
 
 function cloneDocument(document: CanvasDocument): CanvasDocument {
@@ -64,6 +69,10 @@ function isStackItem(item: CanvasItem): item is StackItem {
 
 function isCountingStripItem(item: CanvasItem): item is CountingStripItem {
   return item.type === "CountingStripBlock";
+}
+
+function isTopologyItem(item: CanvasItem): item is TopologyItem {
+  return item.type === "TopologyBlock";
 }
 
 /** Builds the `StackCapacity` a given stack block currently enforces. */
@@ -355,6 +364,35 @@ function getTargetCountingStrip(
   return null;
 }
 
+/** Picks the topology board the AI is talking about — same precedence as `getTargetCountingStrip`. */
+function getTargetTopologyBlock(
+  document: CanvasDocument,
+  componentId?: string,
+  activeSlideId?: string | null,
+) {
+  if (componentId) {
+    for (const slide of getSlides(document)) {
+      const match = getSlideContent(slide).find(
+        (item): item is TopologyItem => isTopologyItem(item) && item.props.id === componentId,
+      );
+      if (match) return match;
+    }
+    return null;
+  }
+
+  const activeSlide = getActiveSlide(document, activeSlideId ?? null);
+  if (activeSlide) {
+    const onActive = getSlideContent(activeSlide).filter(isTopologyItem);
+    if (onActive.length) return onActive[onActive.length - 1];
+  }
+
+  for (const slide of getSlides(document)) {
+    const board = getSlideContent(slide).find(isTopologyItem);
+    if (board) return board;
+  }
+  return null;
+}
+
 function createHeadingTextItem(text: string): CanvasItem {
   return {
     type: "HeadingTextBlock",
@@ -432,6 +470,7 @@ function blockLabel(blockType: string): string {
     CodeBlock: "code block",
     ArrayBlock: "array",
     CountingStripBlock: "counting strip",
+    TopologyBlock: "network topology board",
     StackBlock: "stack",
     QueueBlock: "queue",
     LinkedListBlock: "linked list",
@@ -890,6 +929,30 @@ export function applyCanvasAction(
       message = "Updated the number strip.";
     } else {
       message = "Could not find a number strip to update.";
+    }
+  }
+
+  if (action.action === "add_topology_block") {
+    const result = pushIntoActiveSlide(nextDocument, nextSlideId, {
+      type: "TopologyBlock",
+      props: {
+        id: createCanvasId("topology"),
+        title: action.title?.trim() || undefined,
+        preset: "hybrid",
+        scene: action.scene,
+      },
+    });
+    nextSlideId = result.slideId;
+    message = result.inserted ? "Added a network topology board to the active frame." : FRAME_CONTENT_LIMIT_MESSAGE;
+  }
+
+  if (action.action === "set_topology_scene") {
+    const board = getTargetTopologyBlock(nextDocument, action.componentId, nextSlideId);
+    if (board) {
+      board.props.scene = action.scene;
+      message = "Updated the topology board.";
+    } else {
+      message = "Could not find a topology board to update.";
     }
   }
 

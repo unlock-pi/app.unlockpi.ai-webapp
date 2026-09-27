@@ -15,6 +15,7 @@ export const CANVAS_PRESENTATION_MODES = [
   "companion",
   "arrays",
   "counting",
+  "topologies",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
@@ -236,6 +237,7 @@ const BLOCK_NAMES: Record<string, string> = {
   Checkpoint: "question",
   MindMap: "mind map",
   Sketch: "drawing",
+  Topology: "network topology board",
 };
 
 function clip(text: string, max: number) {

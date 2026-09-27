@@ -31,6 +31,16 @@ export type TopologyToolContext = {
   resetCanvas: () => void;
   /** Remove every device, link, and zone. */
   clearCanvas: () => void;
+  /** Editing the frame's own text blocks — present only when running on a canvas. */
+  blocks?: BlockControls;
+};
+
+export type BlockControls = {
+  add: (input: { type: "heading" | "subheading" | "body"; text?: string }) => string;
+  update: (target: "heading" | "subheading" | "body" | "frame_title", text: string) => string;
+  remove: (target: "heading" | "subheading" | "body" | "board") => string;
+  clearFrame: () => string;
+  addFrame: (options: { title?: string; copyCurrent?: boolean }) => string;
 };
 
 /** What every tool returns to the model. */

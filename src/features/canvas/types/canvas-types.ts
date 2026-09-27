@@ -1,9 +1,8 @@
 import type { Data, Slot } from "@puckeditor/core";
+import type { TopoScene } from "@/features/topologies/lib/topology-kit";
 
-// TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
-// FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
-// IMPLEMENTATION NOTE: The CanvasSubject type is currently limited to "computer_science". If we want to support more subjects in the future, we can extend this type and update the CanvasRootProps accordingly.
-export type CanvasSubject = "computer_science";
+// TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc.
+export type CanvasSubject = "computer_science" | "computer_networks";
 
 export type CanvasThemeId =
   | "default"
@@ -269,6 +268,18 @@ export type CountingStripBlockProps = {
   divisionBy?: number | null;
 };
 
+/**
+ * A network topology board — see `@/features/topologies`. `preset` seeds a
+ * fresh block with one of TopoKit's worked examples; `scene` (once the Mesh
+ * agent or a teacher's edit has run) is the actual authoritative content and
+ * takes priority whenever present, exactly like `ArrayBlock.values`.
+ */
+export type TopologyBlockProps = {
+  title?: string;
+  preset: "star" | "bus" | "ring" | "mesh" | "tree" | "hybrid";
+  scene?: TopoScene;
+};
+
 export type CanvasComponents = {
   SlideBlock: SlideBlockProps;
   HeadingTextBlock: HeadingTextBlockProps;
@@ -286,6 +297,7 @@ export type CanvasComponents = {
   SketchBlock: SketchBlockProps;
   CountingStripBlock: CountingStripBlockProps;
   PointsListBlock: PointsListBlockProps;
+  TopologyBlock: TopologyBlockProps;
 };
 
 export type CanvasDocument = Data<CanvasComponents, CanvasRootProps>;
@@ -395,7 +407,9 @@ export type CanvasAiAction =
     mode: "list" | "factorial";
     highlights: Array<{ id: string; label: string; of: number }>;
     divisionBy?: number | null;
-  };
+  }
+  | { action: "add_topology_block"; title?: string; scene: TopoScene }
+  | { action: "set_topology_scene"; componentId?: string; scene: TopoScene };
 
 export type CanvasCommandResult = {
   document: CanvasDocument;

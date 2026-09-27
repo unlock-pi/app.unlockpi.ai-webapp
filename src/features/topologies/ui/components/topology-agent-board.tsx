@@ -6,7 +6,9 @@ import { AnimatePresence, motion } from "motion/react";
 
 import {
   byId,
+  components,
   computeRoutes,
+  DEVICE_GROUPS,
   pointAt,
   project,
   renderScene,
@@ -33,6 +35,10 @@ type Props = {
   onConnect?: (a: string, b: string, kind: LinkKind) => void;
   onDisconnect?: (a: string, b: string) => void;
   onSetLinkKind?: (a: string, b: string, kind: LinkKind) => void;
+  /** A device type was picked in "Add device" mode and a grid cell clicked. */
+  onAddDevice?: (type: string, x: number, y: number) => void;
+  /** A device's label was edited by hand (the manual, non-voice content edit). */
+  onRename?: (id: string, label: string) => void;
   className?: string;
 };
 
@@ -112,6 +118,8 @@ export function TopologyAgentBoard({
   onConnect,
   onDisconnect,
   onSetLinkKind,
+  onAddDevice,
+  onRename,
   className,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,6 +134,10 @@ export function TopologyAgentBoard({
   const [connectKind, setConnectKind] = useState<LinkKind>("ethernet");
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [selectedLink, setSelectedLink] = useState<LinkRef | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [addDeviceType, setAddDeviceType] = useState<string>(components[0]?.id ?? "desktop");
+  const [addMode, setAddMode] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -279,6 +291,15 @@ export function TopologyAgentBoard({
     const point = toCanvasPoint(event.clientX, event.clientY);
     if (!iso || !point) return;
 
+    if (addMode) {
+      const grid = unproject(iso, point.x, point.y);
+      const maxCell = Math.max(renderableScene.w, renderableScene.d) - 1;
+      const gx = Math.min(Math.max(0, Math.round(grid.x - 0.5)), maxCell);
+      const gy = Math.min(Math.max(0, Math.round(grid.y - 0.5)), maxCell);
+      onAddDevice?.(addDeviceType, gx, gy);
+      return;
+    }
+
     const hitNode = hitTestNode(iso, point.x, point.y, renderableScene.nodes);
 
     if (connectMode) {
@@ -302,10 +323,12 @@ export function TopologyAgentBoard({
     if (linkIndex !== null) {
       const link = renderableScene.links[linkIndex];
       setSelectedLink(link.b ? { a: link.a, b: link.b } : null);
+      setSelectedNodeId(null);
       return;
     }
 
     setSelectedLink(null);
+    setSelectedNodeId(null);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -341,6 +364,10 @@ export function TopologyAgentBoard({
       setDragPreview(null);
       if (preview) onMove?.(preview.id, preview.x, preview.y);
     } else {
+      const node = renderableScene.nodes.find((n) => n.id === state.id);
+      setSelectedNodeId(state.id);
+      setSelectedLink(null);
+      setRenameDraft(node?.label ?? "");
       onSelect?.(state.id);
     }
   };
@@ -363,16 +390,54 @@ export function TopologyAgentBoard({
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              className={cn("h-[22rem] w-full touch-none", connectMode ? "cursor-crosshair" : "cursor-grab")}
+              className={cn("h-[22rem] w-full touch-none", connectMode || addMode ? "cursor-crosshair" : "cursor-grab")}
             />
 
-            <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 p-1.5 text-xs shadow-sm backdrop-blur">
+            <div className="absolute right-2 top-2 flex flex-wrap items-center justify-end gap-1.5 rounded-lg border border-border/60 bg-background/90 p-1.5 text-xs shadow-sm backdrop-blur">
+              {onAddDevice ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddMode((v) => !v);
+                      setConnectMode(false);
+                      setConnectSource(null);
+                    }}
+                    className={cn(
+                      "rounded-md px-2 py-1 font-medium transition",
+                      addMode ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
+                    )}
+                  >
+                    {addMode ? "Click a cell…" : "Add device"}
+                  </button>
+                  {addMode ? (
+                    <select
+                      value={addDeviceType}
+                      onChange={(e) => setAddDeviceType(e.target.value)}
+                      className="rounded-md border border-border/60 bg-background px-1.5 py-1 text-xs"
+                    >
+                      {DEVICE_GROUPS.map((group) => (
+                        <optgroup key={group} label={group}>
+                          {components
+                            .filter((c) => c.group === group)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ) : null}
+                </>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {
                   setConnectMode((v) => !v);
                   setConnectSource(null);
                   setSelectedLink(null);
+                  setAddMode(false);
                 }}
                 className={cn(
                   "rounded-md px-2 py-1 font-medium transition",
@@ -395,6 +460,32 @@ export function TopologyAgentBoard({
                 </select>
               ) : null}
             </div>
+
+            {selectedNodeId && onRename ? (
+              <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 p-1.5 text-xs shadow-sm backdrop-blur">
+                <input
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={() => {
+                    if (renameDraft.trim() && renameDraft !== selectedLinkNode(selectedNodeId)?.label) {
+                      onRename(selectedNodeId, renameDraft.trim());
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  className="w-36 rounded-md border border-border/60 bg-background px-1.5 py-1 text-xs"
+                  placeholder="Label…"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedNodeId(null)}
+                  className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted"
+                >
+                  Done
+                </button>
+              </div>
+            ) : null}
 
             {selectedLink ? (
               <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 p-1.5 text-xs shadow-sm backdrop-blur">

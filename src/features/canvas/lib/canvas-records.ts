@@ -67,7 +67,7 @@ function normalizeStatus(value: string | null | undefined): CanvasStatus {
 }
 
 function normalizeSubject(value: string | null | undefined): CanvasSubject {
-  return value === "computer_science" ? value : "computer_science";
+  return value === "computer_science" || value === "computer_networks" ? value : "computer_science";
 }
 
 export function mapCanvasSummary(row: CanvasRow): CanvasSummary {

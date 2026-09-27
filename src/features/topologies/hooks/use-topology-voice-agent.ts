@@ -13,7 +13,8 @@ import {
 } from "@/features/topologies/lib/topology-types";
 import { clearScene } from "@/features/topologies/operations/topology-scene-ops";
 import { createTopologyTools } from "@/features/topologies/tools/topology";
-import type { TopologyOverlay, TopologyToolContext } from "@/features/topologies/tools/tool-context";
+import type { BlockControls, TopologyOverlay, TopologyToolContext } from "@/features/topologies/tools/tool-context";
+import type { TopoScene } from "@/features/topologies/lib/topology-kit";
 import {
   finishRealtimeUsageSession,
   trackRealtimeResponse,
@@ -31,6 +32,8 @@ type UseTopologyVoiceAgentArgs = {
   responseMode?: "audio" | "silent";
   /** Mirror the settled diagram somewhere else, e.g. a canvas document. Called after every change. */
   onCommit?: (state: TopologyAgentState) => void;
+  /** Editing the frame's own text blocks, when running on a canvas. */
+  blocks?: BlockControls;
 };
 
 /** How many overlays stay on the board before the oldest is dropped. */
@@ -41,6 +44,7 @@ export function useTopologyVoiceAgent({
   lessonTitle,
   responseMode = "audio",
   onCommit,
+  blocks,
 }: UseTopologyVoiceAgentArgs = {}) {
   const [status, setStatus] = useState<RealtimeStatus | "paused">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +70,12 @@ export function useTopologyVoiceAgent({
   const usageSessionIdRef = useRef<string | null>(null);
   const captionBufferRef = useRef("");
   const onCommitRef = useRef(onCommit);
+  const blocksRef = useRef(blocks);
 
   useEffect(() => {
     onCommitRef.current = onCommit;
-  }, [onCommit]);
+    blocksRef.current = blocks;
+  }, [onCommit, blocks]);
 
   // ── Context window ───────────────────────────────────────────────────
   const pushLiveContext = useCallback(() => {
@@ -117,6 +123,9 @@ export function useTopologyVoiceAgent({
     () => ({
       get state() {
         return stateRef.current;
+      },
+      get blocks() {
+        return blocksRef.current;
       },
       play(result: TopologyOpResult) {
         if (!result.rejected) {
@@ -286,6 +295,25 @@ export function useTopologyVoiceAgent({
     [bumpState],
   );
 
+  /**
+   * Take over a topology that already exists on the canvas frame the class
+   * moved to — mirrors `adoptArray`/`adoptStrip`. `null` means the frame
+   * genuinely has none, and Mesh should know the board is empty rather than
+   * keep whatever the previous frame showed.
+   */
+  const adoptScene = useCallback(
+    (adopted: TopoScene | null) => {
+      stateRef.current.scene = adopted ?? { w: 8, d: 8, zones: [], nodes: [], links: [], selected: null };
+      stateRef.current.presetName = null;
+      stateRef.current.packetsAnimating = false;
+      bumpState();
+      player.controls.clear();
+      setOverlays([]);
+      syncBoard();
+    },
+    [bumpState, player.controls, syncBoard],
+  );
+
   // ── What the UI renders ──────────────────────────────────────────────
   const view: TopologyFrame = useMemo(() => {
     if (player.frame) return player.frame;
@@ -295,6 +323,7 @@ export function useTopologyVoiceAgent({
   return {
     /** Immutable snapshot — safe to read in render and to use as a dependency. */
     agentState: snapshot,
+    adoptScene,
     caption,
     connect,
     disconnect,

@@ -7,6 +7,7 @@ import {
   drawerItemMeta,
 } from "@/features/canvas/components/canvas-puck-overrides";
 import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
+import type { CanvasSubject } from "@/features/canvas/types/canvas-types";
 import { cn } from "@/lib/utils";
 
 type CanvasComponentName = keyof typeof canvasPuckConfig.components & string;
@@ -17,6 +18,8 @@ type PaletteSection = {
   id: string;
   layout: PaletteLayout;
   title: string;
+  /** Shown for every subject when omitted. */
+  subjects?: CanvasSubject[];
 };
 
 const paletteSections: PaletteSection[] = [
@@ -44,6 +47,13 @@ const paletteSections: PaletteSection[] = [
       "PointsListBlock",
     ],
   },
+  {
+    id: "networking",
+    title: "Networking",
+    layout: "blocks",
+    subjects: ["computer_networks"],
+    components: ["TopologyBlock"],
+  },
 ];
 
 const paletteLayoutClassNames: Record<PaletteLayout, string> = {
@@ -53,9 +63,13 @@ const paletteLayoutClassNames: Record<PaletteLayout, string> = {
 };
 
 export function CanvasComponentPalette() {
+  const { appState } = usePuck<typeof canvasPuckConfig>();
+  const subject = (appState.data.root.props?.subject ?? "computer_science") as CanvasSubject;
+  const visibleSections = paletteSections.filter((section) => !section.subjects || section.subjects.includes(subject));
+
   return (
     <div className="canvas-component-palette grid gap-5">
-      {paletteSections.map((section) => (
+      {visibleSections.map((section) => (
         <CanvasPaletteSection key={section.id} section={section} />
       ))}
     </div>

@@ -136,6 +136,8 @@ export function TopologyAgentDemo() {
   const handleMove = (id: string, x: number, y: number) => runTool("move_device", { id, x, y });
   const handleConnect = (a: string, b: string, kind: string) => runTool("connect_devices", { a, b, kind });
   const handleDisconnect = (a: string, b: string) => runTool("disconnect_devices", { a, b });
+  const handleAddDevice = (type: string, x: number, y: number) => runTool("add_device", { type, x, y });
+  const handleRename = (id: string, label: string) => runTool("rename_device", { id, label });
   const handleSetLinkKind = (a: string, b: string, kind: string) => {
     runTool("disconnect_devices", { a, b });
     runTool("connect_devices", { a, b, kind });
@@ -189,6 +191,8 @@ export function TopologyAgentDemo() {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           onSetLinkKind={handleSetLinkKind}
+          onAddDevice={handleAddDevice}
+          onRename={handleRename}
         />
         {agent.caption ? (
           <p className="pt-2 text-center text-sm italic text-muted-foreground">

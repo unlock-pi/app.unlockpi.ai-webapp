@@ -71,7 +71,11 @@ import type {
   StackBlockProps,
   SubheadingTextBlockProps,
   TableBlockProps,
+  TopologyBlockProps,
 } from "@/features/canvas/types/canvas-types";
+import { TopologyAgentBoard } from "@/features/topologies/ui/components/topology-agent-board";
+import { useTopologyAgentView } from "@/features/topologies/ui/components/topology-agent-view-context";
+import { applyPreset } from "@/features/topologies/operations/topology-preset-ops";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_CANVAS_FONT_FAMILY,
@@ -381,6 +385,7 @@ function SlideBlock({
               "CheckpointBlock",
               "SketchBlock",
               "PointsListBlock",
+              "TopologyBlock",
             ]}
             className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
           />
@@ -723,6 +728,35 @@ function PointsListBlock({ points, listStyle, defaultExpanded }: PointsListBlock
   );
 }
 
+function TopologyBlock({ id, title, preset, scene: storedScene }: TopologyBlockProps & { id: string }) {
+  const live = useTopologyAgentView(id);
+  const scene = live?.view.scene ?? storedScene ?? applyPreset(preset ?? "hybrid").scene;
+
+  return blockShell(
+    "grid gap-3",
+    <>
+      {title ? <h3 className="text-lg font-semibold tracking-tight">{title}</h3> : null}
+      <TopologyAgentBoard
+        scene={scene}
+        note={live?.view.note}
+        packetsAnimating={live?.packetsAnimating ?? false}
+        onSelect={live?.actions?.onSelect}
+        onMove={live?.actions?.onMove}
+        onConnect={live?.actions?.onConnect}
+        onDisconnect={live?.actions?.onDisconnect}
+        onSetLinkKind={live?.actions?.onSetLinkKind}
+        onAddDevice={live?.actions?.onAddDevice}
+        onRename={live?.actions?.onRename}
+      />
+      {!live ? (
+        <p className="text-xs text-muted-foreground">
+          Connect Mesh (the network topology agent) from the presentation dock to edit this board live — by voice or by hand.
+        </p>
+      ) : null}
+    </>,
+  );
+}
+
 function CodeBlock({ title, language, code, explanation }: CodeBlockProps) {
   return blockShell(
     "grid gap-3",
@@ -927,7 +961,10 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       subject: {
         type: "select",
         label: "Subject",
-        options: [{ label: "Computer Science", value: "computer_science" }],
+        options: [
+          { label: "Computer Science", value: "computer_science" },
+          { label: "Computer Networks", value: "computer_networks" },
+        ],
       },
       theme: {
         type: "select",
@@ -1522,6 +1559,28 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         return { ...data, props: { ...data.props, points: deduped } };
       },
       render: PointsListBlock,
+    },
+    TopologyBlock: {
+      label: "Network topology",
+      fields: {
+        title: { type: "text", label: "Title (optional)", contentEditable: true },
+        preset: {
+          type: "select",
+          label: "Layout",
+          options: [
+            { label: "Star", value: "star" },
+            { label: "Bus", value: "bus" },
+            { label: "Ring", value: "ring" },
+            { label: "Mesh", value: "mesh" },
+            { label: "Tree", value: "tree" },
+            { label: "Hybrid office", value: "hybrid" },
+          ],
+        },
+      },
+      defaultProps: {
+        preset: "hybrid",
+      },
+      render: TopologyBlock,
     },
   },
 };
