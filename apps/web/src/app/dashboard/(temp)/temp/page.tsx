@@ -1,0 +1,239 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { play } from "cuelume";
+
+import { ArrayView } from "@unlockpi/blocks/array";
+import {
+  canPopStack,
+  canPushStack,
+  clampStackToCapacity,
+  popStack,
+  pushStack,
+  type StackCapacity,
+} from "@/components/data-structure/stack-model";
+import { StackView } from "@/components/data-structure/stack-view";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+
+// Playground for the data-structure visualizers. Two purposes:
+//   1) Give the user knobs to drive push/pop and toggle fixed/dynamic so the
+//      animations can be exercised without wiring up a full lesson flow.
+//   2) Serve as the reference for how a parent should manage stack state
+//      when using StackView in Fixed mode (guard pushes against the size).
+
+export default function Page() {
+  return (
+    <div className="@container/main min-h-screen flex flex-1 flex-col gap-10 p-6">
+      {/* <ArraySection /> */}
+      <StackPlayground />
+    </div>
+  );
+}
+
+function ArraySection() {
+  const [arrayData, setArrayData] = useState([1, 2, 3, 4, 5]);
+  return (
+    <section className="space-y-4">
+      <h2 className="text-lg font-semibold">Array</h2>
+      <ArrayView
+        data={arrayData}
+        highlightElements
+        highlightIndices
+        activeIndex={2}
+      />
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setArrayData((prev) => {
+              if (prev.length === 0) {
+                play("error");
+                return prev;
+              }
+              play("droplet");
+              return prev.slice(0, -1);
+            })
+          }
+        >
+          pop
+        </Button>
+        <Button
+          size="sm"
+          onClick={() =>
+            setArrayData((prev) => {
+              play("bloom");
+              return [...prev, prev.length + 1];
+            })
+          }
+        >
+          push
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function StackPlayground() {
+  const [stackData, setStackData] = useState<string[]>([
+    "dress 1",
+    "dress 2",
+    "dress 3",
+  ]);
+  const [isFixed, setIsFixed] = useState(true);
+  const [stackSize, setStackSize] = useState(5);
+  // Monotonic counter so successive pushes always give a fresh, human-
+  // readable label ("dress 4", "dress 5", …) even after pops.
+  const [pushCounter, setPushCounter] = useState(4);
+
+  // Single source of truth for "is this stack full/empty" — the same
+  // functions a future voice-controlled push/pop AI action would call, so
+  // clicking Push and saying "push a new value" can never disagree about
+  // whether the stack has room.
+  const capacity: StackCapacity = isFixed
+    ? { isFixed: true, size: stackSize }
+    : { isFixed: false };
+  const isFull = !canPushStack(stackData.length, capacity);
+  const isEmpty = !canPopStack(stackData.length);
+
+  // The cue reflects what actually happened, not what was clicked: pushing
+  // a full stack or popping an empty one is a no-op in stack-model, so it
+  // gets the refusal sound instead of the success sound.
+  const push = useCallback(() => {
+    if (isFull) {
+      play("error");
+      return;
+    }
+    play("bloom");
+    setStackData((prev) => pushStack(prev, `dress ${pushCounter}`, capacity));
+    setPushCounter((n) => n + 1);
+  }, [capacity, isFull, pushCounter]);
+
+  const pop = useCallback(() => {
+    if (isEmpty) {
+      play("error");
+      return;
+    }
+    play("droplet");
+    setStackData((prev) => popStack(prev));
+  }, [isEmpty]);
+
+  const clear = useCallback(() => {
+    play("droplet");
+    setStackData([]);
+  }, []);
+
+  const handleFixedChange = useCallback(
+    (nextChecked: boolean) => {
+      setIsFixed(nextChecked);
+      // Flipping into Fixed with an over-sized dataset: trim to the current
+      // stackSize so the visual matches the invariant.
+      if (nextChecked) {
+        setStackData((prev) =>
+          clampStackToCapacity(prev, { isFixed: true, size: stackSize }),
+        );
+      }
+    },
+    [stackSize],
+  );
+
+  const handleSizeChange = useCallback(
+    (value: number | readonly number[]) => {
+      const nextSize = Array.isArray(value) ? value[0] : (value as number);
+      setStackSize(nextSize);
+      // Same reason as above: shrinking the bucket must not leave items
+      // floating above the walls.
+      setStackData((prev) =>
+        clampStackToCapacity(prev, { isFixed: true, size: nextSize }),
+      );
+    },
+    [],
+  );
+
+  return (
+    <section className="space-y-6">
+      <div className="flex items-center gap-3">
+        <h2 className="text-lg font-semibold">Stack</h2>
+        <Badge variant={isFixed ? "outline" : "secondary"}>
+          {isFixed ? `Fixed · ${stackData.length}/${stackSize}` : "Dynamic"}
+        </Badge>
+      </div>
+
+      <StackView
+        data={stackData}
+        name="S"
+        isFixed={isFixed}
+        stackSize={stackSize}
+      />
+
+      {/* Controls */}
+      <div className="grid gap-6 rounded-2xl border border-border bg-card p-5 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="fixed-toggle"
+              data-cuelume-toggle
+              checked={isFixed}
+              onCheckedChange={handleFixedChange}
+            />
+            <Label htmlFor="fixed-toggle">Fixed size</Label>
+            <span className="text-xs text-muted-foreground">
+              {isFixed
+                ? "Bucket has a set capacity; empty slots stay visible."
+                : "Bucket grows and shrinks with the data."}
+            </span>
+          </div>
+
+          {isFixed ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="stack-size">Stack size</Label>
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  {stackSize}
+                </span>
+              </div>
+              <Slider
+                id="stack-size"
+                min={1}
+                max={10}
+                step={1}
+                value={[stackSize]}
+                onValueChange={handleSizeChange}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2 md:flex-col md:items-stretch">
+          <Button onClick={push} disabled={isFull}>
+            Push
+          </Button>
+          <Button
+            variant="outline"
+            onClick={pop}
+            disabled={isEmpty}
+          >
+            Pop
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={clear}
+            disabled={isEmpty}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      {isFull ? (
+        <p className="text-xs text-muted-foreground">
+          Stack is full. Pop an item or increase the size to push more.
+        </p>
+      ) : null}
+    </section>
+  );
+}

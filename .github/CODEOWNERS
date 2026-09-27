@@ -1,0 +1,21 @@
+# Ownership boundaries for the packages split — see packages/blocks/README.md
+# and packages/realtime/README.md for the reasoning behind these lines.
+#
+# Fill in real GitHub usernames/teams below (the @placeholder-* handles are
+# stand-ins — GitHub won't request review from a team that doesn't exist).
+# A later, more specific rule wins over an earlier, more general one.
+
+# UI/visualization team
+/packages/ui/                      @placeholder-ui-team
+/packages/blocks/                  @placeholder-ui-team
+
+# Voice-agent/realtime team
+/packages/realtime/                        @placeholder-agents-team
+/apps/web/src/features/arrays-agent/       @placeholder-agents-team
+/apps/web/src/features/digital-circuits/   @placeholder-agents-team
+/apps/web/src/features/amplitude-modulation/ @placeholder-agents-team
+/apps/web/src/features/pn-junction/        @placeholder-agents-team
+
+# Root workspace/build config — anyone touching this affects every package.
+/package.json                      @placeholder-ui-team @placeholder-agents-team
+/turbo.json                        @placeholder-ui-team @placeholder-agents-team

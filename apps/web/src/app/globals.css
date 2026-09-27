@@ -1,0 +1,767 @@
+/**
+ * Global styles for UnlockPi — Pi Tutor classroom AI.
+ * Design system inspired by the Pi AI web app:
+ *   - Pure dark background (#000)
+ *   - Vibrant orange (#ff4d00) accent
+ *   - Manrope font for body, JetBrains Mono for code
+ *   - Custom crosshair cursors
+ *   - Styled orange scrollbars
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@mostlylucid/mermaid-enhancements/styles.css";
+@source "../../../node_modules/streamdown/dist/*.js";
+/*
+ * Workspace packages live outside this app's own src/ tree, so Tailwind's
+ * automatic content detection doesn't reach them on its own — these tell it
+ * explicitly where to find the utility classes packages/ui and
+ * packages/blocks actually use.
+ */
+@source "../../../packages/ui/src";
+@source "../../../packages/blocks/src";
+
+@custom-variant dark (&:is(.dark *));
+
+/**
+ * Canvas "Handwriting" typeface. Declared as a plain @font-face rather than
+ * next/font because it needs to be OPT-IN per canvas (only some canvases
+ * choose the handwriting typeface), not loaded on every page. A CSS
+ * @font-face descriptor costs nothing until something on the page actually
+ * renders text in that font-family — the browser only fetches
+ * Excalifont-Regular.woff2 the moment a canvas with fontFamily="handwriting"
+ * is open; canvases left on the default "modern" typeface (Inter/Manrope/
+ * Space Grotesk, already loaded globally via next/font in layout.tsx) never
+ * trigger this request at all. font-display: swap avoids a blocked/invisible
+ * text flash while it loads.
+ */
+@font-face {
+  font-family: "Excalifont";
+  src: url("/Excalifont-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * Canvas "Chalkboard" typeface — same opt-in-per-canvas rule as Excalifont
+ * above: only fetched when a canvas actually selects fontFamily="chalkboard"
+ * and renders text in it.
+ */
+@font-face {
+  font-family: "Chalkboard Regular";
+  src: url("/chalk-board-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── Pi AI Design Tokens ─── */
+:root {
+  /* Core palette */
+  --color-black: #000;
+  --color-white: #efefef;
+  --color-lighter-gray: #afafaf;
+  --color-gray: #747474;
+  --color-dark-gray: #3a3a3a;
+  --color-darker-gray: #232323;
+  --color-darkest-gray: #121212;
+  /* --color-orange: #ff4d00; */
+  --color-orange: #dc2626;
+  --color-orange-rgb: 220 38 38;
+  --color-red: red;
+
+  /* Utility tokens */
+  --text-shadow: hsla(0, 0%, 94%, 0.3);
+  --bg-black: hsla(0, 0%, 7%, 0.97);
+
+  /* Fonts */
+  --font-system:
+    -apple-system, blinkmacsystemfont, segoe ui, roboto, oxygen, ubuntu,
+    cantarell, fira sans, droid sans, helvetica neue, sans-serif;
+  --font-body: var(--font-sans), var(--font-system), sans-serif;
+  --font-jb-mono: var(--font-mono), "JetBrains Mono", monospace;
+
+  /* Custom cursors (crosshair style from Pi AI) */
+  /* --cursor-pointer: url("data:image/svg+xml,%3Csvg width=%2727%27 height=%2727%27 fill=%27none%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cpath fill=%27%23EFEFEF%27 stroke=%27%23000%27 d=%27M12.5 12.5v2H.5v-2zM26.5 12.5v2h-12v-2zM14.5 11.5h-2V.5h2zM14.5 26.5h-2v-11h2z%27/%3E%3Cpath fill=%27%23EFEFEF%27 stroke=%27%23000%27 d=%27M15.5 11.5v4h-4v-4z%27/%3E%3C/svg%3E") 11 11, pointer;
+  --cursor-default: url("data:image/svg+xml,%3Csvg width=%2727%27 height=%2727%27 fill=%27none%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cpath d=%27M14 26.5h.5v-12h12v-2h-12V.5h-2v12H.5v2h12v12H14Z%27 fill=%27%23EFEFEF%27 stroke=%27%23000%27/%3E%3C/svg%3E") 11 11, default;
+  --cursor-text: url("data:image/svg+xml,%3Csvg width=%2725%27 height=%2727%27 fill=%27none%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cpath fill=%27%23EFEFEF%27 stroke=%27%23000%27 d=%27M13.5 26.5h-2V.5h2z%27/%3E%3C/svg%3E") 11 11, text; */
+
+  /* Layout */
+  --scrollbar-width: max(10px, 0.5208333333vw);
+}
+
+/* ─── Shadcn / Tailwind Theme Mapping (Dark-first) ─── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* Light mode tokens. The app still defaults to dark via ThemeProvider. */
+:root {
+  --background: #f7f8fb;
+  --foreground: #151515;
+  --card: #ffffff;
+  --card-foreground: #151515;
+  --popover: #ffffff;
+  --popover-foreground: #151515;
+  --primary: #dc2626;
+  --primary-foreground: #ffffff;
+  --secondary: #edf0f4;
+  --secondary-foreground: #151515;
+  --muted: #edf0f4;
+  --muted-foreground: #687385;
+  --accent: #e6e9ef;
+  --accent-foreground: #111827;
+  /* Destructive is a DEEPER red than primary (#dc2626) so a delete/error is
+     visually distinct from a brand CTA. See brand-guideline.md. */
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --border: #d9dee8;
+  --input: #d9dee8;
+  --ring: #dc2626;
+  --chart-1: #dc2626;
+  --chart-2: #f97316;
+  --chart-3: #2563eb;
+  --chart-4: #16a34a;
+  --chart-5: #7c3aed;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #151515;
+  --sidebar-primary: #dc2626;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf0f4;
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #d9dee8;
+  --sidebar-ring: #dc2626;
+}
+
+/* Dark mode class. */
+.dark {
+  --background: #000000;
+  --foreground: #efefef;
+  --card: #121212;
+  --card-foreground: #efefef;
+  --popover: #121212;
+  --popover-foreground: #efefef;
+  --primary: #dc2626;
+  --primary-foreground: #ffffff;
+  --secondary: #232323;
+  --secondary-foreground: #efefef;
+  --muted: #1a1a1a;
+  --muted-foreground: #747474;
+  --accent: #3a3a3a;
+  --accent-foreground: #efefef;
+  /* Distinct from primary (#dc2626) and softer than pure #ff0000. */
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #4ade80;
+  --success-foreground: #052e16;
+  --warning: #fbbf24;
+  --warning-foreground: #231a00;
+  --border: #232323;
+  --input: #232323;
+  --ring: #dc2626;
+  --chart-1: #dc2626;
+  --chart-2: #ff6a2a;
+  --chart-3: #ff8855;
+  --chart-4: #ffa57f;
+  --chart-5: #ffc3aa;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #efefef;
+  --sidebar-primary: #dc2626;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #efefef;
+  --sidebar-border: #232323;
+  --sidebar-ring: #dc2626;
+}
+
+/* ─── Global Resets & Base Styles (Pi style) ─── */
+html {
+  line-height: 1.5;
+  box-sizing: border-box;
+  text-rendering: geometricprecision;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background);
+  /* scrollbar-color: var(--color-orange) var(--color-black); */
+}
+
+/*
+  Global box-sizing + default border color. The default border COLOR is set
+  in @layer base below via `@apply border-border` — do NOT use the `border`
+  shorthand here (or set `border-width: 0`): the shorthand and any
+  border-width declaration in an UNLAYERED rule beat every Tailwind
+  `border-*` utility (utilities live in @layer utilities, and cascade layers
+  make unlayered rules win over layered ones regardless of specificity).
+  That was silently zeroing every `border`, `border-l-2`, `border-8`, etc.
+  used anywhere in the app.
+*/
+*,
+*::after,
+*::before {
+  box-sizing: border-box;
+}
+
+/* Custom crosshair cursor on all interactive elements */
+html {
+  cursor: var(--cursor-default);
+}
+
+a,
+button,
+[role="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="button"],
+select,
+summary,
+.cursor-pointer {
+  cursor: var(--cursor-pointer) !important;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  cursor: var(--cursor-text) !important;
+}
+
+/* ─── Custom Scrollbar (Orange on darkest gray) ─── */
+/* html ::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+}
+
+html ::-webkit-scrollbar-thumb {
+  background: var(--color-orange);
+  border-radius: 999px;
+}
+
+html ::-webkit-scrollbar-track {
+  background: var(--color-darker-gray);
+} */
+
+/* ─── Selection Highlight ─── */
+/* ::selection {
+  background-color: rgba(255, 77, 0, 0.35);
+  color: #fff;
+} */
+
+
+
+/* Photo viewer controls */
+.PhotoView-Slider__toolbarIcon {
+  border-radius: 0.75rem;
+  background-color: var(--primary);
+  fill: var(--primary-foreground);
+  margin-right: 0.35rem;
+  opacity: 0.95;
+  padding: 0.7rem;
+}
+
+.PhotoView-Slider__ArrowLeft svg,
+.PhotoView-Slider__ArrowRight svg {
+  border-radius: 0.75rem;
+  background: var(--primary);
+  fill: var(--primary-foreground);
+  padding: 0.7rem;
+}
+
+/* ─── Base Layer ─── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground text-sm;
+    font-family: var(--font-body);
+  }
+}
+
+/* ─── Utility Classes ─── */
+.text-pi-orange {
+  color: var(--color-orange);
+}
+
+.bg-pi-orange {
+  background-color: var(--color-orange);
+}
+
+.border-pi-orange {
+  border-color: var(--color-orange);
+}
+
+.glow-orange {
+  box-shadow:
+    0 0 30px rgba(255, 77, 0, 0.3),
+    0 0 60px rgba(255, 77, 0, 0.1);
+}
+
+.text-shadow-light {
+  text-shadow: 0 0 20px var(--text-shadow);
+}
+
+/* Smooth transition for all interactive state changes */
+.transition-pi {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Puck's non-iframe preview renders its own frame wrapper; keep it filling our canvas pane. */
+.canvas-preview-pane [data-puck-preview],
+.canvas-preview-pane #preview-frame {
+  min-height: 100%;
+}
+
+.canvas-component-palette [class*="ComponentList"] {
+  min-width: 0;
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:first-child
+  [class*="ComponentList-content"]
+  > [class*="_Drawer_"] {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:not(:first-child)
+  [class*="ComponentList-content"]
+  > [class*="_Drawer_"] {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.canvas-component-palette [class*="ComponentList-title"] {
+  border-radius: 0.625rem;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 0.35rem 0.2rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.canvas-component-palette [data-puck-drawer-item] {
+  min-width: 0;
+}
+
+.canvas-drawer-card {
+  align-items: center;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 1.35rem;
+  display: flex;
+  gap: 0.8rem;
+  min-height: 4.4rem;
+  padding: 0.85rem 1rem;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.canvas-component-palette [data-puck-drawer-item]:hover .canvas-drawer-card {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.12);
+  transform: translateY(-1px);
+}
+
+.canvas-drawer-card--text {
+  padding-block: 0.65rem;
+}
+
+.canvas-drawer-card--compact {
+  aspect-ratio: 1 / 1;
+  align-content: center;
+  align-items: center;
+  container-type: inline-size;
+  display: grid;
+  row-gap: clamp(0.5rem, 4cqw, 0.75rem) !important;
+  justify-items: center;
+  min-height: 0;
+  padding: 0.65rem 0.35rem;
+  text-align: center;
+}
+
+.canvas-drawer-card--compact > p {
+  margin-top: 0;
+}
+
+/* Keep the artwork proportional when the palette grid gives a card more room. */
+.canvas-drawer-card--compact > div:first-child {
+  border-radius: clamp(0.75rem, 8cqw, 1rem);
+  height: clamp(2.5rem, 30cqw, 5rem);
+  width: clamp(2.5rem, 30cqw, 5rem);
+}
+
+.canvas-drawer-card--compact > div:first-child > svg {
+  height: clamp(1.25rem, 16cqw, 2.5rem);
+  width: clamp(1.25rem, 16cqw, 2.5rem);
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:not(:first-child)
+  .canvas-drawer-card--default {
+  align-content: start;
+  align-items: flex-start;
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  min-height: 7.4rem;
+  padding: 0.8rem;
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:not(:first-child)
+  .canvas-drawer-card--default
+  > div:first-child {
+  display: grid;
+  height: 2.5rem;
+  place-items: center;
+  width: 2.5rem;
+}
+
+.canvas-component-palette
+  > [class*="ComponentList"]:not(:first-child)
+  .canvas-drawer-card--default
+  > p {
+  line-height: 1.15;
+}
+
+.canvas-component-palette [data-testid="drawer-item:TextBlock"] {
+  display: none;
+}
+
+.canvas-frame-menu summary {
+  list-style: none;
+}
+
+.canvas-frame-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.canvas-frame-menu[open] > summary {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  color: var(--foreground);
+}
+
+/* Class View renders one frame at a time and removes editor-only frame chrome. */
+.canvas-presenter-frame article > div:first-child {
+  display: none;
+}
+
+.canvas-shared-frame article > div:first-child {
+  display: none;
+}
+
+.canvas-presenter-frame article {
+  height: 100%;
+  max-width: none;
+}
+
+.canvas-shared-frame article {
+  max-width: none;
+}
+
+.canvas-presenter-frame article > section {
+  aspect-ratio: 16 / 9;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.canvas-presenter-frame article > section > div {
+  min-height: 100%;
+}
+
+.canvas-presenter-frame {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 100%;
+  overflow: hidden;
+  width: min(100%, 177.7778svh);
+}
+
+.canvas-presenter-frame [data-slot="scroll-area-viewport"] {
+  overflow: hidden !important;
+}
+
+/* The class-room surface gets the whole 16:9 stage; compact preview cards
+   deliberately keep the smaller editor sizing above. */
+.canvas-presenter-surface article > section,
+.canvas-presenter-surface [data-slot="scroll-area-content"] {
+  height: 100%;
+}
+
+.canvas-presenter-surface article > section {
+  padding: clamp(1rem, 2vw, 2.5rem);
+}
+
+/* Let the teaching content use the larger display without shrinking it to fit.
+   The content-based frame capacity keeps the composition presentable. */
+.canvas-presenter-surface [data-slot="scroll-area-content"] {
+  --canvas-heading-size: clamp(2.5rem, 4vw, 5.5rem);
+  --canvas-subheading-size: clamp(1.75rem, 2.6vw, 3.5rem);
+  --canvas-body-size: clamp(1.125rem, 1.55vw, 1.75rem);
+  --canvas-body-leading: 1.55;
+}
+
+.canvas-presenter-surface .canvas-frame-block {
+  display: flex;
+  /* Keep every block's content on the same left edge. Individual diagrams
+     can still centre their own internal labels where that conveys meaning. */
+  align-items: stretch;
+  /* Frames are a fixed 16:9 stage. Do not reserve a fixed amount of height
+     per block: several blocks would exceed the stage and make the inner
+     ScrollArea scroll. The content grid distributes the available height. */
+  min-height: 0;
+  padding: clamp(1.5rem, 2.5vw, 3rem);
+}
+
+.canvas-presenter-surface .canvas-frame-block h3 {
+  font-size: clamp(1.5rem, 2.1vw, 2.75rem);
+}
+
+.canvas-presenter-surface .canvas-frame-block p {
+  font-size: clamp(1.05rem, 1.35vw, 1.6rem);
+}
+
+/* Data structures are the visual centrepiece of a lesson. On the large
+   presentation surface, give a short array enough visual weight to read from
+   across the room instead of leaving a tiny cluster in a large card. */
+.canvas-presenter-surface .canvas-array-strip {
+  justify-content: flex-start;
+  padding-block: clamp(1rem, 2vh, 2rem);
+}
+
+/* ── Array block: sized to its block, never scrolled ─────────────────────
+   Cells used to be sized by viewport width, so ten of them overflowed the
+   frame and the block was made horizontally scrollable to cope. Sizing by the
+   block's own width (cqi) means ten cells always fit. The index row reads the
+   same variables as the cells, so each index stays centred under its cell at
+   every size — the fixed-width index row is what drifted out of line. */
+.canvas-array-block .canvas-array-strip {
+  container-type: inline-size;
+  --array-cell: clamp(2.25rem, 6.4cqi, 4rem);
+  --array-gap: clamp(0.25rem, 0.8cqi, 0.5rem);
+  --array-pad: clamp(0.375rem, 1cqi, 0.75rem);
+}
+
+.canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.125rem, 3.5cqi, 1.5rem);
+}
+
+.canvas-array-block .canvas-array-strip-plates {
+  gap: var(--array-gap);
+  padding: var(--array-pad);
+}
+
+.canvas-array-block .canvas-array-strip-index-row {
+  gap: var(--array-gap);
+  padding-inline: var(--array-pad);
+}
+
+.canvas-array-block .canvas-array-strip-cell {
+  width: var(--array-cell);
+  height: var(--array-cell);
+  font-size: calc(var(--array-cell) * 0.36);
+}
+
+/* Long values step down so "biodiversity" fits the same square as "7". */
+.canvas-array-block .canvas-array-strip-cell[data-value-size="sm"] {
+  font-size: calc(var(--array-cell) * 0.28);
+}
+
+.canvas-array-block .canvas-array-strip-cell[data-value-size="xs"] {
+  font-size: calc(var(--array-cell) * 0.22);
+}
+
+.canvas-array-block .canvas-array-strip-cell[data-value-size="2xs"] {
+  font-size: calc(var(--array-cell) * 0.17);
+}
+
+.canvas-array-block .canvas-array-strip-index {
+  width: var(--array-cell);
+}
+
+.canvas-array-block .canvas-array-strip-index > span {
+  font-size: calc(var(--array-cell) * 0.2);
+}
+
+/* The beat currently playing, shown under the strip only while animating. */
+.canvas-array-block .canvas-array-step {
+  font-size: clamp(0.75rem, 2.2cqi, 1rem);
+  text-align: center;
+  min-height: 1.4em;
+}
+
+.canvas-presenter-surface .canvas-array-block .canvas-array-step {
+  font-size: clamp(1rem, 2.4cqi, 1.75rem);
+}
+
+/* On the presentation stage the same array can be much bigger. */
+.canvas-presenter-surface .canvas-array-block .canvas-array-strip {
+  --array-cell: clamp(3rem, 6.4cqi, 7.5rem);
+  --array-gap: clamp(0.375rem, 0.9cqi, 1.25rem);
+  --array-pad: clamp(0.5rem, 1.1cqi, 1.25rem);
+}
+
+.canvas-presenter-surface .canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.5rem, 4.5cqi, 4rem);
+}
+
+/* Preserve the whole lesson when several blocks share a single slide. This
+   keeps it a no-scroll presentation while avoiding cropped text or controls. */
+.canvas-presenter-surface--dense [data-slot="scroll-area-content"] {
+  --canvas-heading-size: clamp(2rem, 3vw, 4rem);
+  --canvas-subheading-size: clamp(1.4rem, 2vw, 2.5rem);
+  --canvas-body-size: clamp(0.95rem, 1.2vw, 1.35rem);
+}
+
+.canvas-presenter-surface--dense .canvas-frame-block {
+  padding: clamp(1rem, 1.5vw, 1.75rem);
+}
+
+.canvas-presenter-surface--dense .canvas-array-strip {
+  padding-block: 0.5rem;
+}
+
+.canvas-presenter-surface--dense .canvas-array-block .canvas-array-strip {
+  --array-cell: clamp(2.5rem, 5.5cqi, 5rem);
+}
+
+.canvas-presenter-surface--dense .canvas-array-block .canvas-array-strip-name {
+  font-size: clamp(1.25rem, 3.5cqi, 2.75rem);
+}
+
+.canvas-presenter-surface .canvas-frame-watermark {
+  display: none;
+}
+
+.canvas-copy-delete {
+  display: none;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.canvas-preview-pane .canvas-copy-delete {
+  display: inline-grid;
+}
+
+/* Puck disables pointer input inside selected blocks for drag-and-drop. These
+   three deliberate editor controls opt back in. */
+.canvas-preview-pane [data-puck-component] .canvas-copy-delete,
+.canvas-preview-pane [data-puck-component] .canvas-block-copy-editor {
+  pointer-events: auto !important;
+}
+
+.canvas-block-copy-editor:focus {
+  outline: 1px dashed var(--primary);
+  outline-offset: 3px;
+}
+
+.canvas-frame-block--compact {
+  align-content: start !important;
+  align-items: start !important;
+  align-self: start !important;
+  justify-content: start !important;
+  padding: 0.875rem;
+}
+
+.canvas-frame-block--compact > .grid {
+  align-content: start !important;
+  align-items: start !important;
+  justify-content: start !important;
+  width: 100%;
+  gap: 0.75rem;
+}
+
+.canvas-preview-pane [data-puck-component].canvas-frame-block--compact,
+.canvas-preview-pane [data-puck-component]:has(.canvas-frame-block--compact) {
+  align-self: start;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.canvas-frame-block--compact .canvas-array-strip {
+  padding-top: 0;
+}
+
+.canvas-preview-pane .group:hover > .canvas-copy-delete,
+.canvas-preview-pane .canvas-copy-delete:focus-visible {
+  opacity: 1;
+}
+
+.canvas-copy-delete:hover {
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
+
+.canvas-presentation-watermark {
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  right: max(1.5rem, env(safe-area-inset-right));
+}
