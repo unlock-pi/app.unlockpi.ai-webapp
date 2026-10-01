@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-import type { Automaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
 import { useAutomataCanvasBridge } from "@/features/automata-agent/hooks/use-automata-canvas-bridge-agent";
 import { useAutomataVoiceAgent } from "@/features/automata-agent/hooks/use-automata-voice-agent";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";

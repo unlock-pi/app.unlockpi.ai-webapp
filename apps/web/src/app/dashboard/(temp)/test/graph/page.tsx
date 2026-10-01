@@ -30,7 +30,7 @@ import {
   setGraphView,
   startGraphExecution,
   stepGraphExecution,
-} from "@/components/graph";
+} from "@unlockpi/blocks/graph";
 import type {
   GraphDisplayMode,
   GraphEdge,
@@ -38,7 +38,7 @@ import type {
   GraphOperationResult,
   GraphRuntimeState,
   GraphAlgorithmStep,
-} from "@/components/graph";
+} from "@unlockpi/blocks/graph";
 import { cn } from "@/lib/utils";
 
 type Operation = (state: GraphRuntimeState) => GraphOperationResult<unknown>;

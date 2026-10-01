@@ -1,4 +1,8 @@
 import type { Data, Slot } from "@puckeditor/core";
+import type { AutomatonBlockProps } from "@/components/automata";
+import type { ContextFreeGrammarBlockProps } from "@/components/context-free-grammar";
+import type { PDABlockProps } from "@/components/pda";
+import type { RegularExpressionBlockProps } from "@/components/regular-expression";
 
 // TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
 // FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
@@ -64,6 +68,10 @@ export type SubheadingTextBlockProps = {
 export type BodyTextBlockProps = {
   text: string;
 };
+
+export type Heading3TextBlockProps = { text: string };
+export type CalloutTextBlockProps = { text: string };
+export type QuoteTextBlockProps = { text: string; citation: string };
 
 /**
  * A circuit block is authored as one of a small set of PRESETS, not as raw
@@ -200,7 +208,10 @@ export type CanvasComponents = {
   SlideBlock: SlideBlockProps;
   HeadingTextBlock: HeadingTextBlockProps;
   SubheadingTextBlock: SubheadingTextBlockProps;
+  Heading3TextBlock: Heading3TextBlockProps;
   BodyTextBlock: BodyTextBlockProps;
+  CalloutTextBlock: CalloutTextBlockProps;
+  QuoteTextBlock: QuoteTextBlockProps;
   ArrayBlock: ArrayBlockProps;
   CircuitBlock: CircuitBlockProps;
   StackBlock: StackBlockProps;
@@ -211,6 +222,10 @@ export type CanvasComponents = {
   MermaidBlock: MermaidBlockProps;
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
+  AutomatonBlock: AutomatonBlockProps;
+  PDABlock: PDABlockProps;
+  ContextFreeGrammarBlock: ContextFreeGrammarBlockProps;
+  RegularExpressionBlock: RegularExpressionBlockProps;
   SketchBlock: SketchBlockProps;
 };
 
@@ -249,7 +264,10 @@ export type CanvasAiAction =
   | { action: "update_frame_title"; frameId?: string; title: string }
   | { action: "add_text_block"; heading?: string; body?: string }
   | { action: "add_subheading_block"; text?: string }
+  | { action: "add_heading3_block"; text?: string }
   | { action: "add_body_block"; text?: string }
+  | { action: "add_callout_block"; text?: string }
+  | { action: "add_quote_block"; text?: string; citation?: string }
   | {
     action: "add_code_block";
     code?: string;
@@ -276,6 +294,32 @@ export type CanvasAiAction =
   | { action: "clear_frame" }
   | { action: "add_array_block"; title?: string; values?: string[] }
   | { action: "set_array_values"; componentId?: string; values: string[] }
+  | { action: "add_automaton_block"; automaton: AutomatonBlockProps }
+  | {
+    action: "set_automaton_block";
+    componentId: string;
+    automaton: AutomatonBlockProps;
+  }
+  | { action: "add_pda_block"; pda: PDABlockProps }
+  | { action: "set_pda_block"; componentId: string; pda: PDABlockProps }
+  | {
+    action: "add_context_free_grammar_block";
+    contextFreeGrammar: ContextFreeGrammarBlockProps;
+  }
+  | {
+    action: "set_context_free_grammar_block";
+    componentId: string;
+    contextFreeGrammar: ContextFreeGrammarBlockProps;
+  }
+  | {
+    action: "add_regular_expression_block";
+    regularExpression: RegularExpressionBlockProps;
+  }
+  | {
+    action: "set_regular_expression_block";
+    componentId: string;
+    regularExpression: RegularExpressionBlockProps;
+  }
   | { action: "resize_array"; componentId?: string; length: number }
   | { action: "highlight_array_index"; componentId?: string; index?: number }
   | { action: "append_array_value"; componentId?: string; value?: string }

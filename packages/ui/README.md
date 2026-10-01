@@ -1,6 +1,6 @@
 # `@unlockpi/ui`
 
-Small shared UI primitives for workspace packages. It currently exports `cn`, `Badge`, and tooltip components.
+Small shared UI primitives for workspace packages. It exports `cn`, `Badge`, tooltips, basic form controls, execution controls, an input sequence view, and a tree diagram.
 
 ## Use it
 

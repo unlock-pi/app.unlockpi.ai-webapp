@@ -1,6 +1,0 @@
-import type { PDA, PDAExecution } from "../../../apps/web/src/features/pda/model-agent";
-import { cn } from "@/lib/utils";
-const display = (symbols?: string[]) => symbols?.length ? symbols.join(" ") : "ε";
-export function PDATransitionTable({ pda, execution }: { pda: PDA; execution: PDAExecution }) {
-  return <div className="overflow-x-auto"><table className="w-full min-w-[42rem] text-left text-sm"><thead className="bg-muted/40 text-muted-foreground"><tr>{["State", "Input", "Stack top", "Next state", "Stack operation"].map((label) => <th key={label} className="border-b border-border px-3 py-2 text-xs font-semibold">{label}</th>)}</tr></thead><tbody>{pda.transitions.map((transition) => <tr key={transition.id} className={cn("border-b border-border/60", execution.activeTransitionIds.includes(transition.id) && "bg-primary/10 text-primary") }><td className="px-3 py-2 font-mono">{transition.from}</td><td className="px-3 py-2 font-mono">{transition.inputSymbol}</td><td className="px-3 py-2 font-mono">{transition.stackTop}</td><td className="px-3 py-2 font-mono">{transition.to}</td><td className="px-3 py-2 font-mono">{transition.operation}{transition.operation === "noop" ? "" : ` ${display(transition.pushSymbols)}`}</td></tr>)}</tbody></table></div>;
-}

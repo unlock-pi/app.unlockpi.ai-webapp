@@ -13,7 +13,7 @@ type CanvasComponentName = keyof typeof canvasPuckConfig.components & string;
 type PaletteLayout = "blocks" | "rows";
 
 type PaletteSection = {
-  components: CanvasComponentName[];
+  components: string[];
   id: string;
   layout: PaletteLayout;
   title: string;
@@ -73,6 +73,8 @@ export function CanvasComponentPalette() {
   );
 }
 function CanvasPaletteSection({ section }: { section: PaletteSection }) {
+  const componentNames = section.components.filter(isCanvasComponentName);
+
   return (
     <section className="grid gap-3">
       <p className="px-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
@@ -93,7 +95,7 @@ function CanvasPaletteSection({ section }: { section: PaletteSection }) {
                 : "grid grid-cols-1 gap-2.5",
             )}
           >
-            {section.components.map((componentName) => (
+            {componentNames.map((componentName) => (
               <PaletteDrawerItem
                 key={componentName}
                 layout={section.layout}
@@ -105,6 +107,10 @@ function CanvasPaletteSection({ section }: { section: PaletteSection }) {
       </div>
     </section>
   );
+}
+
+function isCanvasComponentName(name: string): name is CanvasComponentName {
+  return name in canvasPuckConfig.components;
 }
 
 function PaletteDrawerItem({

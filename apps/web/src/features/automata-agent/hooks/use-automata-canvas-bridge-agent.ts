@@ -6,8 +6,8 @@ import {
   toAutomaton,
   toAutomatonBlockProps,
   type AutomatonBlockProps,
-} from "@/packages/blocks/automata";
-import type { Automaton } from "@/packages/blocks/automata/model";
+} from "@/components/automata";
+import type { Automaton } from "@/components/automata/model";
 import {
   applyCanvasAction,
   FRAME_CONTENT_LIMIT_MESSAGE,

@@ -1,18 +1,9 @@
-import type { Automaton, AutomatonExecution } from "@/packages/blocks/automata/model";
-import { validateAutomaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
+import { validateAutomaton } from "@/components/automata/model";
 import type { TeachingStep, TeachingTimelineState } from "@/features/toc/construction/timeline-agent";
+import type { AutomataConstructionView } from "@/components/automata/construction-view";
 
-export type AutomataConstructionView = {
-  execution?: AutomatonExecution;
-  automatonId: string;
-  timeline: TeachingTimelineState;
-  visibleStates: string[];
-  visibleTransitions: string[];
-  initialState: string | null;
-  acceptingStates: string[];
-  highlightedStates: string[];
-  highlightedTransitions: string[];
-};
+export type { AutomataConstructionView } from "@/components/automata/construction-view";
 
 /** Validate the entire plan before publishing or changing an authored block. */
 export function validateConstructionPlan(automaton: Automaton, steps: TeachingStep[]) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { OpenAIRealtimeClient } from "@/lib/openai-realtime/realtime-client";
 import type { RealtimeStatus } from "@/lib/openai-realtime/types";
 import { EMPTY_LATENCY, appendEvent, summarizeArgs, type AgentEvent, type AgentLatency } from "@/features/arrays-agent/lib/agent-activity";
@@ -54,7 +54,7 @@ export function usePDAAgentOnCanvas({
     }
   }, [ensurePDABlock, getActiveFrameId]);
 
-  const tools = useMemo(() => createPDATools({
+  const getTools = useCallback(() => createPDATools({
     get state() { return stateRef.current; },
     commit,
   }), [commit]);
@@ -85,17 +85,17 @@ export function usePDAAgentOnCanvas({
   const selectedPda = state.selectedId ? state.pdas[state.selectedId] ?? null : null;
   const selectedExecution = selectedPda ? state.executions[selectedPda.id] ?? null : null;
   const create = useCallback((pda: PDA, input: string) => {
-    const definition = tools.create_pda as unknown as { execute: (value: object, options: object) => Promise<unknown> };
+    const definition = getTools().create_pda as unknown as { execute: (value: object, options: object) => Promise<unknown> };
     return definition.execute({ ...pda, pdaId: pda.id, input }, {});
-  }, [tools]);
+  }, [getTools]);
 
   const run = useCallback((name: "step_pda" | "simulate_pda" | "reset_pda") => {
-    const definition = tools[name] as unknown as { execute: (input: object, options: object) => Promise<unknown> };
+    const definition = getTools()[name] as unknown as { execute: (input: object, options: object) => Promise<unknown> };
     return definition.execute({ pdaId: stateRef.current.selectedId }, {});
-  }, [tools]);
+  }, [getTools]);
 
   const runRealtimeTool = useCallback(async (name: string, argumentsJson: string) => {
-    const definition = tools[name as keyof typeof tools] as unknown as { execute?: (input: object, options: object) => Promise<{ ok?: boolean; summary?: string }> };
+    const definition = getTools()[name as keyof ReturnType<typeof getTools>] as unknown as { execute?: (input: object, options: object) => Promise<{ ok?: boolean; summary?: string }> };
     if (!definition?.execute) return JSON.stringify({ ok: false, success: false, summary: "Unknown PDA tool." });
     let input: object;
     try { input = JSON.parse(argumentsJson || "{}"); }
@@ -110,7 +110,7 @@ export function usePDAAgentOnCanvas({
       setEvents((current) => appendEvent(current, { kind: "error", at: Date.now(), text: summary }));
       return JSON.stringify({ ok: false, success: false, summary });
     }
-  }, [tools]);
+  }, [getTools]);
   const disconnect = useCallback(() => { clientRef.current?.disconnect(); clientRef.current = null; setStatus("idle"); setCaption(""); setRemoteStream(null); setIsUserSpeaking(false); setIsResponding(false); }, []);
   const connect = useCallback(async () => {
     if (clientRef.current || status === "connecting") return;
@@ -122,7 +122,7 @@ export function usePDAAgentOnCanvas({
 
   return {
     agent: { caption, connect, disconnect, error, events, isConnected: status === "connected" || status === "paused", isResponding, isUserSpeaking, lastToolCall: null, latency, micEnabled, remoteStream, status, toggleMic },
-    tools,
+    get tools() { return getTools(); },
     state,
     viewProviderProps: {
       blockId: selectedPda?.id ?? null,

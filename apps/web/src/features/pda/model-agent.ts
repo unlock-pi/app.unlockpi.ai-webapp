@@ -1,5 +1,5 @@
-import type { Automaton, AutomatonState } from "@/packages/blocks/automata/model";
-import { isEpsilon, normaliseSymbol, tokenizeAutomatonInput, unique } from "@/packages/blocks/automata/model";
+import type { Automaton, AutomatonState } from "@/components/automata/model";
+import { isEpsilon, normaliseSymbol, tokenizeAutomatonInput, unique } from "@/components/automata/model";
 
 export type PDAAcceptanceMode = "final_state" | "empty_stack" | "both";
 export type PDAStackOperation = "push" | "pop" | "replace" | "noop";

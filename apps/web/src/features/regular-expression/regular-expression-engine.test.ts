@@ -10,7 +10,7 @@ import {
   move,
   validateAutomaton,
   type Automaton,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import {
   createEpsilonNFAExecution,
   evaluateRegularExpressionSource,

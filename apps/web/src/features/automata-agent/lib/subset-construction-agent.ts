@@ -6,7 +6,7 @@ import {
   validateAutomaton,
   type Automaton,
   type AutomatonTransition,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 
 export type SubsetConstructionStep = {
   step: number;

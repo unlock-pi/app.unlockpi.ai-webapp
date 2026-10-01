@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { createAutomatonDefinition } from "@/features/automata-agent/lib/automaton-engine-agent";
-import type { Automaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
 import type { TeachingStep, TeachingTimelineState } from "@/features/toc/construction/timeline-agent";
 import { validateConstructionPlan } from "./automata-construction-agent";
 

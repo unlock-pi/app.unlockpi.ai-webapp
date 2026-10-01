@@ -7,7 +7,7 @@ import {
   tokenizeAutomatonInput,
   type Automaton,
   type AutomatonExecution,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import { astToSyntaxTree } from "@/components/regular-expression/engine-adapters";
 import {
   astChildren,

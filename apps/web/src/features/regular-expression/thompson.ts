@@ -5,7 +5,7 @@ import {
   type AutomatonState,
   type AutomatonTransition,
   type AutomatonValidationIssue,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import {
   collectAlphabet,
   validateAst,

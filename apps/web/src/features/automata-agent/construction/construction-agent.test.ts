@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { executeAutomaton } from "@/packages/blocks/automata/model";
+import { executeAutomaton } from "@/components/automata/model";
 import { createAutomatonDefinition } from "@/features/automata-agent/lib/automaton-engine-agent";
 import { parseRegularExpression } from "@/features/regular-expression/parser";
 import { constructEpsilonNFA } from "@/features/regular-expression/thompson";

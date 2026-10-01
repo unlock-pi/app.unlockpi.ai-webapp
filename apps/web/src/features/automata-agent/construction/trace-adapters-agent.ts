@@ -1,4 +1,4 @@
-import type { Automaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
 import type { ThompsonConstruction } from "@/features/regular-expression/thompson";
 import type { SubsetConstruction } from "@/features/automata-agent/lib/subset-construction-agent";
 import type { TeachingStep } from "@/features/toc/construction/timeline-agent";

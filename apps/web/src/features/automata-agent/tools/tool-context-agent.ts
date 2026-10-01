@@ -1,4 +1,4 @@
-import type { Automaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
 import {
   createInitialAutomataState,
   describeAutomataState,

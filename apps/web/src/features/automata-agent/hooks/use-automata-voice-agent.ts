@@ -23,12 +23,12 @@ import {
   validateAutomaton,
   type Automaton,
   type AutomatonExecution,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import {
   completeExecutionPlayback,
   executionAtStep,
   executionBeforeStep,
-} from "@/packages/blocks/automata/use-execution-playback";
+} from "@/components/automata/use-execution-playback";
 import {
   appendEvent,
   EMPTY_LATENCY,

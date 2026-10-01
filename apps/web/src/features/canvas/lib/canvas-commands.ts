@@ -5,7 +5,7 @@ import {
   pushStack,
   type StackCapacity,
 } from "@/components/data-structure/stack-model";
-import type { AutomatonBlockProps } from "@/packages/blocks/automata";
+import type { AutomatonBlockProps } from "@/components/automata";
 import type { PDABlockProps } from "@/components/pda";
 import type { RegularExpressionBlockProps } from "@/components/regular-expression";
 import type { ContextFreeGrammarBlockProps } from "@/components/context-free-grammar";

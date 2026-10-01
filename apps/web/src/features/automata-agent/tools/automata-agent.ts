@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   createAutomatonExecution,
   validateAutomaton,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import {
   analyzeAutomaton,
   applyAutomatonOperations,

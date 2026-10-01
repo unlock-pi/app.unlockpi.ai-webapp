@@ -36,7 +36,7 @@ export function showCarrierWave(): AMResult {
       note: "The carrier: high frequency, constant amplitude, and — on its own — carrying no information at all.",
     }),
     summary: "Showed the carrier wave alone.",
-    startCue: "chime",
+    startCue: "success",
   };
 }
 
@@ -50,7 +50,7 @@ export function showMessageWave(): AMResult {
       note: "The message: the actual signal that needs to travel — far too low a frequency to broadcast efficiently by itself.",
     }),
     summary: "Showed the message signal alone.",
-    startCue: "chime",
+    startCue: "success",
   };
 }
 
@@ -86,7 +86,7 @@ export function showSpectrumAt(index: number): AMResult {
       note: "Same signal, frequency domain: a line at fc and one sideband on each side, fm away. That spacing is the whole bandwidth AM actually costs you.",
     }),
     summary: "Revealed the frequency-domain spectrum.",
-    startCue: "scan",
+    startCue: "select",
   };
 }
 
@@ -100,6 +100,6 @@ export function resetWaveform(): AMResult {
       note: "",
     }),
     summary: "Cleared the scope.",
-    startCue: "release",
+    startCue: "tap",
   };
 }

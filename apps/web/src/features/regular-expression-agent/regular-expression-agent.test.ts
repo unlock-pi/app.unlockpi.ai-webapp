@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { Automaton } from "@/packages/blocks/automata/model";
+import type { Automaton } from "@/components/automata/model";
 import { getRegularExpressionRealtimeTools } from "@/features/regular-expression-agent/lib/agent-identity-agent";
 import { applyCanvasAction } from "@/features/canvas/lib/canvas-commands";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";

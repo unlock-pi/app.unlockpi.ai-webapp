@@ -1,0 +1,4 @@
+import type { PDAExecution } from "@/features/pda/model-agent";
+export function PDAConfigurationView({ execution }: { execution: PDAExecution }) {
+  return <section aria-label="PDA configurations" className="rounded-xl border border-border bg-muted/20 p-3"><h4 className="text-xs font-semibold uppercase tracking-[.12em] text-muted-foreground">Configurations {execution.configurations.length > 1 ? `(${execution.configurations.length} branches)` : ""}</h4><div className="mt-2 flex flex-wrap gap-2">{execution.configurations.length ? execution.configurations.map((configuration) => <code key={configuration.id} className="rounded-md bg-background px-2 py-1 text-xs">({configuration.state}, {execution.inputSymbols.slice(configuration.inputIndex).join("") || "ε"}, {configuration.stack.join(" ") || "ε"})</code>) : <span className="text-sm text-muted-foreground">No live configuration</span>}</div></section>;
+}

@@ -6,7 +6,7 @@ import {
   stepAutomaton,
   validateAutomaton,
   type Automaton,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import {
   analyzeAutomaton,
   applyAutomatonOperations,

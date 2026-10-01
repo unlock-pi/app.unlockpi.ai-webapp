@@ -15,7 +15,7 @@ import {
   type AutomatonTransition,
   type AutomatonType,
   type AutomatonValidationIssue,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 
 export type AutomataAgentState = {
   activeCanvasId: string | null;

@@ -5,9 +5,16 @@
   "type": "module",
   "exports": {
     "./array": "./src/array/index.ts",
+    "./automata": "./src/automata/index.ts",
     "./circuit": "./src/circuit/index.ts",
-    "./waveform": "./src/waveform/index.ts",
-    "./pn-junction": "./src/pn-junction/index.ts"
+    "./context-free-grammar": "./src/context-free-grammar/index.ts",
+    "./graph": "./src/graph/index.ts",
+    "./pda": "./src/pda/index.ts",
+    "./pn-junction": "./src/pn-junction/index.ts",
+    "./regular-expression": "./src/regular-expression/index.ts",
+    "./tm": "./src/tm/index.ts",
+    "./trees": "./src/trees/index.ts",
+    "./waveform": "./src/waveform/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."
@@ -22,6 +29,7 @@
   },
   "devDependencies": {
     "@types/react": "^19",
+    "react-dom": "^19",
     "typescript": "^5"
   }
 }

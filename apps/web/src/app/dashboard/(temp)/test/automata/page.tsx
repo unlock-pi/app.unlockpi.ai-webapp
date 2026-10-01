@@ -2,11 +2,11 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { InputString } from "@/packages/blocks/automata/input-string";
-import { TransitionDiagram } from "@/packages/blocks/automata/transition-diagram";
-import { TransitionTable } from "@/packages/blocks/automata/transition-table";
-import { createAutomatonExecution } from "@/packages/blocks/automata/model";
-import { useExecutionPlayback } from "@/packages/blocks/automata/use-execution-playback";
+import { InputString } from "@/components/automata/input-string";
+import { TransitionDiagram } from "@/components/automata/transition-diagram";
+import { TransitionTable } from "@/components/automata/transition-table";
+import { createAutomatonExecution } from "@/components/automata/model";
+import { useExecutionPlayback } from "@/components/automata/use-execution-playback";
 import {
   createInitialAutomataState,
   selectedAutomaton,

@@ -1,7 +1,7 @@
 import type {
   Automaton,
   AutomatonExecution,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import type { RegularExpressionViewState } from "@/components/regular-expression/types";
 import {
   astToSyntaxTree,

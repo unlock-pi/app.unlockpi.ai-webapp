@@ -8,7 +8,7 @@ import {
   type AutomatonExecution,
   type ExecutionResult,
   type ExecutionStatus,
-} from "@/packages/blocks/automata/model";
+} from "@/components/automata/model";
 import type {
   RegularExpressionAst,
   RegularExpressionModel,

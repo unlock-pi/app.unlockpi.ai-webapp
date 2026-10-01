@@ -6,12 +6,22 @@ Reusable educational visualizations for UnlockPi. A concept owns its renderer, s
 
 ```ts
 import { ArrayView } from "@unlockpi/blocks/array";
+import { AutomatonBlock } from "@unlockpi/blocks/automata";
 import { CircuitView } from "@unlockpi/blocks/circuit";
+import { ContextFreeGrammarBlock } from "@unlockpi/blocks/context-free-grammar";
+import { GraphBlock } from "@unlockpi/blocks/graph";
+import { PDABlock } from "@unlockpi/blocks/pda";
+import { RegularExpressionBlock } from "@unlockpi/blocks/regular-expression";
+import { TMBlock } from "@unlockpi/blocks/tm";
+import { TreeRenderer } from "@unlockpi/blocks/trees";
 import { WaveformView } from "@unlockpi/blocks/waveform";
 import { PNJunctionView } from "@unlockpi/blocks/pn-junction";
 ```
 
 Each concept has a short README beside its source with its props and example.
+
+The restored `src/tm` and `src/trees` folders now resolve imports within the
+package. The web app currently uses its copies in `apps/web/src/components`.
 
 ## How it works
 

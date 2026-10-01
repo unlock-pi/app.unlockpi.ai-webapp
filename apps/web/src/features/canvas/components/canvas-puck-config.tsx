@@ -38,6 +38,10 @@ import { LinkedListView } from "@/components/data-structure/linked-list-view";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
 import { QueueView } from "@/components/data-structure/queue-view";
 import { StackView } from "@/components/data-structure/stack-view";
+import { AutomatonBlock } from "@/components/automata";
+import { PDABlock } from "@/components/pda";
+import { ContextFreeGrammarBlock, DEFAULT_CFG_PROPS } from "@/components/context-free-grammar";
+import { RegularExpressionBlock } from "@/components/regular-expression";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -52,6 +56,7 @@ import { readPendingSketch } from "@/features/canvas/lib/sketch-transfer";
 import type {
   ArrayBlockProps,
   BodyTextBlockProps,
+  CalloutTextBlockProps,
   CanvasComponents,
   CanvasRootProps,
   CheckpointBlockProps,
@@ -59,10 +64,12 @@ import type {
   CodeLanguage,
   CodeBlockProps,
   HeadingTextBlockProps,
+  Heading3TextBlockProps,
   LinkedListBlockProps,
   MermaidBlockProps,
   MindMapBlockProps,
   QueueBlockProps,
+  QuoteTextBlockProps,
   SlideBlockProps,
   StackBlockProps,
   SubheadingTextBlockProps,
@@ -364,7 +371,10 @@ function SlideBlock({
             allow={[
               "HeadingTextBlock",
               "SubheadingTextBlock",
+              "Heading3TextBlock",
               "BodyTextBlock",
+              "CalloutTextBlock",
+              "QuoteTextBlock",
               "ArrayBlock",
               "CircuitBlock",
               "StackBlock",
@@ -375,6 +385,10 @@ function SlideBlock({
               "MermaidBlock",
               "TableBlock",
               "CheckpointBlock",
+              "AutomatonBlock",
+              "PDABlock",
+              "ContextFreeGrammarBlock",
+              "RegularExpressionBlock",
               "SketchBlock",
             ]}
             className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
@@ -417,6 +431,10 @@ function SubheadingTextBlock({ text }: SubheadingTextBlockProps) {
   );
 }
 
+function Heading3TextBlock({ text }: Heading3TextBlockProps) {
+  return <h3 className="text-xl font-semibold text-foreground" style={subheadingFontStyle}>{text}</h3>;
+}
+
 function BodyTextBlock({ text }: BodyTextBlockProps) {
   return (
     <p
@@ -426,6 +444,14 @@ function BodyTextBlock({ text }: BodyTextBlockProps) {
       {text}
     </p>
   );
+}
+
+function CalloutTextBlock({ text }: CalloutTextBlockProps) {
+  return <aside className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-foreground">{text}</aside>;
+}
+
+function QuoteTextBlock({ text, citation }: QuoteTextBlockProps) {
+  return <blockquote className="border-l-4 border-primary/40 pl-4 italic text-foreground">{text}{citation ? <footer className="mt-2 text-sm not-italic text-muted-foreground">— {citation}</footer> : null}</blockquote>;
 }
 
 /**
@@ -928,7 +954,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
   categories: {
     text: {
       title: "Text",
-      components: ["HeadingTextBlock", "SubheadingTextBlock", "BodyTextBlock"],
+      components: ["HeadingTextBlock", "SubheadingTextBlock", "Heading3TextBlock", "BodyTextBlock", "CalloutTextBlock", "QuoteTextBlock"],
       defaultExpanded: true,
       
     },
@@ -946,6 +972,10 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "CodeBlock",
         "MermaidBlock",
         "TableBlock",
+        "AutomatonBlock",
+        "PDABlock",
+        "ContextFreeGrammarBlock",
+        "RegularExpressionBlock",
       ],
       defaultExpanded: true,
     },
@@ -973,7 +1003,10 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           allow: [
             "HeadingTextBlock",
             "SubheadingTextBlock",
+            "Heading3TextBlock",
             "BodyTextBlock",
+            "CalloutTextBlock",
+            "QuoteTextBlock",
             "ArrayBlock",
             "CircuitBlock",
             "StackBlock",
@@ -985,6 +1018,10 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
             "TableBlock",
             "CheckpointBlock",
             "SketchBlock",
+            "AutomatonBlock",
+            "PDABlock",
+            "ContextFreeGrammarBlock",
+            "RegularExpressionBlock",
           ],
         },
       },
@@ -1018,6 +1055,12 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       },
       render: SubheadingTextBlock,
     },
+    Heading3TextBlock: {
+      label: "H3 heading",
+      fields: { text: { type: "text", label: "Heading text", contentEditable: true } },
+      defaultProps: { text: "New H3 heading" },
+      render: Heading3TextBlock,
+    },
     BodyTextBlock: {
       label: "Body",
       fields: {
@@ -1027,6 +1070,21 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         text: "Body text",
       },
       render: BodyTextBlock,
+    },
+    CalloutTextBlock: {
+      label: "Callout",
+      fields: { text: { type: "textarea", label: "Callout text", contentEditable: true } },
+      defaultProps: { text: "Important point" },
+      render: CalloutTextBlock,
+    },
+    QuoteTextBlock: {
+      label: "Quote",
+      fields: {
+        text: { type: "textarea", label: "Quote text", contentEditable: true },
+        citation: { type: "text", label: "Citation" },
+      },
+      defaultProps: { text: "Add a quote here.", citation: "" },
+      render: QuoteTextBlock,
     },
     ArrayBlock: {
       label: "Array",
@@ -1345,6 +1403,67 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         answer: "Add the expected answer.",
       },
       render: CheckpointBlock,
+    },
+    AutomatonBlock: {
+      label: "Automaton",
+      fields: {
+        type: { type: "select", label: "Type", options: [{ label: "DFA", value: "dfa" }, { label: "NFA", value: "nfa" }] },
+        alphabet: { type: "text", label: "Alphabet" },
+        states: { type: "custom", label: "States", render: () => <p className="text-xs text-muted-foreground">Edit states with the canvas assistant.</p> },
+        transitions: { type: "custom", label: "Transitions", render: () => <p className="text-xs text-muted-foreground">Edit transitions with the canvas assistant.</p> },
+        input: { type: "text", label: "Input" },
+        showTransitionTable: { type: "radio", label: "Show transition table", options: [{ label: "Yes", value: true }, { label: "No", value: false }] },
+      },
+      defaultProps: {
+        type: "dfa",
+        alphabet: "0,1",
+        states: [{ id: "q0", label: "q0", initial: true }],
+        transitions: [],
+        input: "",
+        showTransitionTable: true,
+      },
+      render: AutomatonBlock,
+    },
+    PDABlock: {
+      label: "Pushdown automaton",
+      fields: {
+        pda: { type: "custom", label: "PDA", render: () => <p className="text-xs text-muted-foreground">Edit the PDA with the canvas assistant.</p> },
+        input: { type: "text", label: "Input" },
+      },
+      defaultProps: {
+        pda: {
+          id: "pda-demo",
+          states: [{ id: "q0", label: "q0", accepting: true }],
+          inputAlphabet: ["a"],
+          stackAlphabet: ["Z"],
+          transitions: [],
+          startState: "q0",
+          acceptStates: ["q0"],
+          initialStackSymbol: "Z",
+          acceptanceMode: "final_state",
+        },
+        input: "",
+        showTransitionTable: true,
+      },
+      render: PDABlock,
+    },
+    ContextFreeGrammarBlock: {
+      label: "Context free grammar",
+      fields: {
+        grammar: { type: "custom", label: "Grammar", render: () => <p className="text-xs text-muted-foreground">Edit the grammar with the canvas assistant.</p> },
+        input: { type: "text", label: "Input" },
+      },
+      defaultProps: DEFAULT_CFG_PROPS,
+      render: ContextFreeGrammarBlock,
+    },
+    RegularExpressionBlock: {
+      label: "Regular expression",
+      fields: {
+        expression: { type: "text", label: "Expression" },
+        input: { type: "text", label: "Input" },
+      },
+      defaultProps: { expression: "(a|b)*abb", input: "" },
+      render: RegularExpressionBlock,
     },
     SketchBlock: {
       label: "Drawing",

@@ -54,7 +54,7 @@ export function useCircuitPlayer() {
       const final = frames[frames.length - 1];
       if (!final) return;
       setFrame(final);
-      playCue(endsLit(final) ? "success" : "bloom");
+      playCue(endsLit(final) ? "success" : "open");
     },
     [stop],
   );
@@ -80,7 +80,7 @@ export function useCircuitPlayer() {
         setFrame(beat);
         index++;
         if (index >= frames.length) {
-          playCue(endsLit(beat) ? "success" : "bloom");
+          playCue(endsLit(beat) ? "success" : "open");
           setIsPlaying(false);
           timerRef.current = null;
           return;
