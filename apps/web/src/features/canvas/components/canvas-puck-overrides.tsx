@@ -1,0 +1,565 @@
+"use client";
+
+import { type FieldProps, type Overrides } from "@puckeditor/core";
+import {
+  BoxesIcon,
+  CheckIcon,
+  Code2Icon,
+  GitBranchIcon,
+  LayoutPanelTopIcon,
+  ListChecksIcon,
+  NetworkIcon,
+  PencilRulerIcon,
+  Share2Icon,
+  TableIcon,
+} from "lucide-react";
+import type { CSSProperties, ElementType, ReactNode } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { RadioGroup } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { canvasPuckConfig } from "@/features/canvas/components/canvas-puck-config";
+import type { DrawerItemMeta } from "@/features/canvas/types/canvas-other-types";
+import { cn } from "@/lib/utils";
+
+export const drawerItemMeta: Record<string, DrawerItemMeta> = {
+  SlideBlock: {
+    label: "Frame",
+    description: "A blank teaching canvas frame",
+    icon: LayoutPanelTopIcon,
+  },
+  Frame: {
+    label: "Frame",
+    description: "A blank teaching canvas frame",
+    icon: LayoutPanelTopIcon,
+  },
+  HeadingTextBlock: {
+    label: "Heading",
+    variant: "heading",
+  },
+  Heading: {
+    label: "Heading",
+    variant: "heading",
+  },
+  SubheadingTextBlock: {
+    label: "Subheading",
+    variant: "subheading",
+  },
+  Subheading: {
+    label: "Subheading",
+    variant: "subheading",
+  },
+  Heading3TextBlock: {
+    label: "H3",
+    variant: "heading3",
+  },
+  Heading3: {
+    label: "H3",
+    variant: "heading3",
+  },
+  BodyTextBlock: {
+    label: "Body",
+    variant: "body",
+  },
+  Body: {
+    label: "Body",
+    variant: "body",
+  },
+  CalloutTextBlock: {
+    label: "Callout",
+    variant: "callout",
+  },
+  QuoteTextBlock: {
+    label: "Quote",
+    variant: "quote",
+  },
+  CheckpointBlock: {
+    label: "Checkpoint",
+    description: "Question and expected answer",
+    icon: ListChecksIcon,
+  },
+  Checkpoint: {
+    label: "Checkpoint",
+    description: "Question and expected answer",
+    icon: ListChecksIcon,
+  },
+  ArrayBlock: {
+    label: "Array",
+    description: "Resizable indexed elements",
+    icon: BoxesIcon,
+  },
+  Array: {
+    label: "Array",
+    description: "Resizable indexed elements",
+    icon: BoxesIcon,
+  },
+  LinkedListBlock: {
+    label: "Linked list",
+    description: "Nodes connected by pointers",
+    icon: GitBranchIcon,
+  },
+  "Linked list": {
+    label: "Linked list",
+    description: "Nodes connected by pointers",
+    icon: GitBranchIcon,
+  },
+  MindMapBlock: {
+    label: "Mind map",
+    description: "Concept map with branches",
+    icon: NetworkIcon,
+  },
+  "Mind map": {
+    label: "Mind map",
+    description: "Concept map with branches",
+    icon: NetworkIcon,
+  },
+  GraphBlock: {
+    label: "Graph",
+    description: "Directed or undirected graph with list and matrix views",
+    icon: NetworkIcon,
+  },
+  Graph: {
+    label: "Graph",
+    description: "Directed or undirected graph with list and matrix views",
+    icon: NetworkIcon,
+  },
+  AutomatonBlock: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
+  },
+  PDABlock: {
+    label: "Pushdown automaton",
+    description: "Interactive state diagram and stack simulation",
+    icon: NetworkIcon,
+  },
+  RegularExpressionBlock: {
+    label: "Regular expression",
+    description: "Expression, syntax tree, and construction visuals",
+    icon: GitBranchIcon,
+  },
+  ContextFreeGrammarBlock: {
+    label: "Context-free grammar",
+    description: "Productions, derivation, and parse tree",
+    icon: GitBranchIcon,
+  },
+  CodeBlock: {
+    label: "Code",
+    description: "Snippet and explanation",
+    icon: Code2Icon,
+  },
+  Automaton: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
+  },
+  Code: {
+    label: "Code",
+    description: "Snippet and explanation",
+    icon: Code2Icon,
+  },
+  MermaidBlock: {
+    label: "Mermaid",
+    description: "Diagram from Mermaid syntax",
+    icon: Share2Icon,
+  },
+  Mermaid: {
+    label: "Mermaid",
+    description: "Diagram from Mermaid syntax",
+    icon: Share2Icon,
+  },
+  TableBlock: {
+    label: "Table",
+    description: "Rows and columns for comparisons",
+    icon: TableIcon,
+  },
+  Table: {
+    label: "Table",
+    description: "Rows and columns for comparisons",
+    icon: TableIcon,
+  },
+  SketchBlock: {
+    label: "Drawing",
+    description: "A sketch drawn in the Draw panel",
+    icon: PencilRulerIcon,
+  },
+  Drawing: {
+    label: "Drawing",
+    description: "A sketch drawn in the Draw panel",
+    icon: PencilRulerIcon,
+  },
+};
+
+export function CanvasDrawerItem({
+  compact = false,
+  name,
+}: {
+  compact?: boolean;
+  name: string;
+}) {
+  const meta = drawerItemMeta[name] ?? {
+    label: name,
+    description: "Drag into a frame",
+    icon: BoxesIcon,
+  };
+  const Icon = meta.icon ?? BoxesIcon;
+
+  // for text blocks
+  if (meta.variant) {
+    return (
+      <div className="canvas-drawer-card canvas-drawer-card--text ">
+        <span
+          className={cn(
+            "block truncate",
+            meta.variant === "heading" &&
+              "text-[2rem] font-bold tracking-[-0.05em]",
+            meta.variant === "subheading" &&
+              "text-[1.35rem] tracking-[-0.03em]",
+            meta.variant === "heading3" &&
+              "text-lg font-medium tracking-[-0.02em]",
+            meta.variant === "body" && "text-base",
+            meta.variant === "callout" &&
+              "border-l-4 border-primary bg-primary/10 px-2 py-1 text-sm font-medium",
+            meta.variant === "quote" &&
+              "border-l-2 border-muted-foreground/50 pl-2 text-sm italic",
+          )}
+          style={{
+            fontFamily:
+              meta.variant === "heading"
+                ? "var(--font-canvas-heading), var(--font-system), sans-serif"
+                : meta.variant === "subheading"
+                  ? "var(--font-canvas-subheading), var(--font-system), sans-serif"
+                  : meta.variant === "heading3"
+                    ? "var(--font-canvas-subheading), var(--font-system), sans-serif"
+                    : "var(--font-canvas-body), var(--font-system), sans-serif",
+          }}
+        >
+          {meta.label}
+        </span>
+      </div>
+    );
+  }
+
+  // for other blocks
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            className={cn(
+              "canvas-drawer-card h-full w-full min-w-0 gap-0! py-0! canvas-drawer-card--default",
+              compact && "canvas-drawer-card--compact",
+            )}
+            title={meta.description}
+          />
+        }
+      >
+        <>
+          <div
+            className={cn(
+              "grid shrink-0 place-items-center rounded-xl border border-border bg-muted/45- text-foreground",
+              compact ? "size-8" : "size-8",
+            )}
+          >
+            <Icon className={compact ? "size-5" : "size-4"} />
+          </div>
+          <p
+            className={cn(
+              "min-w-0 text-sm font-medium text-foreground -mt-1",
+              compact
+                ? "w-full text-center text-[0.6875rem] leading-tight"
+                : "truncate",
+            )}
+          >
+            {meta.label}
+          </p>
+        </>
+      </TooltipTrigger>
+      {meta.description ? (
+        <TooltipPopup className="max-w-52">{meta.description}</TooltipPopup>
+      ) : null}
+    </Tooltip>
+  );
+}
+
+type InspectorFieldOption = {
+  label: string;
+  value: boolean | number | string;
+};
+
+function getInspectorFieldOptions(
+  field: FieldProps["field"],
+): InspectorFieldOption[] {
+  if (!field || !("options" in field) || !Array.isArray(field.options)) {
+    return [];
+  }
+
+  return field.options.filter(
+    (option): option is InspectorFieldOption =>
+      typeof option?.label === "string" &&
+      ["boolean", "number", "string"].includes(typeof option?.value),
+  );
+}
+
+function InspectorTextField(props: FieldProps) {
+  const { id, onChange, readOnly, value } = props;
+
+  return (
+    <InspectorFieldShell props={props}>
+      <Input
+        id={id}
+        aria-label={getInspectorFieldAccessibleLabel(props)}
+        disabled={readOnly}
+        value={typeof value === "string" ? value : ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </InspectorFieldShell>
+  );
+}
+
+function getInspectorFieldLabel(field: FieldProps["field"]) {
+  if (field && "label" in field && typeof field.label === "string") {
+    return field.label;
+  }
+
+  return "";
+}
+
+function getInspectorFieldAccessibleLabel({ field, id }: FieldProps) {
+  return getInspectorFieldLabel(field) || id || "Inspector field";
+}
+
+function InspectorFieldShell({
+  children,
+  props,
+}: {
+  children: ReactNode;
+  props: FieldProps;
+}) {
+  return (
+    <CanvasInspectorFieldLabel
+      el="div"
+      label={getInspectorFieldAccessibleLabel(props)}
+      readOnly={props.readOnly}
+    >
+      {children}
+    </CanvasInspectorFieldLabel>
+  );
+}
+
+function InspectorTextareaField(props: FieldProps) {
+  const { field, id, onChange, readOnly, value } = props;
+  const fieldLabel = getInspectorFieldLabel(field).toLowerCase();
+  const fieldId = (id ?? "").toLowerCase();
+  const isCodeEditor =
+    fieldLabel === "code" ||
+    fieldLabel === "mermaid code" ||
+    fieldId.endsWith(".code") ||
+    fieldId.endsWith(".chart");
+
+  const placeholder =
+    field && "placeholder" in field ? field.placeholder : undefined;
+
+  return (
+    <InspectorFieldShell props={props}>
+      <Textarea
+        id={id}
+        aria-label={getInspectorFieldAccessibleLabel(props)}
+        disabled={readOnly}
+        value={typeof value === "string" ? value : ""}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        spellCheck={isCodeEditor ? false : undefined}
+        className={cn(
+          "min-h-28",
+          isCodeEditor &&
+            "rounded-xl border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_16px_42px_rgba(0,0,0,0.18)] [&_[data-slot=textarea]]:min-h-52 [&_[data-slot=textarea]]:overflow-auto [&_[data-slot=textarea]]:font-mono [&_[data-slot=textarea]]:text-xs [&_[data-slot=textarea]]:leading-6 [&_[data-slot=textarea]]:text-zinc-100 [&_[data-slot=textarea]]:caret-zinc-100 [&_[data-slot=textarea]]:selection:bg-primary/40",
+        )}
+      />
+    </InspectorFieldShell>
+  );
+}
+
+function InspectorNumberField(props: FieldProps) {
+  const { id, onChange, readOnly, value } = props;
+
+  return (
+    <InspectorFieldShell props={props}>
+      <Input
+        id={id}
+        aria-label={getInspectorFieldAccessibleLabel(props)}
+        type="number"
+        disabled={readOnly}
+        value={typeof value === "number" ? String(value) : ""}
+        onChange={(event) =>
+          onChange(
+            event.target.value === "" ? undefined : Number(event.target.value),
+          )
+        }
+      />
+    </InspectorFieldShell>
+  );
+}
+
+function InspectorSelectField(props: FieldProps) {
+  const options = getInspectorFieldOptions(props.field);
+  const selectedValue = String(props.value ?? options[0]?.value ?? "");
+
+  return (
+    <InspectorFieldShell props={props}>
+      <Select
+        value={selectedValue}
+        disabled={props.readOnly}
+        onValueChange={(nextValue) => {
+          const matchingOption = options.find(
+            (option) => String(option.value) === nextValue,
+          );
+
+          props.onChange(matchingOption?.value ?? nextValue);
+        }}
+      >
+        <SelectTrigger aria-label={getInspectorFieldAccessibleLabel(props)}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectPopup>
+          {options.map((option) => (
+            <SelectItem
+              key={`${props.id}-${option.label}`}
+              value={String(option.value)}
+            >
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectPopup>
+      </Select>
+    </InspectorFieldShell>
+  );
+}
+
+function InspectorRadioField(props: FieldProps) {
+  const options = getInspectorFieldOptions(props.field);
+  const activeValue = String(props.value ?? "");
+
+  return (
+    <InspectorFieldShell props={props}>
+      <RadioGroup
+        value={activeValue}
+        aria-label={getInspectorFieldAccessibleLabel(props)}
+        className={cn(
+          "grid gap-2",
+          options.length <= 2 ? "sm:grid-cols-2" : "sm:grid-cols-3",
+        )}
+      >
+        {options.map((option) => {
+          const optionValue = String(option.value);
+          const isActive = optionValue === activeValue;
+
+          return (
+            <Button
+              key={`${props.id}-${option.label}`}
+              type="button"
+              variant="outline"
+              disabled={props.readOnly}
+              aria-pressed={isActive}
+              className={cn(
+                "justify-start rounded-xl px-3 py-2 text-left transition-[background-color,border-color,box-shadow,transform] active:scale-[0.96]",
+                isActive
+                  ? "border-primary bg-primary/8 text-foreground shadow-[inset_0_0_0_1px_var(--primary)]"
+                  : "bg-background hover:bg-accent",
+              )}
+              onClick={() => props.onChange(option.value)}
+            >
+              {option.label}
+              {isActive ? <CheckIcon className="ml-auto size-3.5" /> : null}
+            </Button>
+          );
+        })}
+      </RadioGroup>
+    </InspectorFieldShell>
+  );
+}
+
+function CanvasInspectorFields({
+  children,
+  isLoading,
+}: {
+  children: ReactNode;
+  isLoading: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-4",
+        isLoading && "pointer-events-none opacity-60",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function CanvasInspectorFieldLabel({
+  children,
+  className,
+  el = "label",
+  label,
+  readOnly,
+}: {
+  children?: ReactNode;
+  className?: string;
+  el?: "div" | "label";
+  label: string;
+  readOnly?: boolean;
+}) {
+  const Component = el as ElementType;
+
+  return (
+    <Component
+      className={cn("grid gap-1.5", readOnly && "opacity-70", className)}
+    >
+      <span className="text-xs font-semibold text-foreground">{label}</span>
+      {children}
+    </Component>
+  );
+}
+
+export const canvasPuckOverrides: Partial<Overrides<typeof canvasPuckConfig>> =
+  {
+    drawerItem: ({ name }) => <CanvasDrawerItem name={name} />,
+    fieldLabel: CanvasInspectorFieldLabel,
+    fields: CanvasInspectorFields,
+    fieldTypes: {
+      number: InspectorNumberField,
+      radio: InspectorRadioField,
+      select: InspectorSelectField,
+      text: InspectorTextField,
+      textarea: InspectorTextareaField,
+    },
+  };
+
+export function getCanvasAppThemeVars(isLightTheme: boolean): CSSProperties {
+  return {
+    "--canvas-app-stage": "var(--background)",
+    "--canvas-app-background": "var(--card)",
+    "--canvas-app-foreground": "var(--card-foreground)",
+    "--canvas-app-card": "var(--card)",
+    "--canvas-app-card-foreground": "var(--card-foreground)",
+    "--canvas-app-border": "var(--border)",
+    "--canvas-app-muted": "var(--muted)",
+    "--canvas-app-muted-foreground": "var(--muted-foreground)",
+    "--canvas-app-primary": "var(--primary)",
+    "--canvas-app-primary-foreground": "var(--primary-foreground)",
+    "--canvas-app-shadow-color": isLightTheme
+      ? "rgba(15, 23, 42, 0.16)"
+      : "rgba(0, 0, 0, 0.36)",
+  } as CSSProperties;
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../../apps/web/tsconfig.json",
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../apps/web/src/types/bun-test.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}
