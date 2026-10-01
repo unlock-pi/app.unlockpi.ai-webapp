@@ -1,14 +1,17 @@
 {
-  "name": "unlockpi-workspace",
+  "name": "unlockpi",
   "private": true,
-  "packageManager": "bun@1.3.12",
+  "packageManager": "bun@1.3.0",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter=unlock-pi-ai-web dev",
-    "build": "bun run --filter=unlock-pi-ai-web build",
-    "lint": "bun run --filter=unlock-pi-ai-web lint",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -16,8 +19,19 @@
   },
   "devDependencies": {
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "secretlint": "^13.0.4"
-  }
+    "secretlint": "^13.0.4",
+    "turbo": "^2.5.4"
+  },
+  "ignoreScripts": [
+    "sharp",
+    "unrs-resolver"
+  ],
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ]
 }

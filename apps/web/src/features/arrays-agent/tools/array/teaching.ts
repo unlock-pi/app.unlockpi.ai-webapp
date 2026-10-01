@@ -1,12 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { COMPLEXITY } from "@/features/arrays-agent/lib/array-frames";
+import { COMPLEXITY } from "@unlockpi/blocks/array";
 import {
   compareAlgorithms,
   runSort,
   type SortAlgorithmName,
-} from "@/features/arrays-agent/lib/array-sorting";
+} from "@unlockpi/blocks/array";
 import {
   fail,
   report,

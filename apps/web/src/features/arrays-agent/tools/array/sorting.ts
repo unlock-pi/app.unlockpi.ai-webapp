@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { runSort, type SortAlgorithmName } from "@/features/arrays-agent/lib/array-sorting";
+import { runSort, type SortAlgorithmName } from "@unlockpi/blocks/array";
 import {
   commit,
   type ArrayToolContext,

@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { MAX_ARRAY_LENGTH, toDisplayValues } from "@/features/arrays-agent/lib/array-frames";
-import { createArray, createEmptyArray } from "@/features/arrays-agent/lib/array-ops";
+import { MAX_ARRAY_LENGTH, toDisplayValues } from "@unlockpi/blocks/array";
+import { createArray, createEmptyArray } from "@unlockpi/blocks/array";
 import {
   commit,
   fail,

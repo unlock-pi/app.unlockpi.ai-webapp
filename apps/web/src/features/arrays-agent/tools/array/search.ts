@@ -5,7 +5,7 @@ import {
   binarySearch,
   findAllOccurrences,
   linearSearch,
-} from "@/features/arrays-agent/lib/array-search";
+} from "@unlockpi/blocks/array";
 import {
   commit,
   type ArrayToolContext,

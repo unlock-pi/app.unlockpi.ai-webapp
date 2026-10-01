@@ -1,14 +1,14 @@
 import {
   createInitialAgentState,
   describeAgentState,
-} from "@/features/arrays-agent/lib/array-types";
-import type { AnimationSpeed } from "@/features/arrays-agent/lib/array-types";
+  type ArrayAgentState,
+} from "@/features/arrays-agent/lib/agent-state";
 import type {
-  ArrayAgentState,
+  AnimationSpeed,
   ArrayOpResult,
   ArrayValue,
   Complexity,
-} from "@/features/arrays-agent/lib/array-types";
+} from "@unlockpi/blocks/array";
 
 /** Supporting material shown beside the strip, never inside it. */
 export type ArrayOverlay =

@@ -12,7 +12,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@mostlylucid/mermaid-enhancements/styles.css";
-@source "../../node_modules/streamdown/dist/*.js";
+@source "../../../node_modules/streamdown/dist/*.js";
+/*
+ * Workspace packages live outside this app's own src/ tree, so Tailwind's
+ * automatic content detection doesn't reach them on its own — these tell it
+ * explicitly where to find the utility classes packages/ui and
+ * packages/blocks actually use.
+ */
+@source "../../../packages/ui/src";
+@source "../../../packages/blocks/src";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -479,38 +487,6 @@ html ::-webkit-scrollbar-track {
   display: none;
 }
 
-/* Puck's rich-text field is white by default. The canvas inspector inherits
-   the dark app theme, so explicitly supply readable editor and toolbar colors. */
-[aria-label="Inspector"] [class*="RichTextEditor--editor"] {
-  background: var(--card);
-  border-color: var(--border);
-  color: var(--foreground);
-}
-
-[aria-label="Inspector"] [class*="RichTextEditor--editor"] .rich-text,
-[aria-label="Inspector"] [class*="RichTextEditor--editor"] .ProseMirror {
-  color: var(--foreground);
-  caret-color: var(--foreground);
-}
-
-[aria-label="Inspector"] [class*="RichTextEditor-menu"],
-[aria-label="Inspector"] [data-puck-rte-menu] {
-  background: var(--muted) !important;
-  border-color: var(--border) !important;
-  color: var(--foreground) !important;
-}
-
-[aria-label="Inspector"] [data-puck-rte-menu] button,
-[aria-label="Inspector"] [data-puck-rte-menu] [role="button"] {
-  color: var(--foreground) !important;
-}
-
-[aria-label="Inspector"] [data-puck-rte-menu] button:hover:not(:disabled),
-[aria-label="Inspector"] [data-puck-rte-menu] [role="button"]:hover {
-  background: var(--accent) !important;
-  color: var(--foreground) !important;
-}
-
 .canvas-frame-menu summary {
   list-style: none;
 }
@@ -578,31 +554,6 @@ html ::-webkit-scrollbar-track {
   padding: clamp(1rem, 2vw, 2.5rem);
 }
 
-/* Presentation is a clean stage, not an editor card. Keep borders that carry
-   lesson meaning (such as array cells) inside their own components. */
-.canvas-presenter-surface article > section,
-.canvas-presenter-surface article > section > div,
-.canvas-presenter-surface .canvas-frame-block {
-  border: 0 !important;
-  box-shadow: none;
-}
-
-.canvas-presenter-surface .canvas-frame-block {
-  background: transparent;
-}
-
-/* A slide containing only an RE block can give its diagrams the full stage.
-   Keep this scoped so mixed-content slides retain their normal row sizing. */
-.canvas-presenter-surface--regular-expression [data-slot="scroll-area-content"] > :first-child {
-  align-content: stretch;
-  grid-template-rows: minmax(0, 1fr);
-  height: 100%;
-}
-
-.canvas-presenter-surface--regular-expression .canvas-regular-expression-block {
-  height: 100%;
-}
-
 /* Let the teaching content use the larger display without shrinking it to fit.
    The content-based frame capacity keeps the composition presentable. */
 .canvas-presenter-surface [data-slot="scroll-area-content"] {
@@ -610,19 +561,6 @@ html ::-webkit-scrollbar-track {
   --canvas-subheading-size: clamp(1.75rem, 2.6vw, 3.5rem);
   --canvas-body-size: clamp(1.125rem, 1.55vw, 1.75rem);
   --canvas-body-leading: 1.55;
-}
-
-/* Keep adjacent lesson blocks comfortably separated without spreading them
-   through the whole frame. */
-.canvas-presenter-surface .canvas-frame-content {
-  gap: clamp(1.5rem, 2.75vh, 2.25rem);
-}
-
-/* Fit the lesson composition within the unscaled slide viewport. Scaling the
-   viewport itself clips tall drawings at its own shrunken bottom edge. */
-.canvas-presenter-fitted-content .canvas-frame-content {
-  transform: scale(var(--canvas-fit-scale, 1));
-  transform-origin: top center;
 }
 
 .canvas-presenter-surface .canvas-frame-block {
@@ -707,70 +645,6 @@ html ::-webkit-scrollbar-track {
   font-size: calc(var(--array-cell) * 0.2);
 }
 
-/* The 2D array uses the same flat values as the strip, placed row by row.
-   Its cells size from the block container, so it remains aligned on the
-   presentation stage instead of relying on viewport dimensions. */
-.canvas-array-grid {
-  container-type: inline-size;
-  --array-grid-cell: clamp(2.25rem, 8cqi, 4.5rem);
-  --array-grid-coordinate: clamp(1.25rem, 3.25cqi, 2rem);
-  --array-grid-gap: clamp(0.25rem, 0.8cqi, 0.5rem);
-}
-
-.canvas-array-grid-table {
-  display: grid;
-  width: max-content;
-  gap: var(--array-grid-gap);
-  align-items: center;
-}
-
-.canvas-array-grid-cell {
-  display: grid;
-  width: var(--array-grid-cell);
-  height: var(--array-grid-cell);
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.125rem;
-  background: #4C4C4C;
-  padding: 0.25rem;
-  color: white;
-  font-size: calc(var(--array-grid-cell) * 0.34);
-  line-height: 1;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
-  transition: color 300ms, background-color 300ms, border-color 300ms, opacity 300ms;
-}
-
-.canvas-array-grid-cell--empty {
-  border-style: dashed;
-  background: transparent;
-  box-shadow: none;
-  opacity: 0.4;
-}
-
-.canvas-array-grid-coordinate {
-  display: grid;
-  width: var(--array-grid-coordinate);
-  height: var(--array-grid-coordinate);
-  place-items: center;
-  color: var(--muted-foreground);
-  font-size: calc(var(--array-grid-cell) * 0.2);
-  line-height: 1;
-}
-
-.canvas-presenter-surface .canvas-array-grid {
-  --array-grid-cell: clamp(3rem, 8cqi, 7rem);
-  --array-grid-coordinate: clamp(1.75rem, 3.5cqi, 3rem);
-  --array-grid-gap: clamp(0.375rem, 0.9cqi, 1rem);
-}
-
-.canvas-presenter-surface--dense .canvas-array-grid {
-  --array-grid-cell: clamp(2.25rem, 6.5cqi, 5rem);
-}
-
 /* The beat currently playing, shown under the strip only while animating. */
 .canvas-array-block .canvas-array-step {
   font-size: clamp(0.75rem, 2.2cqi, 1rem);
@@ -840,8 +714,7 @@ html ::-webkit-scrollbar-track {
 /* Puck disables pointer input inside selected blocks for drag-and-drop. These
    three deliberate editor controls opt back in. */
 .canvas-preview-pane [data-puck-component] .canvas-copy-delete,
-.canvas-preview-pane [data-puck-component] .canvas-block-copy-editor,
-.canvas-preview-pane [data-puck-component] .regular-expression-control {
+.canvas-preview-pane [data-puck-component] .canvas-block-copy-editor {
   pointer-events: auto !important;
 }
 
@@ -887,198 +760,15 @@ html ::-webkit-scrollbar-track {
   color: var(--destructive);
 }
 
+
 .canvas-presentation-watermark {
   bottom: max(1.5rem, env(safe-area-inset-bottom));
   right: max(1.5rem, env(safe-area-inset-right));
 }
 
-/* Puck disables selected blocks by default. These controls and diagram
-   interactions are deliberately available inside the Automaton block. */
+/* Puck disables selected blocks by default. These are deliberate interactive
+   controls and vis-network canvas interactions inside the Automaton block. */
 .canvas-preview-pane [data-puck-component] .automaton-control,
-.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) canvas,
-.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) svg[role="img"] {
+.canvas-preview-pane [data-puck-component]:has(.canvas-automaton-block) canvas {
   pointer-events: auto !important;
-}
-
-/* Graph nodes, edges, view controls, and inspector remain interactive while
-   their Puck block is selected, mirroring the existing automaton diagram. */
-.canvas-preview-pane [data-puck-component]:has(.canvas-graph-block) .canvas-graph-control,
-.canvas-preview-pane [data-puck-component]:has(.canvas-graph-block) svg[role="img"],
-.canvas-preview-pane [data-puck-component]:has(.canvas-graph-block) svg[role="img"] [role="button"] {
-  pointer-events: auto !important;
-}
-
-.canvas-graph-inspector {
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: color-mix(in oklab, var(--card) 82%, transparent);
-  padding: 0.75rem 0.875rem;
-}
-
-.canvas-graph-inspector-title {
-  margin-bottom: 0.55rem;
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.canvas-graph-inspector-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem 1rem;
-}
-
-.canvas-graph-inspector-grid dt {
-  color: var(--muted-foreground);
-  font-size: 0.7rem;
-}
-
-.canvas-graph-inspector-grid dd {
-  overflow-wrap: anywhere;
-  color: var(--foreground);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.canvas-graph-inspector-wide {
-  grid-column: 1 / -1;
-}
-
-.canvas-presenter-surface .canvas-graph-canvas {
-  height: min(52vh, 34rem);
-}
-
-.canvas-presenter-surface .canvas-graph-inspector {
-  padding: 0.875rem 1rem;
-}
-
-.canvas-presenter-surface .canvas-graph-inspector-grid dt,
-.canvas-presenter-surface .canvas-graph-inspector-grid dd {
-  font-size: clamp(0.8rem, 1.15vw, 1rem);
-}
-
-/* A lone CFG lesson uses the whole stage, while mixed-content slides stay compact. */
-.canvas-presenter-surface--context-free-grammar main {
-  height: 100%;
-  min-height: 0;
-  grid-template-rows: minmax(0, 1fr);
-  padding: 0;
-  gap: 0;
-}
-.canvas-presenter-surface--context-free-grammar article {
-  min-height: 0;
-  margin: 0;
-}
-.canvas-presenter-surface--context-free-grammar article > section {
-  aspect-ratio: auto;
-  padding: 8px;
-  gap: 0;
-}
-.canvas-presenter-surface--context-free-grammar article > section > div {
-  min-height: 0;
-  border: 0;
-}
-
-.canvas-presenter-surface--context-free-grammar [data-slot="scroll-area-content"] > :first-child {
-  align-content: stretch;
-  grid-template-rows: minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-  padding: 0;
-  gap: 0;
-}
-.canvas-presenter-surface--context-free-grammar .canvas-context-free-grammar-block { height: 100%; }
-.canvas-presenter-surface--context-free-grammar .cfg-parse-region { min-height: 0; }
-.canvas-presenter-surface--context-free-grammar .cfg-derivation-list { font-size: clamp(1rem, 1.5vw, 1.5rem); }
-@keyframes cfg-branch-grow {
-  from { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0.3; }
-  to { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 1; }
-}
-@keyframes cfg-node-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-tree-node], [data-tree-edge], .cfg-derivation-list li { animation: none !important; }
-}
-
-.tree-canvas {
-  --tree-accent: #0284c7;
-  --tree-accent-foreground: #ffffff;
-  --tree-accent-soft: #e0f2fe;
-}
-
-.dark .tree-canvas {
-  --tree-accent: #38bdf8;
-  --tree-accent-foreground: #082f49;
-  --tree-accent-soft: #0c4a6e;
-}
-
-/* Graph surfaces follow the restrained visual language of arrays and stacks. */
-.canvas-graph-block {
-  gap: 0.875rem;
-}
-
-.canvas-graph-canvas {
-  --graph-accent: #0284c7;
-  --graph-accent-foreground: #ffffff;
-  border-radius: 0.75rem;
-  background: var(--card);
-  box-shadow: none;
-}
-
-.dark .canvas-graph-canvas {
-  --graph-accent: #38bdf8;
-  --graph-accent-foreground: #082f49;
-}
-
-.canvas-graph-canvas::before,
-.canvas-graph-canvas::after {
-  display: none;
-}
-
-.canvas-graph-canvas [data-graph-edge-body],
-.canvas-graph-canvas [data-graph-node-body] {
-  filter: none;
-}
-
-.canvas-graph-canvas [role="button"]:hover > [data-graph-edge-body],
-.canvas-graph-canvas [role="button"]:focus-visible > [data-graph-edge-body] {
-  stroke-width: 2.6px;
-}
-
-.canvas-graph-canvas [role="button"]:focus-visible {
-  outline: none;
-}
-
-.canvas-graph-canvas [role="button"]:focus-visible > [data-graph-node-body] {
-  stroke-width: 4px;
-}
-
-/* In a presentation, the network is the stage—not a small supporting chart. */
-.canvas-presenter-surface:has(.canvas-graph-block) .canvas-frame-block {
-  padding-block: clamp(1rem, 1.7vw, 1.75rem);
-}
-
-.canvas-presenter-surface .canvas-graph-block {
-  align-content: stretch;
-  gap: clamp(0.75rem, 1.3vh, 1.15rem);
-}
-
-.canvas-presenter-surface .canvas-graph-canvas {
-  height: min(68vh, 42rem);
-  min-height: 23rem;
-  border-color: var(--border);
-  background: var(--card);
-  box-shadow: none;
-}
-
-.canvas-presenter-surface .canvas-graph-inspector {
-  display: none;
-}
-
-@media (max-width: 640px) {
-  .canvas-presenter-surface .canvas-graph-canvas { min-height: 20rem; }
 }

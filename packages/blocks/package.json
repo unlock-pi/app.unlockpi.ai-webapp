@@ -1,0 +1,27 @@
+{
+  "name": "@unlockpi/blocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./array": "./src/array/index.ts",
+    "./circuit": "./src/circuit/index.ts",
+    "./waveform": "./src/waveform/index.ts",
+    "./pn-junction": "./src/pn-junction/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@unlockpi/ui": "workspace:*",
+    "cuelume": "^0.2.2",
+    "motion": "^12.38.0"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

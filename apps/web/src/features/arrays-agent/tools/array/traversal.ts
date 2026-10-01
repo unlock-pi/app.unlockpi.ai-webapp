@@ -5,7 +5,7 @@ import {
   traverse2dArray,
   traverseArray,
   traverseArrayReverse,
-} from "@/features/arrays-agent/lib/array-ops";
+} from "@unlockpi/blocks/array";
 import {
   commit,
   fail,

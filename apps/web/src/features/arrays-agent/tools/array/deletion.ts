@@ -7,7 +7,7 @@ import {
   deleteFromBeginning,
   deleteFromEnd,
   deleteMultiple,
-} from "@/features/arrays-agent/lib/array-ops";
+} from "@unlockpi/blocks/array";
 import {
   commit,
   type ArrayToolContext,

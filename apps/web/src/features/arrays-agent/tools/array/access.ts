@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { accessArrayElement } from "@/features/arrays-agent/lib/array-ops";
+import { accessArrayElement } from "@unlockpi/blocks/array";
 import {
   commit,
   fail,

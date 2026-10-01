@@ -3,22 +3,18 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
-  buildSyncedCode,
-  parseArrayFromCode,
-  parseDeclarationStyle,
-  type CodeLanguageName,
-  type DeclarationStyle,
-} from "@/features/arrays-agent/lib/array-code";
-import {
-  codeForOperation,
-  type OperationRequest,
-} from "@/features/arrays-agent/lib/operation-code";
-import {
   arrayNameFromTitle,
+  buildSyncedCode,
+  codeForOperation,
   DEFAULT_ARRAY_NAME,
   nextArrayName,
-} from "@/features/arrays-agent/lib/array-name";
-import type { ArrayValue } from "@/features/arrays-agent/lib/array-types";
+  parseArrayFromCode,
+  parseDeclarationStyle,
+  type ArrayValue,
+  type CodeLanguageName,
+  type DeclarationStyle,
+  type OperationRequest,
+} from "@unlockpi/blocks/array";
 import type {
   BlockControls,
   CombineControls,

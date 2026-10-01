@@ -46,6 +46,12 @@
       "sourceType": "github",
       "skillPath": "skills/fixing-motion-performance/SKILL.md",
       "computedHash": "426dcf33f23419643f2aab71e2253e1a5b5684a808fabb8a4ad135e489ed7a0f"
+    },
+    "turborepo": {
+      "source": "vercel/turborepo",
+      "sourceType": "github",
+      "skillPath": "skills/turborepo/SKILL.md",
+      "computedHash": "1afd1d837048d6498674723e81a782a8558724b8367b5fd2196f82822e1ab571"
     }
   }
 }

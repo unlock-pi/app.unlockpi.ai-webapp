@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 
-import type { ArrayFrame } from "@/features/arrays-agent/lib/array-types";
+import type { ArrayFrame } from "@unlockpi/blocks/array";
 
 type ArraysAgentViewValue = {
   /** Canvas block the agent is currently driving, or null when it drives none. */

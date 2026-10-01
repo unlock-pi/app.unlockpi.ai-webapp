@@ -4,11 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useArraysCanvasBridge } from "@/features/arrays-agent/hooks/use-arrays-canvas-bridge";
 import { useArraysVoiceAgent } from "@/features/arrays-agent/hooks/use-arrays-voice-agent";
-import type {
-  ArrayAgentState,
-  ArrayValue,
-} from "@/features/arrays-agent/lib/array-types";
-import type { OperationRequest } from "@/features/arrays-agent/lib/operation-code";
+import type { ArrayAgentState } from "@/features/arrays-agent/lib/agent-state";
+import type { ArrayValue, OperationRequest } from "@unlockpi/blocks/array";
 import type { PresentationControls } from "@/features/arrays-agent/tools/tool-context";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";
 

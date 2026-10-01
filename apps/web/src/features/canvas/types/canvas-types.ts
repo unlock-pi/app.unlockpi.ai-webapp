@@ -1,9 +1,4 @@
 import type { Data, Slot } from "@puckeditor/core";
-import type { AutomatonBlockProps } from "@/packages/blocks/automata";
-import type { PDABlockProps } from "@/components/pda/pda";
-import type { RegularExpressionBlockProps } from "@/components/regular-expression";
-import type { ContextFreeGrammarBlockProps } from "@/components/context-free-grammar";
-import type { GraphBlockProps } from "@/components/graph";
 
 // TODO: Consider adding more subjects in the future, such as "mathematics", "physics", etc. For now, we only have "computer_science".
 // FIX: The subject is currently hardcoded to "computer_science" in the CanvasRootProps. We should consider making this dynamic or configurable in the future to support multiple subjects.
@@ -32,7 +27,10 @@ export type CanvasTypographyScale = "base" | "medium" | "small";
  * axis (colors, not font) and is currently disabled in canvasThemeOptions.
  */
 export type CanvasFontFamily =
-  "modern" | "handwriting" | "old-school" | "chalkboard";
+  | "modern"
+  | "handwriting"
+  | "old-school"
+  | "chalkboard";
 
 export type CanvasRootProps = {
   title: string;
@@ -59,12 +57,7 @@ export type HeadingTextBlockProps = {
 export type SubheadingTextBlockProps = {
   // The subheading text is a secondary heading that provides additional context or clarification for the main heading. It should be concise and informative, helping to guide the reader's understanding of the content that follows.
   // TODO: Consider adding support for different subheading levels (e.g., h4, h5) in the future to allow for more flexible content structuring. For now, we only have a single subheading level.
-  // FIX: The subheading text is currently limited to a single string in the SubheadingTextBlockProps. We should consider allowing for more complex heading structures (e.g., multiple lines, formatting) in the future.
-  text: string;
-};
-
-/** A tertiary heading for smaller sections beneath an H2. */
-export type Heading3TextBlockProps = {
+  // FIX: The subheading text is currently limited to a single string in the SubheadingTextBlockProps. We should consider allowing for more complex subheading structures (e.g., multiple lines, formatting) in the future.
   text: string;
 };
 
@@ -72,25 +65,24 @@ export type BodyTextBlockProps = {
   text: string;
 };
 
-/** A highlighted supporting note. */
-export type CalloutTextBlockProps = {
-  text: string;
-};
-
-/** A quoted passage with an optional attribution. */
-export type QuoteTextBlockProps = {
-  text: string;
-  citation?: string;
+/**
+ * A circuit block is authored as one of a small set of PRESETS, not as raw
+ * components/wires — the same reasoning as picking hardcoded layouts over a
+ * layout solver in circuit-ops.ts: a teacher composing a frame is choosing
+ * "which known circuit," not placing parts by hand, so the Puck fields stay
+ * as simple as ArrayBlock's.
+ */
+export type CircuitBlockProps = {
+  preset: "series" | "series-closed" | "parallel" | "and-gate" | "or-gate" | "not-gate";
+  /** Only read by the gate presets. */
+  gateInputA?: boolean;
+  gateInputB?: boolean;
 };
 
 export type ArrayBlockProps = {
   /** Stored on older blocks but never drawn — an array block shows only the strip. */
   title?: string;
-  /** Values stay flat in storage, even for 2D, so switching layouts is lossless. */
   values: Array<{ value: string }>;
-  /** `2d` lays the flat values out row by row in the configured number of rows. */
-  dimensions?: "1d" | "2d";
-  rowCount?: number;
   highlightedIndex?: number;
   visitedIndices?: number[];
   traversalTarget?: number;
@@ -158,12 +150,10 @@ export type CodeLanguage =
   | "plaintext";
 
 export type CodeBlockProps = {
-  /** Legacy field retained so existing saved blocks can still be read. */
-  title?: string;
+  title: string;
   language: CodeLanguage;
   code: string;
-  /** Legacy field retained so existing saved blocks can still be read. */
-  explanation?: string;
+  explanation: string;
 };
 
 export type MermaidBlockProps = {
@@ -210,24 +200,17 @@ export type CanvasComponents = {
   SlideBlock: SlideBlockProps;
   HeadingTextBlock: HeadingTextBlockProps;
   SubheadingTextBlock: SubheadingTextBlockProps;
-  Heading3TextBlock: Heading3TextBlockProps;
   BodyTextBlock: BodyTextBlockProps;
-  CalloutTextBlock: CalloutTextBlockProps;
-  QuoteTextBlock: QuoteTextBlockProps;
   ArrayBlock: ArrayBlockProps;
+  CircuitBlock: CircuitBlockProps;
   StackBlock: StackBlockProps;
   QueueBlock: QueueBlockProps;
   LinkedListBlock: LinkedListBlockProps;
   MindMapBlock: MindMapBlockProps;
-  GraphBlock: GraphBlockProps;
   CodeBlock: CodeBlockProps;
   MermaidBlock: MermaidBlockProps;
   TableBlock: TableBlockProps;
   CheckpointBlock: CheckpointBlockProps;
-  AutomatonBlock: AutomatonBlockProps;
-  RegularExpressionBlock: RegularExpressionBlockProps;
-  ContextFreeGrammarBlock: ContextFreeGrammarBlockProps;
-  PDABlock: PDABlockProps;
   SketchBlock: SketchBlockProps;
 };
 
@@ -253,11 +236,11 @@ export type CanvasAiAction =
   | { action: "add_slide"; title?: string; notes?: string }
   | { action: "add_frame"; title?: string; notes?: string }
   | {
-      action: "add_frame_below";
-      frameId?: string;
-      title?: string;
-      notes?: string;
-    }
+    action: "add_frame_below";
+    frameId?: string;
+    title?: string;
+    notes?: string;
+  }
   | { action: "duplicate_frame"; frameId?: string }
   | { action: "delete_frame"; frameId?: string }
   | { action: "go_to_slide"; slideIndex?: number; slideId?: string }
@@ -266,85 +249,45 @@ export type CanvasAiAction =
   | { action: "update_frame_title"; frameId?: string; title: string }
   | { action: "add_text_block"; heading?: string; body?: string }
   | { action: "add_subheading_block"; text?: string }
-  | { action: "add_heading3_block"; text?: string }
   | { action: "add_body_block"; text?: string }
-  | { action: "add_callout_block"; text?: string }
-  | { action: "add_quote_block"; text?: string; citation?: string }
   | {
-      action: "add_code_block";
-      code?: string;
-      language?: CodeLanguage;
-      title?: string;
-      explanation?: string;
-    }
+    action: "add_code_block";
+    code?: string;
+    language?: CodeLanguage;
+    title?: string;
+    explanation?: string;
+  }
   | {
-      /** Rewrite the text of an existing text block on the active frame. */
-      action: "set_block_text";
-      componentId?: string;
-      blockType:
-        | "HeadingTextBlock"
-        | "SubheadingTextBlock"
-        | "Heading3TextBlock"
-        | "BodyTextBlock"
-        | "CalloutTextBlock"
-        | "QuoteTextBlock";
-      text: string;
-    }
+    /** Rewrite the text of an existing text block on the active frame. */
+    action: "set_block_text";
+    componentId?: string;
+    blockType: "HeadingTextBlock" | "SubheadingTextBlock" | "BodyTextBlock";
+    text: string;
+  }
   | {
-      action: "set_code_block";
-      componentId?: string;
-      code: string;
-      language?: CodeLanguage;
-      explanation?: string;
-    }
+    action: "set_code_block";
+    componentId?: string;
+    code: string;
+    language?: CodeLanguage;
+    explanation?: string;
+  }
   | { action: "remove_block"; componentId?: string; blockType?: string }
   /** Remove every block from the active frame, leaving the frame itself. */
   | { action: "clear_frame" }
   | { action: "add_array_block"; title?: string; values?: string[] }
   | { action: "set_array_values"; componentId?: string; values: string[] }
-  | { action: "add_automaton_block"; automaton: AutomatonBlockProps }
-  | { action: "add_pda_block"; pda: PDABlockProps }
-  | { action: "set_pda_block"; componentId: string; pda: PDABlockProps }
-  | {
-      action: "add_context_free_grammar_block";
-      contextFreeGrammar: ContextFreeGrammarBlockProps;
-    }
-  | {
-      action: "set_context_free_grammar_block";
-      componentId: string;
-      contextFreeGrammar: ContextFreeGrammarBlockProps;
-    }
-  | {
-      action: "add_regular_expression_block";
-      regularExpression: RegularExpressionBlockProps;
-    }
-  | {
-      action: "set_regular_expression_block";
-      componentId: string;
-      regularExpression: RegularExpressionBlockProps;
-    }
-  | {
-      action: "set_automaton_block";
-      componentId: string;
-      automaton: AutomatonBlockProps;
-    }
   | { action: "resize_array"; componentId?: string; length: number }
   | { action: "highlight_array_index"; componentId?: string; index?: number }
   | { action: "append_array_value"; componentId?: string; value?: string }
   | { action: "pop_array_value"; componentId?: string }
+  | { action: "duplicate_array_block"; componentId?: string; title?: string; appendValue?: string }
   | {
-      action: "duplicate_array_block";
-      componentId?: string;
-      title?: string;
-      appendValue?: string;
-    }
-  | {
-      action: "add_stack_block";
-      title?: string;
-      values?: string[];
-      isFixed?: boolean;
-      stackSize?: number;
-    }
+    action: "add_stack_block";
+    title?: string;
+    values?: string[];
+    isFixed?: boolean;
+    stackSize?: number;
+  }
   | { action: "push_stack_value"; componentId?: string; value?: string }
   | { action: "pop_stack_value"; componentId?: string }
   | { action: "add_queue_block"; title?: string; values?: string[] }

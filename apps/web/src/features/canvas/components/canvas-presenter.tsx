@@ -13,15 +13,11 @@ import {
   Grid2X2Icon,
   MicIcon,
   MicOffIcon,
-  NetworkIcon,
   PowerIcon,
-  RegexIcon,
-  GitBranchIcon,
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
 import {
-  type CSSProperties,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -34,23 +30,11 @@ import type { RemoteAudioTrack } from "livekit-client";
 import { motion } from "motion/react";
 
 import { Button } from "@/components/ui/button";
-import { AutomataAgentViewProvider } from "@/packages/blocks/automata";
-import { RegularExpressionAgentViewProvider } from "@/components/regular-expression";
-import { ContextFreeGrammarAgentViewProvider } from "@/components/context-free-grammar";
-import { GraphPresentationViewProvider } from "@/components/graph";
-import { PDAAgentViewProvider } from "@/components/pda";
 import { ArraysAgentActivityPanel } from "@/features/arrays-agent/components/arrays-agent-activity-panel";
 import { ArraysAgentOverlays } from "@/features/arrays-agent/components/arrays-agent-overlays";
 import { ArraysAgentViewProvider } from "@/features/arrays-agent/components/arrays-agent-view-context";
 import { useArraysAgentOnCanvas } from "@/features/arrays-agent/hooks/use-arrays-agent-on-canvas";
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
-import { useAutomataAgentOnCanvas } from "@/features/automata-agent/hooks/use-automata-agent-on-canvas-agent";
-import { AUTOMATA_AGENT_NAME } from "@/features/automata-agent/lib/agent-name-agent";
-import { useRegularExpressionAgentOnCanvas } from "@/features/regular-expression-agent/hooks/use-regular-expression-agent-on-canvas-agent";
-import { REGULAR_EXPRESSION_AGENT_NAME } from "@/features/regular-expression-agent/lib/agent-name-agent";
-import { useContextFreeGrammarAgentOnCanvas } from "@/features/context-free-grammar-agent/hooks/use-context-free-grammar-agent-on-canvas-agent";
-import { CONTEXT_FREE_GRAMMAR_AGENT_NAME } from "@/features/context-free-grammar-agent/agent-name-agent";
-import { usePDAAgentOnCanvas } from "@/features/pda/hooks/use-pda-agent-on-canvas-agent";
 import {
   PresenterDock,
   type DockAction,
@@ -132,27 +116,25 @@ function FittedPresentationFrame({
     if (!frame) return;
 
     let animationFrame = 0;
-    const viewport = frame.querySelector<HTMLElement>(
-      "[data-slot='scroll-area-viewport']",
-    );
-    const content = frame.querySelector<HTMLElement>(
-      "[data-slot='scroll-area-content']",
-    );
-    if (!viewport || !content) return;
 
     // Schedules the execution of the 'measure' function using the 'requestAnimationFrame' method.
     // Cancels any previously scheduled animation frame before scheduling a new one.
     const measure = () => {
-      // The grid keeps its unscaled layout height even while it is visually
-      // fitted. The viewport scroll height shrinks with a transformed child,
-      // so read the natural grid height to keep the fit stable.
-      const grid = content.querySelector<HTMLElement>(".canvas-frame-content") ?? content;
-      const compositionHeight = Math.max(content.scrollHeight, grid.scrollHeight);
-      const compositionWidth = Math.max(content.scrollWidth, grid.scrollWidth);
+      const viewport = frame.querySelector<HTMLElement>(
+        "[data-slot='scroll-area-viewport']",
+      );
+      const content = frame.querySelector<HTMLElement>(
+        "[data-slot='scroll-area-content']",
+      );
+      if (!viewport || !content) return;
+
+      // scrollHeight/scrollWidth describe the unscaled lesson composition.
+      // Scaling that composition is what lets every element remain visible
+      // without giving the teacher a nested scrollbar.
       const nextScale = Math.min(
         1,
-        viewport.clientHeight / compositionHeight,
-        viewport.clientWidth / compositionWidth,
+        viewport.clientHeight / content.scrollHeight,
+        viewport.clientWidth / content.scrollWidth,
       );
       setScale((current) =>
         Math.abs(current - nextScale) < 0.01 ? current : nextScale,
@@ -165,24 +147,11 @@ function FittedPresentationFrame({
     };
     const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(frame);
-    // A full-width sketch can increase the frame's natural height only after
-    // its inline SVG has loaded. Watch the content as well as the viewport so
-    // the fitted presentation scale is recomputed before it can be cropped.
-    observer.observe(content);
-
-    const images = [...content.querySelectorAll("img")];
-    for (const image of images) {
-      image.addEventListener("load", scheduleMeasure);
-      if (image.complete) scheduleMeasure();
-    }
     scheduleMeasure();
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
       observer.disconnect();
-      for (const image of images) {
-        image.removeEventListener("load", scheduleMeasure);
-      }
     };
   }, [document]);
 
@@ -195,12 +164,11 @@ function FittedPresentationFrame({
       style={{ overflow: zoom > 1 ? "auto" : "hidden" }}
     >
       <div
-        className="canvas-presenter-fitted-content size-full"
+        className="size-full"
         style={{
-          transform: `scale(${zoom})`,
+          transform: `scale(${scale * zoom})`,
           transformOrigin: "top center",
-          "--canvas-fit-scale": scale,
-        } as CSSProperties}
+        }}
       >
         <Render config={canvasPuckConfig} data={document} />
       </div>
@@ -251,17 +219,6 @@ export function CanvasPresenter({
     activeSlide?.type === "SlideBlock" &&
     Array.isArray(activeSlide.props.content) &&
     activeSlide.props.content.length >= 3;
-  const isSingleRegularExpressionFrame =
-    activeSlide?.type === "SlideBlock" &&
-    Array.isArray(activeSlide.props.content) &&
-    activeSlide.props.content.length === 1 &&
-    activeSlide.props.content[0]?.type === "RegularExpressionBlock";
-
-  const isSingleGrammarFrame =
-    activeSlide?.type === "SlideBlock" &&
-    Array.isArray(activeSlide.props.content) &&
-    activeSlide.props.content.length === 1 &&
-    activeSlide.props.content[0]?.type === "ContextFreeGrammarBlock";
 
   const goTo = useCallback(
     (nextIndex: number) => {
@@ -437,8 +394,7 @@ export function CanvasPresenter({
   // this frame") runs entirely before React re-renders. Reading the stale copy
   // is how the agent described a frame without the block it had just added.
   const arraysPresentation = useMemo<PresentationControls>(() => {
-    const liveFrames = () =>
-      getCanvasPresentationFrames(runtimeDocumentRef.current);
+    const liveFrames = () => getCanvasPresentationFrames(runtimeDocumentRef.current);
     const liveIndex = (list: ReturnType<typeof getCanvasPresentationFrames>) =>
       Math.max(
         0,
@@ -478,8 +434,7 @@ export function CanvasPresenter({
         const best = liveFrames()
           .map((frame) => ({
             frame,
-            score: words.filter((word) => frame.searchText.includes(word))
-              .length,
+            score: words.filter((word) => frame.searchText.includes(word)).length,
           }))
           .sort((left, right) => right.score - left.score)[0];
         return best?.score
@@ -506,66 +461,9 @@ export function CanvasPresenter({
     activeFrameId: activeFrame?.id ?? null,
     enabled: selectedMode === "arrays",
   });
-  const automata = useAutomataAgentOnCanvas({
-    canvasId,
-    canvasTitle: title,
-    getDocument: getArraysDocument,
-    getActiveFrameId: getArraysFrameId,
-    applyDocument: applyArraysDocument,
-    activeFrameId: activeFrame?.id ?? null,
-    enabled: selectedMode === "automata",
-  });
-  const regularExpression = useRegularExpressionAgentOnCanvas({
-    canvasId,
-    canvasTitle: title,
-    getDocument: getArraysDocument,
-    getActiveFrameId: getArraysFrameId,
-    applyDocument: applyArraysDocument,
-    activeFrameId: activeFrame?.id ?? null,
-    enabled: selectedMode === "regular-expression",
-  });
-
-  const contextFreeGrammar = useContextFreeGrammarAgentOnCanvas({
-    canvasId,
-    canvasTitle: title,
-    getDocument: getArraysDocument,
-    getActiveFrameId: getArraysFrameId,
-    applyDocument: applyArraysDocument,
-    activeFrameId: activeFrame?.id ?? null,
-    enabled: selectedMode === "context-free-grammar",
-  });
-
-  const pda = usePDAAgentOnCanvas({
-    getDocument: getArraysDocument,
-    getActiveFrameId: getArraysFrameId,
-    applyDocument: applyArraysDocument,
-    activeFrameId: activeFrame?.id ?? null,
-  });
 
   const isArraysMode = selectedMode === "arrays";
-  const isAutomataMode = selectedMode === "automata";
-  const isRegularExpressionMode = selectedMode === "regular-expression";
-  const isContextFreeGrammarMode = selectedMode === "context-free-grammar";
-  const specialistAgent = isArraysMode
-    ? arrays.agent
-    : isAutomataMode
-      ? automata.agent
-      : isRegularExpressionMode
-        ? regularExpression.agent
-        : isContextFreeGrammarMode
-          ? contextFreeGrammar.agent
-          : null;
-  const specialistName = isArraysMode
-    ? ARRAYS_AGENT_NAME
-    : isAutomataMode
-      ? AUTOMATA_AGENT_NAME
-      : isRegularExpressionMode
-        ? REGULAR_EXPRESSION_AGENT_NAME
-        : isContextFreeGrammarMode
-          ? CONTEXT_FREE_GRAMMAR_AGENT_NAME
-          : "the AI";
-  const isCopilotMode =
-    selectedMode === "voice" || selectedMode === "companion";
+  const isCopilotMode = selectedMode === "voice" || selectedMode === "companion";
 
   // `AgentAudioVisualizerWave` drives its "speaking" amplitude from LiveKit's
   // `useTrackVolume`, which only ever reads `.mediaStream` and
@@ -643,9 +541,6 @@ export function CanvasPresenter({
     // ends its session before the next one can start.
     realtimeSession.disconnect();
     arrays.agent.disconnect();
-    automata.agent.disconnect();
-    regularExpression.agent.disconnect();
-    contextFreeGrammar.agent.disconnect();
     setSelectedMode(nextMode);
   };
 
@@ -666,23 +561,19 @@ export function CanvasPresenter({
   const endClass = () => {
     realtimeSession.disconnect();
     arrays.agent.disconnect();
-    automata.agent.disconnect();
-    regularExpression.agent.disconnect();
-    contextFreeGrammar.agent.disconnect();
     onClose?.();
   };
 
-  const voiceConnected =
-    specialistAgent?.isConnected ?? realtimeSession.isConnected;
+  const voiceConnected = isArraysMode
+    ? arrays.agent.isConnected
+    : realtimeSession.isConnected;
   // `use-canvas-realtime-session` (the non-arrays modes) doesn't have an
   // automatic-reconnect path yet, so it has no "reconnecting" status to check.
-  const voiceReconnecting =
-    Boolean(specialistAgent) && specialistAgent?.status === "reconnecting";
+  const voiceReconnecting = isArraysMode && arrays.agent.status === "reconnecting";
   const voiceConnecting =
-    (specialistAgent
-      ? specialistAgent.status === "connecting"
-      : aiStatus === "connecting") || voiceReconnecting;
-  const micLive = specialistAgent?.micEnabled ?? !realtimeSession.isPaused;
+    (isArraysMode ? arrays.agent.status === "connecting" : aiStatus === "connecting") ||
+    voiceReconnecting;
+  const micLive = isArraysMode ? arrays.agent.micEnabled : !realtimeSession.isPaused;
 
   const reveal = useChromeReveal({ hold: voiceConnecting });
   /** Shared by every piece of chrome so they move as one. */
@@ -701,30 +592,37 @@ export function CanvasPresenter({
   };
 
   const toggleVoice = () => {
-    if (voiceConnected) {
-      if (specialistAgent) specialistAgent.disconnect();
+    // Connecting and reconnecting are both "there is an attempt in flight
+    // someone might want out of" — same disconnect() as stopping a live
+    // session, not a separate cancel path. Its own generation/abort
+    // machinery is what makes that safe: the in-flight connect() notices
+    // and unwinds itself rather than finishing and resurrecting a
+    // connection the teacher just tried to call off.
+    if (voiceConnected || voiceConnecting) {
+      if (isArraysMode) arrays.agent.disconnect();
       else realtimeSession.disconnect();
       return;
     }
-    void (specialistAgent
-      ? specialistAgent.connect()
-      : realtimeSession.connect());
+    void (isArraysMode ? arrays.agent.connect() : realtimeSession.connect());
   };
 
   const dockPrimary: DockAction[] = [
     {
       id: "power",
       label: voiceConnected
-        ? `Stop ${specialistName}`
+        ? `Stop ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`
         : voiceReconnecting
-          ? "Reconnecting…"
+          ? "Cancel reconnecting"
           : voiceConnecting
-            ? "Connecting…"
-            : `Start ${specialistName}`,
+            ? "Cancel connecting"
+            : `Start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`,
       icon: <PowerIcon className="size-4" />,
       active: voiceConnected,
       status: voiceConnecting ? "busy" : voiceConnected ? "live" : undefined,
-      disabled: selectedMode === "manual" || voiceConnecting,
+      // Stays clickable while connecting/reconnecting — that's what lets a
+      // teacher back out of an attempt instead of being stuck watching a
+      // spinner they can't stop.
+      disabled: selectedMode === "manual",
       onClick: toggleVoice,
     },
   ];
@@ -742,8 +640,7 @@ export function CanvasPresenter({
         const spoke = arrays.agent.speakNow(
           "Greet the class in one short sentence, then say what is on this frame.",
         );
-        if (!spoke)
-          flashHint("It is already speaking — try again in a moment.");
+        if (!spoke) flashHint("It is already speaking — try again in a moment.");
       },
     },
   ];
@@ -755,20 +652,16 @@ export function CanvasPresenter({
     dockPrimary.push({
       id: "mic",
       label: micLive ? "Mute your microphone" : "Unmute your microphone",
-      icon: micLive ? (
-        <MicIcon className="size-4" />
-      ) : (
-        <MicOffIcon className="size-4" />
-      ),
+      icon: micLive ? <MicIcon className="size-4" /> : <MicOffIcon className="size-4" />,
       active: micLive,
       disabled: !voiceConnected,
       onClick: () => {
-        if (specialistAgent) specialistAgent.toggleMic();
+        if (isArraysMode) arrays.agent.toggleMic();
         else realtimeSession.togglePause();
       },
     });
   }
-  if (specialistAgent) {
+  if (isArraysMode) {
     dockPrimary.push({
       id: "activity",
       label: activityOpen ? "Hide agent activity" : "Show agent activity",
@@ -811,27 +704,6 @@ export function CanvasPresenter({
           onClick: () => selectMode("arrays"),
         },
         {
-          id: "mode-automata",
-          label: AUTOMATA_AGENT_NAME,
-          icon: <NetworkIcon className="size-4" />,
-          active: isAutomataMode,
-          onClick: () => selectMode("automata"),
-        },
-        {
-          id: "mode-regular-expression",
-          label: REGULAR_EXPRESSION_AGENT_NAME,
-          icon: <RegexIcon className="size-4" />,
-          active: isRegularExpressionMode,
-          onClick: () => selectMode("regular-expression"),
-        },
-        {
-          id: "mode-context-free-grammar",
-          label: CONTEXT_FREE_GRAMMAR_AGENT_NAME,
-          icon: <GitBranchIcon className="size-4" />,
-          active: isContextFreeGrammarMode,
-          onClick: () => selectMode("context-free-grammar"),
-        },
-        {
           id: "overview",
           label: "All frames",
           icon: <Grid2X2Icon className="size-4" />,
@@ -861,7 +733,7 @@ export function CanvasPresenter({
           : []),
       ];
 
-  const liveCaption = specialistAgent?.caption ?? aiCaption;
+  const liveCaption = isArraysMode ? arrays.agent.caption : aiCaption;
   // The pill above the dock (live transcript / keyboard hint) is hidden for
   // now; the logic stays so it can be switched back on.
   const SHOW_DOCK_HINT = false;
@@ -872,10 +744,12 @@ export function CanvasPresenter({
       : selectedMode === "manual"
         ? "Manual mode · ← → to move between frames"
         : voiceReconnecting
-          ? "Connection dropped — reconnecting automatically…"
-          : voiceConnected
-            ? "Listening — just talk to change the board"
-            : `Press power to start ${specialistName}`);
+          ? "Connection dropped — reconnecting automatically… press power to give up"
+          : voiceConnecting
+            ? "Connecting… press power to cancel"
+            : voiceConnected
+              ? "Listening — just talk to change the board"
+              : `Press power to start ${isArraysMode ? ARRAYS_AGENT_NAME : "the AI"}`);
 
   if (!activeFrame) {
     return (
@@ -905,6 +779,7 @@ export function CanvasPresenter({
         !publicView && "fixed inset-0 z-[100]",
       )}
     >
+
       {aiActivity ? (
         <div
           className={cn(
@@ -1021,10 +896,6 @@ export function CanvasPresenter({
               // frame inside the available stage.
               "canvas-presenter-frame canvas-presenter-surface relative z-10 animate-in fade-in duration-300",
               isDenseFrame && "canvas-presenter-surface--dense",
-              isSingleGrammarFrame &&
-                "canvas-presenter-surface--context-free-grammar",
-              isSingleRegularExpressionFrame &&
-                "canvas-presenter-surface--regular-expression",
               direction === "forward"
                 ? "slide-in-from-right-8"
                 : "slide-in-from-left-8",
@@ -1033,57 +904,12 @@ export function CanvasPresenter({
             <ArraysAgentViewProvider
               {...(isArraysMode
                 ? arrays.viewProviderProps
-                : {
-                    blockId: null,
-                    view: null,
-                    showIndices: true,
-                    isAnimating: false,
-                  })}
+                : { blockId: null, view: null, showIndices: true, isAnimating: false })}
             >
-              <AutomataAgentViewProvider
-                {...(isAutomataMode
-                  ? automata.viewProviderProps
-                  : {
-                      blockId: null,
-                      automaton: null,
-                      execution: null,
-                      onStep: undefined,
-                      onRun: undefined,
-                      onReset: undefined,
-                    })}
-              >
-                <RegularExpressionAgentViewProvider
-                  {...(isRegularExpressionMode
-                    ? regularExpression.viewProviderProps
-                    : {
-                        blockId: null,
-                        state: null,
-                        onStep: undefined,
-                        onReset: undefined,
-                        onDisplayModeChange: undefined,
-                      })}
-                >
-                  <ContextFreeGrammarAgentViewProvider
-                    {...(isContextFreeGrammarMode
-                      ? contextFreeGrammar.viewProviderProps
-                      : {
-                          blockId: null,
-                          state: null,
-                          onStep: undefined,
-                          onReset: undefined,
-                        })}
-                  >
-                    <GraphPresentationViewProvider>
-                      <PDAAgentViewProvider {...pda.viewProviderProps}>
-                        <FittedPresentationFrame
-                          document={activeFrame.document}
-                          zoom={zoomPercent / 100}
-                        />
-                      </PDAAgentViewProvider>
-                    </GraphPresentationViewProvider>
-                  </ContextFreeGrammarAgentViewProvider>
-                </RegularExpressionAgentViewProvider>
-              </AutomataAgentViewProvider>
+              <FittedPresentationFrame
+                document={activeFrame.document}
+                zoom={zoomPercent / 100}
+              />
             </ArraysAgentViewProvider>
           </div>
 
@@ -1124,42 +950,6 @@ export function CanvasPresenter({
             onClose={() => setActivityOpen(false)}
           />
         ) : null}
-        {!publicView && isAutomataMode && activityOpen ? (
-          <ArraysAgentActivityPanel
-            events={automata.agent.events}
-            latency={automata.agent.latency}
-            status={automata.agent.status}
-            isConnected={automata.agent.isConnected}
-            isUserSpeaking={automata.agent.isUserSpeaking}
-            isResponding={automata.agent.isResponding}
-            isAnimating={false}
-            onClose={() => setActivityOpen(false)}
-          />
-        ) : null}
-        {!publicView && isContextFreeGrammarMode && activityOpen ? (
-          <ArraysAgentActivityPanel
-            events={contextFreeGrammar.agent.events}
-            latency={contextFreeGrammar.agent.latency}
-            status={contextFreeGrammar.agent.status}
-            isConnected={contextFreeGrammar.agent.isConnected}
-            isUserSpeaking={contextFreeGrammar.agent.isUserSpeaking}
-            isResponding={contextFreeGrammar.agent.isResponding}
-            isAnimating={false}
-            onClose={() => setActivityOpen(false)}
-          />
-        ) : null}
-        {!publicView && isRegularExpressionMode && activityOpen ? (
-          <ArraysAgentActivityPanel
-            events={regularExpression.agent.events}
-            latency={regularExpression.agent.latency}
-            status={regularExpression.agent.status}
-            isConnected={regularExpression.agent.isConnected}
-            isUserSpeaking={regularExpression.agent.isUserSpeaking}
-            isResponding={regularExpression.agent.isResponding}
-            isAnimating={false}
-            onClose={() => setActivityOpen(false)}
-          />
-        ) : null}
 
         {!publicView && isCopilotMode && panelOpen ? (
           <CopilotPanel
@@ -1176,15 +966,12 @@ export function CanvasPresenter({
           and never slides out from under the pointer. */}
       <motion.div
         {...chromeMotion}
-        animate={{
-          opacity: reveal.visible ? 1 : 0,
-          y: reveal.visible ? 0 : 24,
-        }}
+        animate={{ opacity: reveal.visible ? 1 : 0, y: reveal.visible ? 0 : 24 }}
         className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex flex-col"
       >
         {/* A shared/embedded canvas has no AI session and no class to end. */}
         {publicView ? null : (
-          <div className="flex justify-center px-4 pb-3">
+          <div className="pointer-events-auto flex justify-center px-4 pb-3">
             <PresenterDock
               primary={dockPrimary}
               secondary={dockSecondary}
@@ -1199,12 +986,8 @@ export function CanvasPresenter({
           onPrevious={() => goTo(activeIndex - 1)}
           onNext={() => goTo(activeIndex + 1)}
           zoomPercent={zoomPercent}
-          onZoomIn={() =>
-            setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))
-          }
-          onZoomOut={() =>
-            setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))
-          }
+          onZoomIn={() => setZoomPercent((zoom) => Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
+          onZoomOut={() => setZoomPercent((zoom) => Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
           onZoomReset={() => setZoomPercent(100)}
           canZoomIn={zoomPercent < MAX_ZOOM}
           canZoomOut={zoomPercent > MIN_ZOOM}
@@ -1219,9 +1002,9 @@ export function CanvasPresenter({
         `arrays.agent.error` but nothing ever rendered it. A teacher whose
         session silently gave up had no way to know why the board went quiet.
       */}
-      {(specialistAgent?.error ?? realtimeSession.error) ? (
+      {(isArraysMode ? arrays.agent.error : realtimeSession.error) ? (
         <div className="absolute bottom-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive shadow-xl backdrop-blur-md">
-          {specialistAgent?.error ?? realtimeSession.error}
+          {isArraysMode ? arrays.agent.error : realtimeSession.error}
         </div>
       ) : null}
 
@@ -1248,25 +1031,18 @@ function FrameArrow({
 }) {
   const Icon = direction === "next" ? ChevronRightIcon : ChevronLeftIcon;
   return (
-    <div
+    <button
+      type="button"
+      aria-label={`${direction === "next" ? "Next" : "Previous"} frame`}
+      disabled={disabled}
+      onClick={onClick}
       className={cn(
-        "group absolute inset-y-0 z-20 flex w-20 items-center",
-        direction === "next" ? "right-0 justify-end" : "left-0 justify-start",
+        "absolute z-20 grid size-11 place-items-center rounded-full border bg-card/80 text-foreground shadow-lg backdrop-blur-md transition hover:bg-accent disabled:pointer-events-none disabled:opacity-20",
+        direction === "next" ? "right-2 sm:right-5" : "left-2 sm:left-5",
       )}
     >
-      <button
-        type="button"
-        aria-label={`${direction === "next" ? "Next" : "Previous"} frame`}
-        disabled={disabled}
-        onClick={onClick}
-        className={cn(
-          "pointer-events-none grid size-11 place-items-center rounded-full bg-card/80 text-foreground opacity-0 shadow-lg backdrop-blur-md transition-[opacity,transform,background-color] duration-200 hover:bg-accent focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:opacity-100 disabled:pointer-events-none disabled:opacity-0",
-          direction === "next" ? "translate-x-2" : "-translate-x-2",
-        )}
-      >
-        <Icon className="size-5" />
-      </button>
-    </div>
+      <Icon className="size-5" />
+    </button>
   );
 }
 

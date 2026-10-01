@@ -7,7 +7,7 @@ import {
   insertAtIndex,
   insertMultiple,
   sortedInsert,
-} from "@/features/arrays-agent/lib/array-ops";
+} from "@unlockpi/blocks/array";
 import {
   commit,
   type ArrayToolContext,

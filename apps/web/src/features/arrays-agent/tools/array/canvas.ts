@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { COMPLEXITY, frame } from "@/features/arrays-agent/lib/array-frames";
+import { COMPLEXITY, frame } from "@unlockpi/blocks/array";
 import {
   fail,
   report,

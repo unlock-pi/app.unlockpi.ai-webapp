@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { DropZone, type Config, type SlotComponent } from "@puckeditor/core";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -25,31 +25,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import Logo from "@/components/logo";
-import { ArrayStrip } from "@/components/data-structure/array-strip";
-import { LinkedListStrip } from "@/components/data-structure/linked-list-strip";
+import { ArrayView } from "@unlockpi/blocks/array";
+import {
+  CircuitView,
+  createParallelCircuit,
+  createSeriesCircuit,
+  evaluateGate,
+  toggleSwitch,
+  type CircuitOpResult,
+} from "@unlockpi/blocks/circuit";
+import { LinkedListView } from "@/components/data-structure/linked-list-view";
 import { MindMapBoard } from "@/components/data-structure/mind-map-board";
-import { QueueStrip } from "@/components/data-structure/queue-strip";
-import { StackStrip } from "@/components/data-structure/stack-strip";
-import { AutomatonBlock } from "@/packages/blocks/automata";
-import { GraphBlock, nextGraphId, reconcileGraphProps } from "@/components/graph";
-import { PDABlock } from "@/components/pda";
-import {
-  DEFAULT_CONSTRUCTION_STEPS,
-  DEFAULT_EXPRESSION_SEGMENTS,
-  DEFAULT_SYNTAX_TREE,
-  RegularExpressionBlock,
-} from "@/components/regular-expression";
-import {
-  nextAutomatonId,
-  reconcileAutomatonProps,
-} from "@/packages/blocks/automata/authoring";
-import { reconcileRegularExpressionProps } from "@/components/regular-expression/authoring";
-import {
-  ContextFreeGrammarBlock,
-  DEFAULT_CFG_PROPS,
-  GrammarEditor,
-  reconcileContextFreeGrammarProps,
-} from "@/components/context-free-grammar";
+import { QueueView } from "@/components/data-structure/queue-view";
+import { StackView } from "@/components/data-structure/stack-view";
 
 import { MermaidDiagram } from "@/features/talk/components/renderers/mermaid-diagram";
 import { useArraysAgentView } from "@/features/arrays-agent/components/arrays-agent-view-context";
@@ -64,19 +52,17 @@ import { readPendingSketch } from "@/features/canvas/lib/sketch-transfer";
 import type {
   ArrayBlockProps,
   BodyTextBlockProps,
-  CalloutTextBlockProps,
   CanvasComponents,
   CanvasRootProps,
   CheckpointBlockProps,
+  CircuitBlockProps,
   CodeLanguage,
   CodeBlockProps,
   HeadingTextBlockProps,
-  Heading3TextBlockProps,
   LinkedListBlockProps,
   MermaidBlockProps,
   MindMapBlockProps,
   QueueBlockProps,
-  QuoteTextBlockProps,
   SlideBlockProps,
   StackBlockProps,
   SubheadingTextBlockProps,
@@ -295,7 +281,7 @@ function SlideBlock({
   return (
     <article
       id={`canvas-slide-${id}`}
-      className="w-full max-w-none scroll-mt-4"
+      className="mx-auto w-full my-auto max-w-2xl scroll-mt-4"
     >
       <div className="mb-0 flex items-center justify-between gap-3 px-1 text-foreground">
         {/*
@@ -370,6 +356,7 @@ function SlideBlock({
       </div>
       <section
         aria-label={`${label}: ${title}`}
+        title={`${label}: ${title}`}
         className="relative flex border-none! min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
       >
         <ScrollArea fill className="min-h-0 flex-1 rounded-md border">
@@ -377,27 +364,20 @@ function SlideBlock({
             allow={[
               "HeadingTextBlock",
               "SubheadingTextBlock",
-              "Heading3TextBlock",
               "BodyTextBlock",
-              "CalloutTextBlock",
-              "QuoteTextBlock",
               "ArrayBlock",
+              "CircuitBlock",
               "StackBlock",
               "QueueBlock",
               "LinkedListBlock",
               "MindMapBlock",
-              "GraphBlock",
               "CodeBlock",
               "MermaidBlock",
               "TableBlock",
-              "AutomatonBlock",
-              "PDABlock",
-              "RegularExpressionBlock",
-              "ContextFreeGrammarBlock",
               "CheckpointBlock",
               "SketchBlock",
             ]}
-            className="canvas-frame-content grid h-full min-h-[470px] min-w-0 content-start gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
+            className="grid h-full min-h-[470px] min-w-0 content-between gap-4 rounded-lg border-none! bg-muted/10 p-3 pb-10 sm:p-4 sm:pb-11"
           />
         </ScrollArea>
         <div className="canvas-frame-watermark pointer-events-none absolute bottom-right-8 z-10 flex items-center gap-1.5 rounded-md bg-background/75 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 backdrop-blur-sm lg:bottom-9 lg:right-9">
@@ -437,156 +417,14 @@ function SubheadingTextBlock({ text }: SubheadingTextBlockProps) {
   );
 }
 
-function Heading3TextBlock({ text }: Heading3TextBlockProps) {
-  return (
-    <h3
-      className="max-w-4xl text-balance font-medium leading-tight tracking-[-0.02em] text-foreground [font-size:calc(var(--canvas-subheading-size)*0.78)]"
-      style={subheadingFontStyle}
-    >
-      {text}
-    </h3>
-  );
-}
-
 function BodyTextBlock({ text }: BodyTextBlockProps) {
-  // Puck's editable rich-text field renders an editor <div>. A <p> wrapper
-  // would therefore create invalid nested markup and a hydration mismatch.
   return (
-    <div
-      className="max-w-3xl whitespace-pre-wrap text-muted-foreground [font-size:var(--canvas-body-size)] [line-height:var(--canvas-body-leading)]"
+    <p
+      className="max-w-3xl text-pretty text-muted-foreground [font-size:var(--canvas-body-size)] [line-height:var(--canvas-body-leading)]"
       style={bodyFontStyle}
     >
       {text}
-    </div>
-  );
-}
-
-function CalloutTextBlock({ text }: CalloutTextBlockProps) {
-  return (
-    <aside className="max-w-3xl rounded-r-lg border-l-4 border-primary bg-primary/10 px-4 py-3 text-foreground">
-      <p
-        className="text-pretty font-medium [font-size:var(--canvas-body-size)] [line-height:var(--canvas-body-leading)]"
-        style={bodyFontStyle}
-      >
-        {text}
-      </p>
-    </aside>
-  );
-}
-
-function QuoteTextBlock({ text, citation }: QuoteTextBlockProps) {
-  return (
-    <figure className="max-w-3xl border-l-2 border-muted-foreground/50 pl-4">
-      <blockquote
-        className="text-pretty italic text-foreground [font-size:var(--canvas-body-size)] [line-height:var(--canvas-body-leading)]"
-        style={bodyFontStyle}
-      >
-        {text}
-      </blockquote>
-      {citation ? (
-        <figcaption className="mt-2 text-sm text-muted-foreground">
-          — {citation}
-        </figcaption>
-      ) : null}
-    </figure>
-  );
-}
-
-type TwoDimensionalArrayProps = {
-  values: string[];
-  rowCount?: number;
-  showIndices: boolean;
-  highlightedIndex?: number;
-  visitedIndices?: number[];
-  activeIndices?: number[];
-  settledIndices?: number[];
-  foundIndex?: number;
-};
-
-/**
- * A 2D array is stored as the same flat sequence used by the 1D strip. This
- * makes the inspector switch purely presentational: values are placed
- * row-major, and moving between 1D and 2D never changes user data.
- */
-function TwoDimensionalArray({
-  values,
-  rowCount,
-  showIndices,
-  highlightedIndex,
-  visitedIndices = [],
-  activeIndices = [],
-  settledIndices = [],
-  foundIndex,
-}: TwoDimensionalArrayProps) {
-  const requestedRows =
-    typeof rowCount === "number" && Number.isFinite(rowCount)
-      ? Math.floor(rowCount)
-      : 2;
-  const rows = Math.max(1, Math.min(Math.max(values.length, 1), requestedRows));
-  const columns = Math.max(1, Math.ceil(values.length / rows));
-  const cells = Array.from({ length: rows * columns }, (_, index) => index);
-
-  const stateFor = (index: number) => {
-    if (foundIndex === index) return "border-emerald-300 bg-emerald-500 text-white ring-2 ring-emerald-400/50";
-    if (settledIndices.includes(index)) return "border-emerald-600/50 bg-emerald-700 text-white";
-    if (activeIndices.includes(index) || highlightedIndex === index) return "border-sky-300 bg-sky-500 text-white ring-2 ring-sky-400/40";
-    if (visitedIndices.includes(index)) return "opacity-40";
-    return "";
-  };
-
-  return (
-    <div className="canvas-array-grid max-w-full" aria-label="Two-dimensional array">
-      <div
-        className="canvas-array-grid-table"
-        style={{
-          gridTemplateColumns: `${showIndices ? "var(--array-grid-coordinate) " : ""}repeat(${columns}, var(--array-grid-cell))`,
-        }}
-      >
-        {showIndices ? <span className="canvas-array-grid-coordinate" aria-hidden="true" /> : null}
-        {showIndices
-          ? Array.from({ length: columns }, (_, column) => (
-              <span
-                className="canvas-array-grid-coordinate"
-                key={`column-${column}`}
-                aria-label={`Column ${column}`}
-              >
-                {column}
-              </span>
-            ))
-          : null}
-        {Array.from({ length: rows }, (_, row) => (
-          <Fragment key={`row-${row}`}>
-            {showIndices ? (
-              <span className="canvas-array-grid-coordinate" aria-label={`Row ${row}`}>
-                {row}
-              </span>
-            ) : null}
-            {cells.slice(row * columns, (row + 1) * columns).map((index) => {
-              const value = values[index];
-              const isEmpty = value === undefined;
-              return (
-                <div
-                  key={index}
-                  aria-label={
-                    isEmpty
-                      ? `Row ${row}, column ${index % columns}, empty`
-                      : `Row ${row}, column ${index % columns}: ${value}`
-                  }
-                  className={cn(
-                    "canvas-array-grid-cell",
-                    isEmpty && "canvas-array-grid-cell--empty",
-                    !isEmpty && stateFor(index),
-                  )}
-                  title={isEmpty ? undefined : value}
-                >
-                  {isEmpty ? "" : value}
-                </div>
-              );
-            })}
-          </Fragment>
-        ))}
-      </div>
-    </div>
+    </p>
   );
 }
 
@@ -602,8 +440,6 @@ function TwoDimensionalArray({
 function ArrayBlock({
   id,
   values,
-  dimensions,
-  rowCount,
   highlightedIndex,
   visitedIndices,
   traversalTarget,
@@ -619,30 +455,12 @@ function ArrayBlock({
   // truth on screen; the authored props are what the block falls back to the
   // moment the agent lets go.
   const agent = useArraysAgentView(id);
-  const isTwoDimensional = dimensions === "2d";
-
-  if (isTwoDimensional) {
-    const displayValues = agent ? agent.view.values : arrayValues;
-    return blockShell(
-      "canvas-frame-block--compact canvas-array-block",
-      <TwoDimensionalArray
-        values={displayValues}
-        rowCount={rowCount}
-        showIndices={agent ? agent.showIndices : showIndices}
-        highlightedIndex={traversal.highlightedIndex}
-        visitedIndices={agent ? agent.view.visited : traversal.visitedIndices}
-        activeIndices={agent?.view.active}
-        settledIndices={agent?.view.settled}
-        foundIndex={agent?.view.found}
-      />,
-    );
-  }
 
   if (agent) {
     return blockShell(
       "canvas-frame-block--compact canvas-array-block",
       <div className="grid w-full gap-4">
-        <ArrayStrip
+        <ArrayView
           className="max-w-none justify-start"
           data={agent.view.values}
           name="A"
@@ -657,9 +475,7 @@ function ArrayBlock({
           held={agent.view.held}
         />
         {agent.isAnimating && agent.view.note ? (
-          <p className="canvas-array-step text-muted-foreground">
-            {agent.view.note}
-          </p>
+          <p className="canvas-array-step text-muted-foreground">{agent.view.note}</p>
         ) : null}
       </div>,
     );
@@ -668,7 +484,7 @@ function ArrayBlock({
   return blockShell(
     "canvas-frame-block--compact canvas-array-block",
     <div className="grid w-full gap-4">
-      <ArrayStrip
+      <ArrayView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -684,6 +500,42 @@ function ArrayBlock({
         visitedIndices={traversal.visitedIndices}
         onUpdate={traversal.setTraversal}
       />
+    </div>,
+  );
+}
+
+/**
+ * A circuit block is authored as one of a small set of presets (see
+ * `CircuitBlockProps`) — never animated, always the settled end state a
+ * teacher would want frozen on a slide. `useMemo` re-derives that state only
+ * when the preset or gate inputs actually change, since `createSeriesCircuit`
+ * et al. build a fresh CircuitOpResult (and fresh object identities) on every
+ * call.
+ */
+function CircuitBlock({ preset, gateInputA = true, gateInputB = true }: CircuitBlockProps) {
+  const result: CircuitOpResult = useMemo(() => {
+    switch (preset) {
+      case "series":
+        return createSeriesCircuit();
+      case "series-closed": {
+        const built = createSeriesCircuit();
+        return toggleSwitch(built.components, built.wires, "switch");
+      }
+      case "parallel":
+        return createParallelCircuit();
+      case "and-gate":
+        return evaluateGate("and", [gateInputA, gateInputB]);
+      case "or-gate":
+        return evaluateGate("or", [gateInputA, gateInputB]);
+      case "not-gate":
+        return evaluateGate("not", [gateInputA]);
+    }
+  }, [preset, gateInputA, gateInputB]);
+
+  return blockShell(
+    "canvas-frame-block--compact",
+    <div className="flex w-full items-center justify-center">
+      <CircuitView components={result.components} wires={result.wires} />
     </div>,
   );
 }
@@ -710,7 +562,7 @@ function StackBlock({
     !title || !caption ? "canvas-frame-block--compact" : undefined,
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <StackStrip
+      <StackView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -748,13 +600,10 @@ function QueueBlock({
   );
 
   return blockShell(
-    cn(
-      "overflow-x-auto",
-      (!title || !caption) && "canvas-frame-block--compact",
-    ),
+    cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <QueueStrip
+      <QueueView
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
         traversalTarget={traversalTarget}
@@ -789,13 +638,10 @@ function LinkedListBlock({
   );
 
   return blockShell(
-    cn(
-      "overflow-x-auto",
-      (!title || !caption) && "canvas-frame-block--compact",
-    ),
+    cn("overflow-x-auto", (!title || !caption) && "canvas-frame-block--compact"),
     <div className="grid w-full gap-4">
       <OptionalBlockCopy id={id} title={title} caption={caption} />
-      <LinkedListStrip
+      <LinkedListView
         nodes={nodes}
         activeIndex={traversal.highlightedIndex}
         visitedIndices={traversal.visitedIndices}
@@ -823,41 +669,47 @@ function MindMapBlock({ title, center, branches }: MindMapBlockProps) {
   );
 }
 
-function CodeBlock({ language, code }: CodeBlockProps) {
+function CodeBlock({ title, language, code, explanation }: CodeBlockProps) {
   return blockShell(
     "grid gap-3",
-    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-        <span>{codeLanguageLabels[language] ?? language}</span>
-        <span>Preview</span>
+    <>
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
       </div>
-      <SyntaxHighlighter
-        language={language}
-        style={oneDark}
-        showLineNumbers
-        wrapLongLines
-        customStyle={{
-          background: "transparent",
-          margin: 0,
-          padding: "1rem 0",
-        }}
-        codeTagProps={{
-          style: {
-            fontFamily:
-              "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: "0.875rem",
-            lineHeight: 1.7,
-          },
-        }}
-        lineNumberStyle={{
-          color: "#71717a",
-          minWidth: "2.5rem",
-          paddingRight: "0.75rem",
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>,
+      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
+        <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+          <span>{codeLanguageLabels[language] ?? language}</span>
+          <span>Preview</span>
+        </div>
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          showLineNumbers
+          wrapLongLines
+          customStyle={{
+            background: "transparent",
+            margin: 0,
+            padding: "1rem 0",
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontSize: "0.875rem",
+              lineHeight: 1.7,
+            },
+          }}
+          lineNumberStyle={{
+            color: "#71717a",
+            minWidth: "2.5rem",
+            paddingRight: "0.75rem",
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </>,
   );
 }
 
@@ -1076,15 +928,9 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
   categories: {
     text: {
       title: "Text",
-      components: [
-        "HeadingTextBlock",
-        "SubheadingTextBlock",
-        "Heading3TextBlock",
-        "BodyTextBlock",
-        "CalloutTextBlock",
-        "QuoteTextBlock",
-      ],
+      components: ["HeadingTextBlock", "SubheadingTextBlock", "BodyTextBlock"],
       defaultExpanded: true,
+      
     },
     blocks: {
       title: "Blocks",
@@ -1092,18 +938,14 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         "SlideBlock",
         "CheckpointBlock",
         "ArrayBlock",
+        "CircuitBlock",
         "StackBlock",
         "QueueBlock",
         "LinkedListBlock",
         "MindMapBlock",
-        "GraphBlock",
         "CodeBlock",
         "MermaidBlock",
         "TableBlock",
-        "AutomatonBlock",
-        "PDABlock",
-        "RegularExpressionBlock",
-        "ContextFreeGrammarBlock",
       ],
       defaultExpanded: true,
     },
@@ -1111,7 +953,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
   components: {
     SlideBlock: {
       label: "Frame",
-
+      
       fields: {
         title: { type: "text", label: "Frame title" },
         teachingBeat: {
@@ -1131,23 +973,16 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           allow: [
             "HeadingTextBlock",
             "SubheadingTextBlock",
-            "Heading3TextBlock",
             "BodyTextBlock",
-            "CalloutTextBlock",
-            "QuoteTextBlock",
             "ArrayBlock",
+            "CircuitBlock",
             "StackBlock",
             "QueueBlock",
             "LinkedListBlock",
             "MindMapBlock",
-            "GraphBlock",
             "CodeBlock",
             "MermaidBlock",
             "TableBlock",
-            "AutomatonBlock",
-            "PDABlock",
-            "RegularExpressionBlock",
-            "ContextFreeGrammarBlock",
             "CheckpointBlock",
             "SketchBlock",
           ],
@@ -1166,7 +1001,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     HeadingTextBlock: {
       label: "Heading",
       fields: {
-        text: { type: "text", label: "Heading text", contentEditable: true },
+        text: { type: "text", label: "Heading text" , contentEditable: true},
       },
       defaultProps: {
         text: "Heading",
@@ -1183,60 +1018,18 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       },
       render: SubheadingTextBlock,
     },
-    Heading3TextBlock: {
-      label: "H3",
-      fields: {
-        text: { type: "text", label: "H3 text", contentEditable: true },
-      },
-      defaultProps: {
-        text: "H3 heading",
-      },
-      render: Heading3TextBlock,
-    },
     BodyTextBlock: {
       label: "Body",
       fields: {
-        text: { type: "richtext", label: "Body text", contentEditable: true },
+        text: { type: "textarea", label: "Body text", contentEditable: true },
       },
       defaultProps: {
         text: "Body text",
       },
       render: BodyTextBlock,
     },
-    CalloutTextBlock: {
-      label: "Callout",
-      fields: {
-        text: {
-          type: "textarea",
-          label: "Callout text",
-          contentEditable: true,
-        },
-      },
-      defaultProps: {
-        text: "Important point",
-      },
-      render: CalloutTextBlock,
-    },
-    QuoteTextBlock: {
-      label: "Quote",
-      fields: {
-        text: { type: "textarea", label: "Quote text", contentEditable: true },
-        citation: { type: "text", label: "Citation", contentEditable: true },
-      },
-      defaultProps: {
-        text: "Add a quote here.",
-        citation: "",
-      },
-      render: QuoteTextBlock,
-    },
     ArrayBlock: {
       label: "Array",
-      resolveFields: (data, { fields }) => {
-        if (data.props.dimensions === "2d") return fields;
-        const oneDimensionalFields = { ...fields };
-        delete oneDimensionalFields.rowCount;
-        return oneDimensionalFields;
-      },
       // No title/caption fields: the block draws only the strip, so editing
       // copy it would never show would just be confusing.
       fields: {
@@ -1248,20 +1041,6 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
           },
           defaultItemProps: { value: "0" },
           getItemSummary: (item, index) => `Index ${index}: ${item.value}`,
-        },
-        dimensions: {
-          type: "select",
-          label: "Array layout",
-          options: [
-            { label: "1D array", value: "1d" },
-            { label: "2D array", value: "2d" },
-          ],
-        },
-        rowCount: {
-          type: "number",
-          label: "Rows (used for 2D)",
-          min: 1,
-          max: 10,
         },
         highlightedIndex: {
           type: "number",
@@ -1287,18 +1066,55 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       defaultProps: {
         title: "A",
         values: [{ value: "8" }, { value: "5" }, { value: "0" }],
-        dimensions: "1d",
-        rowCount: 2,
         highlightedIndex: 0,
         showIndices: true,
         caption: "",
       },
       render: ArrayBlock,
     },
+    CircuitBlock: {
+      label: "Circuit",
+      fields: {
+        preset: {
+          type: "select",
+          label: "Circuit",
+          options: [
+            { label: "Series (switch open)", value: "series" },
+            { label: "Series (switch closed)", value: "series-closed" },
+            { label: "Parallel", value: "parallel" },
+            { label: "AND gate", value: "and-gate" },
+            { label: "OR gate", value: "or-gate" },
+            { label: "NOT gate", value: "not-gate" },
+          ],
+        },
+        gateInputA: {
+          type: "radio",
+          label: "Gate input A (or NOT's only input)",
+          options: [
+            { label: "1", value: true },
+            { label: "0", value: false },
+          ],
+        },
+        gateInputB: {
+          type: "radio",
+          label: "Gate input B",
+          options: [
+            { label: "1", value: true },
+            { label: "0", value: false },
+          ],
+        },
+      },
+      defaultProps: {
+        preset: "series",
+        gateInputA: true,
+        gateInputB: true,
+      },
+      render: CircuitBlock,
+    },
     StackBlock: {
       label: "Stack",
       fields: {
-        title: { type: "text", label: "Title", contentEditable: true },
+        title: { type: "text", label: "Title" , contentEditable: true },
         values: {
           type: "array",
           label: "Stack values (bottom to top)",
@@ -1348,7 +1164,7 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     QueueBlock: {
       label: "Queue",
       fields: {
-        title: { type: "text", label: "Title", contentEditable: true },
+        title: { type: "text", label: "Title" , contentEditable: true },
         values: {
           type: "array",
           label: "Queue values (front to back)",
@@ -1444,20 +1260,20 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
     CodeBlock: {
       label: "Code",
       fields: {
+        title: { type: "text", label: "Title" },
         language: {
           type: "select",
           label: "Language",
           options: codeLanguageOptions,
         },
         code: { type: "textarea", label: "Code" },
+        explanation: { type: "textarea", label: "Explanation" },
       },
-      // Title and explanation are tolerated on older saved blocks, but no
-      // longer appear in the editor or presentation.
       defaultProps: {
-        title: "",
+        title: "Array access",
         language: "javascript",
         code: "const value = A[2];",
-        explanation: "",
+        explanation: "Read the value at index 2.",
       },
       render: CodeBlock,
     },
@@ -1529,500 +1345,6 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
         answer: "Add the expected answer.",
       },
       render: CheckpointBlock,
-    },
-    GraphBlock: {
-      label: "Graph",
-      resolveData: (data, { lastData }) => ({
-        ...data,
-        props: reconcileGraphProps(data.props, lastData?.props),
-      }),
-      resolveFields: (data, { fields }) => {
-        if (fields.nodes.type !== "array" || fields.edges.type !== "array") {
-          return fields;
-        }
-        const graph = reconcileGraphProps(data.props);
-        const nodeOptions = graph.nodes.map((node) => ({
-          label: node.label === node.id ? node.id : `${node.label} (${node.id})`,
-          value: node.id,
-        }));
-        const firstNode = graph.nodes[0]?.id ?? "";
-        const secondNode = graph.nodes[1]?.id ?? firstNode;
-        return {
-          ...fields,
-          nodes: {
-            ...fields.nodes,
-            defaultItemProps: (index) => {
-              const id = nextGraphId(graph.nodes, "n", index);
-              return {
-                id,
-                label: id,
-                x: 170 + (index % 4) * 220,
-                y: index < 4 ? 180 : 400,
-              };
-            },
-          },
-          edges: {
-            ...fields.edges,
-            arrayFields: {
-              ...fields.edges.arrayFields,
-              source: { type: "select", label: "Source", options: nodeOptions },
-              target: { type: "select", label: "Target", options: nodeOptions },
-            },
-            defaultItemProps: (index) => ({
-              id: nextGraphId(graph.edges, "e", index),
-              source: firstNode,
-              target: secondNode,
-              direction: "inherit",
-              weight: 1,
-              label: "",
-            }),
-          },
-        };
-      },
-      fields: {
-        graphId: { type: "text", label: "Graph ID", visible: false },
-        directed: {
-          type: "radio",
-          label: "Graph type",
-          options: [
-            { label: "Directed", value: true },
-            { label: "Undirected", value: false },
-          ],
-        },
-        weighted: {
-          type: "radio",
-          label: "Edge weights",
-          options: [
-            { label: "Weighted", value: true },
-            { label: "Unweighted", value: false },
-          ],
-        },
-        displayMode: {
-          type: "select",
-          label: "Initial representation",
-          options: [
-            { label: "Graph", value: "graph" },
-            { label: "Adjacency list", value: "list" },
-            { label: "Adjacency matrix", value: "matrix" },
-          ],
-        },
-        nodes: {
-          type: "array",
-          label: "Nodes",
-          arrayFields: {
-            id: { type: "text", label: "Node ID", visible: false },
-            label: { type: "text", label: "Label" },
-            x: { type: "number", label: "Horizontal position", min: 40, max: 960 },
-            y: { type: "number", label: "Vertical position", min: 40, max: 540 },
-          },
-          defaultItemProps: (index) => ({
-            id: `n${index}`,
-            label: `n${index}`,
-            x: 170 + (index % 4) * 220,
-            y: index < 4 ? 180 : 400,
-          }),
-          getItemSummary: (item) => item.label || item.id || "Node",
-        },
-        edges: {
-          type: "array",
-          label: "Edges",
-          arrayFields: {
-            id: { type: "text", label: "Edge ID", visible: false },
-            source: { type: "text", label: "Source node ID" },
-            target: { type: "text", label: "Target node ID" },
-            direction: {
-              type: "select",
-              label: "Direction",
-              options: [
-                { label: "Use graph setting", value: "inherit" },
-                { label: "Directed", value: "directed" },
-                { label: "Undirected", value: "undirected" },
-              ],
-            },
-            weight: { type: "number", label: "Weight" },
-            label: { type: "text", label: "Edge label" },
-          },
-          defaultItemProps: (index) => ({
-            id: `e${index}`,
-            source: "",
-            target: "",
-            direction: "inherit",
-            weight: 1,
-            label: "",
-          }),
-          getItemSummary: (item) =>
-            `${item.source || "?"} ${item.direction === "undirected" ? "—" : "→"} ${item.target || "?"}`,
-        },
-      },
-      defaultProps: {
-        graphId: "",
-        directed: true,
-        weighted: true,
-        displayMode: "graph",
-        nodes: [
-          { id: "a", label: "A", x: 210, y: 150 },
-          { id: "b", label: "B", x: 760, y: 150 },
-          { id: "c", label: "C", x: 210, y: 430 },
-          { id: "d", label: "D", x: 760, y: 430 },
-        ],
-        edges: [
-          { id: "e0", source: "a", target: "b", direction: "inherit", weight: 5, label: "" },
-          { id: "e1", source: "a", target: "c", direction: "inherit", weight: 2, label: "" },
-          { id: "e2", source: "b", target: "d", direction: "inherit", weight: 3, label: "" },
-          { id: "e3", source: "c", target: "d", direction: "inherit", weight: 4, label: "" },
-        ],
-      },
-      render: GraphBlock,
-    },
-    AutomatonBlock: {
-      label: "Automaton",
-      resolveData: (data, { lastData }) => ({
-        ...data,
-        props: reconcileAutomatonProps(data.props, lastData?.props),
-      }),
-      resolveFields: (data, { fields }) => {
-        if (
-          fields.states.type !== "array" ||
-          fields.transitions.type !== "array"
-        ) {
-          return fields;
-        }
-
-        const states = reconcileAutomatonProps(data.props).states;
-        const stateIds = new Set(states.map((state) => state.id));
-        const options = states.map((state) => ({
-          label:
-            state.label && state.label !== state.id
-              ? `${state.label} (${state.id})`
-              : state.id,
-          value: state.id,
-        }));
-        const missingIds = new Set(
-          (data.props.transitions ?? [])
-            .flatMap((transition) => [transition.from, transition.to])
-            .filter((id) => id && !stateIds.has(id)),
-        );
-        const endpointOptions = [
-          ...options,
-          ...[...missingIds].map((id) => ({
-            label: `${id} (missing state)`,
-            value: id,
-          })),
-        ];
-        const initialId =
-          states.find((state) => state.initial)?.id ?? states[0]?.id ?? "";
-        const otherId =
-          states.find((state) => state.id !== initialId)?.id ?? initialId;
-
-        return {
-          ...fields,
-          states: {
-            ...fields.states,
-            defaultItemProps: (index) => {
-              const id = nextAutomatonId(states, "q", index);
-              return {
-                id,
-                label: id,
-                initial: false,
-                accepting: false,
-                status: "normal",
-              };
-            },
-          },
-          transitions: {
-            ...fields.transitions,
-            arrayFields: {
-              ...fields.transitions.arrayFields,
-              from: {
-                type: "select",
-                label: "From state",
-                options: endpointOptions,
-              },
-              to: {
-                type: "select",
-                label: "To state",
-                options: endpointOptions,
-              },
-              symbols: {
-                type: "text",
-                label:
-                  data.props.type === "nfa"
-                    ? "Symbols (comma separated; ε allowed)"
-                    : "Symbols (comma separated)",
-              },
-            },
-            defaultItemProps: (index) => ({
-              id: nextAutomatonId(data.props.transitions ?? [], "t", index),
-              from: initialId,
-              to: otherId,
-              symbols: "",
-              status: "normal",
-            }),
-          },
-        };
-      },
-      fields: {
-        automatonId: {
-          type: "text",
-          label: "Automaton ID",
-          visible: false,
-        },
-        type: {
-          type: "select",
-          label: "Automaton type",
-          options: [
-            { label: "DFA", value: "dfa" },
-            { label: "NFA", value: "nfa" },
-          ],
-        },
-        alphabet: { type: "text", label: "Alphabet (comma separated)" },
-        input: { type: "text", label: "Input string" },
-        states: {
-          type: "array",
-          label: "States",
-          arrayFields: {
-            id: { type: "text", label: "State ID", visible: false },
-            label: { type: "text", label: "Label" },
-            initial: {
-              type: "radio",
-              label: "Initial state",
-              options: [
-                { label: "Yes", value: true },
-                { label: "No", value: false },
-              ],
-            },
-            accepting: {
-              type: "radio",
-              label: "Accepting state",
-              options: [
-                { label: "Yes", value: true },
-                { label: "No", value: false },
-              ],
-            },
-            status: {
-              type: "select",
-              label: "Visual state",
-              options: [
-                { label: "Normal", value: "normal" },
-                { label: "Highlighted", value: "highlighted" },
-                { label: "Visited", value: "visited" },
-              ],
-            },
-          },
-          defaultItemProps: (index) => ({
-            id: `q${index}`,
-            label: `q${index}`,
-            initial: false,
-            accepting: false,
-            status: "normal",
-          }),
-          getItemSummary: (item) => item.label || item.id || "State",
-        },
-        transitions: {
-          type: "array",
-          label: "Transitions",
-          arrayFields: {
-            id: { type: "text", label: "Transition ID", visible: false },
-            from: { type: "text", label: "From state ID" },
-            to: { type: "text", label: "To state ID" },
-            symbols: {
-              type: "text",
-              label: "Symbols (comma separated; ε allowed)",
-            },
-            status: {
-              type: "select",
-              label: "Visual state",
-              options: [
-                { label: "Normal", value: "normal" },
-                { label: "Highlighted", value: "highlighted" },
-                { label: "Visited", value: "visited" },
-              ],
-            },
-          },
-          defaultItemProps: (index) => ({
-            id: `t${index}`,
-            from: "q0",
-            to: "q1",
-            symbols: "",
-            status: "normal",
-          }),
-          getItemSummary: (item) =>
-            `${item.from || "?"} → ${item.to || "?"}: ${item.symbols || "Set symbol"}`,
-        },
-        showTransitionTable: {
-          type: "radio",
-          label: "Show transition table",
-          options: [
-            { label: "Yes", value: true },
-            { label: "No", value: false },
-          ],
-        },
-      },
-      defaultProps: {
-        type: "dfa",
-        alphabet: "0, 1",
-        input: "101",
-        states: [
-          {
-            id: "q0",
-            label: "q0",
-            initial: true,
-            accepting: false,
-            status: "normal",
-          },
-          {
-            id: "q1",
-            label: "q1",
-            initial: false,
-            accepting: true,
-            status: "normal",
-          },
-        ],
-        transitions: [
-          { id: "t0", from: "q0", to: "q0", symbols: "0", status: "normal" },
-          { id: "t1", from: "q0", to: "q1", symbols: "1", status: "normal" },
-          { id: "t2", from: "q1", to: "q0", symbols: "0", status: "normal" },
-          { id: "t3", from: "q1", to: "q1", symbols: "1", status: "normal" },
-        ],
-        showTransitionTable: true,
-      },
-      render: AutomatonBlock,
-    },
-    PDABlock: {
-      label: "Pushdown automaton",
-      fields: {
-        pda: {
-          type: "custom",
-          label: "PDA definition",
-          render: ({ value }) => (
-            <p className="text-xs text-muted-foreground">
-              {value.id} · {value.states.length} states ·{" "}
-              {value.transitions.length} transitions
-            </p>
-          ),
-        },
-        input: { type: "text", label: "Input string" },
-        showTransitionTable: {
-          type: "radio",
-          label: "Show transition table",
-          options: [
-            { label: "Yes", value: true },
-            { label: "No", value: false },
-          ],
-        },
-      },
-      defaultProps: {
-        input: "aabb",
-        showTransitionTable: true,
-        pda: {
-          id: "anbn",
-          inputAlphabet: ["a", "b"],
-          stackAlphabet: ["Z", "A"],
-          startState: "q0",
-          acceptStates: ["qf"],
-          initialStackSymbol: "Z",
-          acceptanceMode: "final_state",
-          states: [
-            { id: "q0", label: "q0", initial: true },
-            { id: "q1", label: "q1" },
-            { id: "qf", label: "qf", accepting: true },
-          ],
-          transitions: [
-            {
-              id: "push-z",
-              from: "q0",
-              to: "q0",
-              inputSymbol: "a",
-              stackTop: "Z",
-              operation: "push",
-              pushSymbols: ["A"],
-            },
-            {
-              id: "push-a",
-              from: "q0",
-              to: "q0",
-              inputSymbol: "a",
-              stackTop: "A",
-              operation: "push",
-              pushSymbols: ["A"],
-            },
-            {
-              id: "first-b",
-              from: "q0",
-              to: "q1",
-              inputSymbol: "b",
-              stackTop: "A",
-              operation: "pop",
-            },
-            {
-              id: "pop-b",
-              from: "q1",
-              to: "q1",
-              inputSymbol: "b",
-              stackTop: "A",
-              operation: "pop",
-            },
-            {
-              id: "accept",
-              from: "q1",
-              to: "qf",
-              inputSymbol: "ε",
-              stackTop: "Z",
-              operation: "noop",
-            },
-          ],
-        },
-      },
-      render: PDABlock,
-    },
-
-    RegularExpressionBlock: {
-      label: "Regular expression",
-      resolveData: (data, { lastData }) => ({
-        ...data,
-        props: reconcileRegularExpressionProps(data.props, lastData?.props),
-      }),
-      fields: {
-        expression: { type: "text", label: "Expression" },
-        input: { type: "text", label: "Input string" },
-      },
-      defaultProps: {
-        expression: "(a|b)*abb",
-        input: "aabb",
-        displayMode: "expression",
-        expressionSegments: DEFAULT_EXPRESSION_SEGMENTS,
-        syntaxTree: DEFAULT_SYNTAX_TREE,
-        constructionSteps: DEFAULT_CONSTRUCTION_STEPS,
-        showSyntaxTree: true,
-        showConstruction: true,
-        showInput: true,
-        showExecutionControls: true,
-      },
-      render: RegularExpressionBlock,
-    },
-    ContextFreeGrammarBlock: {
-      label: "Context-free grammar",
-      resolveData: (data, { lastData }) => ({
-        ...data,
-        props: reconcileContextFreeGrammarProps(data.props, lastData?.props),
-      }),
-      fields: {
-        grammarId: { type: "text", label: "Grammar ID", visible: false },
-        grammar: {
-          type: "custom",
-          label: "Grammar",
-          render: ({ value, onChange, readOnly }) => (
-            <GrammarEditor
-              value={value}
-              onChange={onChange}
-              readOnly={readOnly}
-            />
-          ),
-        },
-        input: { type: "text", label: "Input string" },
-      },
-      defaultProps: DEFAULT_CFG_PROPS,
-      render: ContextFreeGrammarBlock,
     },
     SketchBlock: {
       label: "Drawing",

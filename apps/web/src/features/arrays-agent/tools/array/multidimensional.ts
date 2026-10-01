@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   accessMultidimensionalElement,
   updateMultidimensionalElement,
-} from "@/features/arrays-agent/lib/array-ops";
+} from "@unlockpi/blocks/array";
 import {
   commit,
   fail,

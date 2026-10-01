@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from "motion/react";
 
-import { ArrayStrip } from "@/components/data-structure/array-strip";
-import type { ArrayFrame } from "@/features/arrays-agent/lib/array-types";
+import { ArrayView } from "@unlockpi/blocks/array";
+import type { ArrayFrame } from "@unlockpi/blocks/array";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -27,7 +27,7 @@ export function ArraysAgentBoard({ view, name, showIndices, className }: Props) 
             No array on the board. Say &ldquo;create an array with 10, 20, 30&rdquo; to start.
           </p>
         ) : (
-          <ArrayStrip
+          <ArrayView
             data={view.values}
             name={name}
             showIndex={showIndices}

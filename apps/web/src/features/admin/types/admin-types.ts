@@ -27,8 +27,28 @@ export type AdminRealtimeSession = {
   endedAt: string | null;
   durationSeconds: number;
   responseCount: number;
+  /** Sum of input_text + input_audio (INCLUDES the cached portion, matching OpenAI's own top-level total). */
   inputTokens: number;
+  /** Sum of output_text + output_audio. */
   outputTokens: number;
+  /** Canvas frame this session was teaching on, when the source is "canvas". */
+  canvasId: string | null;
+  /** OpenAI's own id for the realtime call — for correlating with their dashboard or support. */
+  openaiSessionId: string | null;
+  /**
+   * Per-modality breakdown — this is what unit economics actually turns on:
+   * audio tokens are priced far above text tokens (see realtime-pricing.ts),
+   * so two sessions with the same total token count can cost very
+   * differently depending on the mix. `inputTextTokens`/`inputAudioTokens`
+   * already INCLUDE their cached portion; `cached*Tokens` is the discounted
+   * subset of each, not an addition on top.
+   */
+  inputTextTokens: number;
+  inputAudioTokens: number;
+  cachedTextTokens: number;
+  cachedAudioTokens: number;
+  outputTextTokens: number;
+  outputAudioTokens: number;
   estimatedCostUsd: number | null;
   /** Rate card that produced estimatedCostUsd, e.g. "gpt-realtime-2@2025-08-28". */
   pricingVersion: string | null;

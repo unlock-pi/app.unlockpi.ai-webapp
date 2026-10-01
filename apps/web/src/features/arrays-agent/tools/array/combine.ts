@@ -5,8 +5,8 @@ import {
   addArrays,
   concatArrays,
   mergeSortedArrays,
-} from "@/features/arrays-agent/lib/array-combine";
-import { MAX_ARRAY_LENGTH, toDisplayValues } from "@/features/arrays-agent/lib/array-frames";
+} from "@unlockpi/blocks/array";
+import { MAX_ARRAY_LENGTH, toDisplayValues } from "@unlockpi/blocks/array";
 import {
   commit,
   fail,

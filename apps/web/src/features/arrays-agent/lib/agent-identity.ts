@@ -1,5 +1,5 @@
 import { ARRAYS_AGENT_NAME } from "@/features/arrays-agent/lib/agent-name";
-import { MAX_ARRAY_LENGTH } from "@/features/arrays-agent/lib/array-frames";
+import { MAX_ARRAY_LENGTH } from "@unlockpi/blocks/array";
 import { toRealtimeTools } from "@/features/arrays-agent/lib/realtime-tools";
 import { createArrayTools } from "@/features/arrays-agent/tools/array";
 import { createSchemaOnlyContext } from "@/features/arrays-agent/tools/tool-context";

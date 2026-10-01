@@ -1,4 +1,4 @@
-import { arrayNameFromTitle } from "@/features/arrays-agent/lib/array-name";
+import { arrayNameFromTitle } from "@unlockpi/blocks/array";
 import type { CanvasDocument } from "@/features/canvas/types/canvas-types";
 
 /**

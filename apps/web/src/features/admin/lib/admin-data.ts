@@ -26,7 +26,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       admin
         .from("ai_realtime_sessions")
         .select(
-          "id, owner_id, source, lesson_title, mode, model, status, started_at, ended_at, duration_seconds, response_count, input_text_tokens, input_audio_tokens, output_text_tokens, output_audio_tokens, estimated_cost_usd, pricing_version",
+          "id, owner_id, canvas_id, openai_session_id, source, lesson_title, mode, model, status, started_at, ended_at, duration_seconds, response_count, input_text_tokens, input_audio_tokens, cached_text_tokens, cached_audio_tokens, output_text_tokens, output_audio_tokens, estimated_cost_usd, pricing_version",
         )
         .order("started_at", { ascending: false })
         .limit(2000),
@@ -81,6 +81,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       endedAt: session.ended_at,
       durationSeconds: Number(session.duration_seconds),
       responseCount: Number(session.response_count),
+      canvasId: session.canvas_id ?? null,
+      openaiSessionId: session.openai_session_id ?? null,
+      inputTextTokens: Number(session.input_text_tokens),
+      inputAudioTokens: Number(session.input_audio_tokens),
+      cachedTextTokens: Number(session.cached_text_tokens),
+      cachedAudioTokens: Number(session.cached_audio_tokens),
+      outputTextTokens: Number(session.output_text_tokens),
+      outputAudioTokens: Number(session.output_audio_tokens),
       inputTokens:
         Number(session.input_text_tokens) + Number(session.input_audio_tokens),
       outputTokens:

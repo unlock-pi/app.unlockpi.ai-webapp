@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { analyzeArray, transformArray } from "@/features/arrays-agent/lib/array-analysis";
+import { analyzeArray, transformArray } from "@unlockpi/blocks/array";
 import {
   commit,
   type ArrayToolContext,

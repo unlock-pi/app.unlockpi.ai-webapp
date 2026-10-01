@@ -1,4 +1,4 @@
-import { ArrayStrip } from "@/components/data-structure/array-strip";
+import { ArrayView } from "@unlockpi/blocks/array";
 import { ArraysAgentDemo } from "@/features/arrays-agent/components/arrays-agent-demo";
 
 export default function Page() {
@@ -6,16 +6,16 @@ export default function Page() {
 
   return (
     <div className="flex flex-1 flex-col gap-2  px-8 py-4">
-      
       <ArraysAgentDemo />
 
-      {/* <ArrayStrip
+      <ArrayView
         data={data}
         disabledElements={[0, 1, 3, 4]}
         name="Arr"
         showIndex
         activeIndex={2}
       />
+      {/*
       <div className="flex items-center gap-4">
         <div className="size-10 rounded-sm bg-primary"></div>
         <p>primary</p>
