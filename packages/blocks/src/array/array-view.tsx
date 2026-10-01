@@ -14,9 +14,25 @@ import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@unlockpi/ui";
 
-import { truncateValue } from "./array-frame";
+import { truncateValue } from "./lib/array-frame";
 
-// ── Component ───────────────────────────────────────────────────────────
+/**
+ * Renders one readable moment of an array: values, indices, focus, and
+ * operation markers. It does not run array operations itself; pass it static
+ * props or the current frame from `useArrayPlayer`.
+ *
+ * @example
+ * ```tsx
+ * import { ArrayView } from "@unlockpi/blocks/array";
+ *
+ * <ArrayView
+ *   data={["10", "20", "30"]}
+ *   name="A"
+ *   activeIndex={1}
+ *   showIndex
+ * />;
+ * ```
+ */
 export function ArrayView({
   data,
   disabledElements = EMPTY_DISABLED_ELEMENTS,
@@ -548,31 +564,43 @@ function useStableKeys(data: ArrayValue[], gapIndex?: number) {
   const stateRef = useRef({
     ids: [] as number[],
     data: [] as ArrayValue[],
-    gap: undefined as number | undefined,
-    next: 0,
+    prevGapIndex: undefined as number | undefined,
+    nextIdCounter: 0,
   });
-  const s = stateRef.current;
-  const prev = s.data;
-  const prevIds = s.ids;
+
+  const state = stateRef.current;
+  const prev = state.data;
+  const prevIds = state.ids;
   const diff = data.length - prev.length;
 
   let ids: number[];
 
+  // Starting fresh or too many changes at once — generate all new ids
   if (prev.length === 0 || Math.abs(diff) > 1) {
-    ids = data.map(() => s.next++);
-  } else if (diff === 0) {
+    ids = data.map(() => state.nextIdCounter++);
+  }
+  // Same length: check if values swapped (sort step) or changed (reassignment)
+  else if (diff === 0) {
     ids = swappedIds(prev, data, prevIds) ?? prevIds;
-  } else if (diff === 1) {
+  }
+  // Array grew by 1: an element was inserted
+  else if (diff === 1) {
     const point = gapIndex ?? findDiffPoint(prev, data, true);
-    ids = [...prevIds.slice(0, point), s.next++, ...prevIds.slice(point)];
-  } else {
-    const point = s.gap ?? findDiffPoint(prev, data, false);
+    ids = [...prevIds.slice(0, point), state.nextIdCounter++, ...prevIds.slice(point)];
+  }
+  // Array shrunk by 1: an element was removed
+  else {
+    // If a gap existed last render, the deletion happened at that gap's position.
+    // Otherwise, find where the mismatch is.
+    const point = state.prevGapIndex ?? findDiffPoint(prev, data, false);
     ids = [...prevIds.slice(0, point), ...prevIds.slice(point + 1)];
   }
 
-  s.ids = ids;
-  s.data = [...data];
-  s.gap = gapIndex;
+  // Update state for next render
+  state.ids = ids;
+  state.data = [...data];
+  state.prevGapIndex = gapIndex;
+
   return ids;
 }
 

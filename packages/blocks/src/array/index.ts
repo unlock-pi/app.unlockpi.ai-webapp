@@ -16,6 +16,16 @@
  * category with no name overlap between them, and a manual list would just
  * go stale the moment a new operation is added.
  */
+/**
+ * Renders an educational array strip.
+ *
+ * @example
+ * ```tsx
+ * import { ArrayView } from "@unlockpi/blocks/array";
+ *
+ * <ArrayView data={["10", "20", "30"]} name="A" activeIndex={1} showIndex />;
+ * ```
+ */
 export { ArrayView } from "./array-view";
 export type { ArrayViewProps } from "./array-view";
 
@@ -24,8 +34,8 @@ export {
   MAX_ARRAY_LENGTH,
   MAX_VALUE_DISPLAY_CHARS,
   truncateValue,
-} from "./array-frame";
-export type { ArrayFrame, ArrayValue } from "./array-frame";
+} from "./lib/array-frame";
+export type { ArrayFrame, ArrayValue } from "./lib/array-frame";
 
 export type {
   AnimationSpeed,
@@ -37,15 +47,15 @@ export type {
   SortResult,
   SortStep,
   SortStepKind,
-} from "./array-types";
+} from "./lib/array-types";
 
-export * from "./array-helpers";
-export * from "./array-ops";
-export * from "./array-sorting";
-export * from "./array-search";
-export * from "./array-combine";
-export * from "./array-analysis";
-export * from "./array-code";
-export * from "./array-name";
-export * from "./operation-code";
-export * from "./use-array-player";
+export * from "./lib/array-helpers";
+export * from "./lib/array-ops";
+export * from "./lib/array-sorting";
+export * from "./lib/array-search";
+export * from "./lib/array-combine";
+export * from "./lib/array-analysis";
+export * from "./lib/array-code";
+export * from "./lib/array-name";
+export * from "./lib/operation-code";
+export * from "./lib/use-array-player";

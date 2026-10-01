@@ -6,16 +6,16 @@ export default function Page() {
 
   return (
     <div className="flex flex-1 flex-col gap-2  px-8 py-4">
-      
       <ArraysAgentDemo />
 
-      {/* <ArrayView
+      <ArrayView
         data={data}
         disabledElements={[0, 1, 3, 4]}
         name="Arr"
         showIndex
         activeIndex={2}
       />
+      {/*
       <div className="flex items-center gap-4">
         <div className="size-10 rounded-sm bg-primary"></div>
         <p>primary</p>

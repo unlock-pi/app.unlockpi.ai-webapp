@@ -54,7 +54,11 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/auth/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    // /blocks is a dev-only component playground (see app/blocks/layout.tsx,
+    // which 404s it outright in production) — no need to gate it behind
+    // login on top of that.
+    !request.nextUrl.pathname.startsWith('/blocks')
   ) {
     // Capture the full path the user actually asked for (path + query)
     // BEFORE rewriting pathname below, so `redirectTo` carries them back to
