@@ -58,6 +58,7 @@ import type {
 } from "@/features/canvas/types/canvas-types";
 import {
   isCanvasPresentationMode,
+  toggleFramePresentationVisibility,
   type CanvasPresentationMode,
 } from "@/features/canvas/lib/canvas-presentation";
 import { toastManager } from "@/components/ui/toast";
@@ -518,6 +519,23 @@ export function useCanvasEditorController(
     }
   };
 
+  const toggleFrameVisibility = (frameId: string) => {
+    const frame = canvasDocumentRef.current.content.find(
+      (item) => item.type === "SlideBlock" && item.props.id === frameId,
+    );
+    if (!frame || frame.type !== "SlideBlock") return;
+
+    const nextDocument = toggleFramePresentationVisibility(canvasDocumentRef.current, frameId);
+    canvasDocumentRef.current = nextDocument;
+    setCanvasDocument(nextDocument);
+    setPuckRevision((revision) => revision + 1);
+    setSaveStatus("Unsaved changes");
+    appendLog(frame.props.hiddenInPresentation
+      ? `Showed ${frame.props.title} in presentation.`
+      : `Hid ${frame.props.title} from presentation.`);
+    void persistCanvas(nextDocument);
+  };
+
   const runJsonCommand = () => {
     try {
       const parsed = JSON.parse(commandDraft) as CanvasAiAction;
@@ -626,6 +644,10 @@ export function useCanvasEditorController(
     if (frameAction === "delete") {
       applyAction({ action: "delete_frame", frameId });
     }
+
+    if (frameAction === "toggle-visibility" && frameId) {
+      toggleFrameVisibility(frameId);
+    }
   };
 
   const toggleTheme = () => setTheme(isLightTheme ? "dark" : "light");
@@ -670,6 +692,7 @@ export function useCanvasEditorController(
     actions: {
       applyAction,
       goToFrame,
+      toggleFrameVisibility,
       copyPublicLink,
       downloadAsPdf,
       commitCanvasTitle,

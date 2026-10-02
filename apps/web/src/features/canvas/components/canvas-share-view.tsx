@@ -119,10 +119,10 @@ export function CanvasShareView({ canvas }: { canvas: CanvasRecord }) {
             Shared canvas
           </p>
           <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight">
-            This canvas has no frames yet
+            This canvas has no visible frames
           </h1>
           <p className="mt-3 text-pretty text-sm leading-6 text-muted-foreground">
-            Ask the teacher to add at least one frame before sharing this
+            Ask the teacher to show at least one frame before sharing this
             lesson.
           </p>
         </div>

@@ -61,6 +61,7 @@ import {
 import {
   describeFrameForModel,
   describeFrameReadable,
+  describeHiddenAiContext,
   getCanvasPresentationFrames,
 } from "@/features/canvas/lib/canvas-presentation";
 import type { CanvasPresentationMode } from "@/features/canvas/lib/canvas-presentation";
@@ -269,7 +270,13 @@ export function CanvasPresenter({
       );
       setHasLiveChanges(true);
 
-      return `${result.message}\n${summarizeCanvas(result.document, result.activeSlideId)}`;
+      const visibleDocument = {
+        ...result.document,
+        content: result.document.content.filter(
+          (item) => item.type !== "SlideBlock" || !item.props.hiddenInPresentation,
+        ),
+      };
+      return `${result.message}\n${summarizeCanvas(visibleDocument, result.activeSlideId)}`;
     },
     [activeFrame, activeIndex, frames, goTo, runtimeDocument],
   );
@@ -306,7 +313,11 @@ export function CanvasPresenter({
         const response = await fetch("/api/canvas/panel-generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...request, frameContext }),
+          body: JSON.stringify({
+            ...request,
+            frameContext,
+            hiddenFrameContext: describeHiddenAiContext(runtimeDocument),
+          }),
         });
         const data = await response.json();
         if (!response.ok || !data.content) {
@@ -322,13 +333,14 @@ export function CanvasPresenter({
         resolvePanelItem(itemId, { status: "error" });
       }
     },
-    [activeFrame, frames.length, addPanelItem, resolvePanelItem],
+    [activeFrame, frames.length, runtimeDocument, addPanelItem, resolvePanelItem],
   );
 
   const realtimeSession = useCanvasRealtimeSession({
     canvasId,
     canvasTitle: title,
     frames,
+    hiddenFrameContext: describeHiddenAiContext(runtimeDocument),
     mode: selectedMode === "companion" ? "companion" : "director",
     onAction: applyRealtimeAction,
     onPanelRequest: handlePanelRequest,
@@ -418,6 +430,7 @@ export function CanvasPresenter({
     };
 
     return {
+      backgroundContext: () => describeHiddenAiContext(runtimeDocumentRef.current),
       next: () => {
         const list = liveFrames();
         return show(liveIndex(list) + 1);
@@ -753,8 +766,14 @@ export function CanvasPresenter({
 
   if (!activeFrame) {
     return (
-      <div className="grid min-h-screen place-items-center bg-background text-foreground">
-        This canvas has no frames yet.
+      <div className={cn(
+        "canvas-presenter grid h-svh w-full place-content-center gap-4 bg-background px-4 text-center text-foreground",
+        !publicView && "fixed inset-0 z-[100]",
+      )}>
+        <p>No frames are visible in presentation.</p>
+        {onClose ? <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted">
+          Back to editor
+        </button> : null}
       </div>
     );
   }

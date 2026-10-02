@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { DropZone, type Config, type SlotComponent } from "@puckeditor/core";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { DropZone, usePuck, type Config, type SlotComponent } from "@puckeditor/core";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   MoreHorizontalIcon,
   PlusIcon,
   SaveIcon,
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import Logo from "@/components/logo";
 import { ArrayView } from "@unlockpi/blocks/array";
 import {
@@ -251,6 +254,45 @@ type SlideRenderProps = Omit<SlideBlockProps, "content"> & {
   content: SlotComponent;
 };
 
+function FrameAiContextField({
+  value,
+  onChange,
+  readOnly,
+}: {
+  value: boolean | undefined;
+  onChange: (value: boolean) => void;
+  readOnly?: boolean;
+}) {
+  const { selectedItem } = usePuck<typeof canvasPuckConfig>();
+  const hidden = selectedItem?.type === "SlideBlock" &&
+    Boolean(selectedItem.props.hiddenInPresentation);
+
+  useEffect(() => {
+    if (!hidden && value) onChange(false);
+  }, [hidden, onChange, value]);
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold leading-snug text-foreground">
+          Should AI have this frame&apos;s context?
+        </span>
+        <Switch
+          aria-label="Should AI have this frame's context?"
+          checked={hidden && Boolean(value)}
+          disabled={!hidden || readOnly}
+          onCheckedChange={(checked) => onChange(checked)}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {hidden
+          ? "Let AI use this hidden frame's contents as background context. The frame stays out of presentation."
+          : "Available after hiding this frame from presentation."}
+      </p>
+    </div>
+  );
+}
+
 function FrameMenuItem({
   action,
   children,
@@ -280,6 +322,7 @@ function FrameMenuItem({
 function SlideBlock({
   id,
   frameLabel,
+  hiddenInPresentation = false,
   title,
   content: Content,
 }: SlideRenderProps) {
@@ -288,6 +331,7 @@ function SlideBlock({
   return (
     <article
       id={`canvas-slide-${id}`}
+      data-hidden-in-presentation={hiddenInPresentation}
       className="mx-auto w-full my-auto max-w-2xl scroll-mt-4"
     >
       <div className="mb-0 flex items-center justify-between gap-3 px-1 text-foreground">
@@ -302,6 +346,21 @@ function SlideBlock({
           <p className="truncate text-xs text-muted-foreground">{title}</p>
         </div>
 
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            data-canvas-frame-action="toggle-visibility"
+            data-canvas-frame-id={id}
+            data-canvas-frame-visibility
+            aria-label={`${hiddenInPresentation ? "Show" : "Hide"} ${label} in presentation`}
+            aria-pressed={hiddenInPresentation}
+            title={hiddenInPresentation ? "Show in presentation" : "Hide from presentation"}
+            onPointerDownCapture={(event) => event.stopPropagation()}
+            onKeyDownCapture={(event) => event.stopPropagation()}
+            className="relative z-20 grid size-9 cursor-pointer place-items-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {hiddenInPresentation ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+          </button>
         <Drawer position="right">
           <DrawerTrigger
             render={
@@ -360,11 +419,15 @@ function SlideBlock({
             </DrawerPanel>
           </DrawerPopup>
         </Drawer>
+        </div>
       </div>
       <section
         aria-label={`${label}: ${title}`}
         title={`${label}: ${title}`}
-        className="relative flex border-none! min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] sm:p-5 lg:p-7"
+        className={cn(
+          "relative flex border-none! min-h-[560px] min-w-0 w-full flex-col gap-5 rounded-lg border border-border bg-background p-4 text-foreground shadow-[0_22px_70px_var(--canvas-shadow-color)] transition-opacity sm:p-5 lg:p-7",
+          hiddenInPresentation && "opacity-40",
+        )}
       >
         <ScrollArea fill className="min-h-0 flex-1 rounded-md border">
           <Content
@@ -986,6 +1049,30 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       
       fields: {
         title: { type: "text", label: "Frame title" },
+        hiddenInPresentation: {
+          type: "custom",
+          label: "Hide the frame",
+          render: ({ value, onChange, readOnly }) => (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-foreground">
+                Hide the frame
+              </span>
+              <Switch
+                aria-label="Hide the frame"
+                checked={Boolean(value)}
+                disabled={readOnly}
+                onCheckedChange={(checked) => onChange(checked)}
+              />
+            </div>
+          ),
+        },
+        shareHiddenContextWithAi: {
+          type: "custom",
+          label: "Should AI have this frame's context?",
+          render: ({ value, onChange, readOnly }) => (
+            <FrameAiContextField value={value} onChange={onChange} readOnly={readOnly} />
+          ),
+        },
         teachingBeat: {
           type: "select",
           label: "Teaching beat",
@@ -1027,6 +1114,8 @@ export const canvasPuckConfig: Config<CanvasComponents, CanvasRootProps> = {
       },
       defaultProps: {
         frameLabel: "Frame",
+        hiddenInPresentation: false,
+        shareHiddenContextWithAi: false,
         title: "New frame",
         teachingBeat: "explain",
         content: [],

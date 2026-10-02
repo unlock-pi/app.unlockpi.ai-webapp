@@ -9,6 +9,13 @@ const BLOCKS = [
   { href: "/blocks/pn-junction", label: "PN Junction", hint: "Semiconductor junction demo" },
   { href: "/blocks/digital-circuits", label: "Digital Circuits", hint: "Logic gate circuits" },
   { href: "/blocks/amplitude-modulation", label: "Amplitude Modulation", hint: "AM waveform demo" },
+  { href: "/blocks/automata", label: "Automata", hint: "DFA and NFA playground" },
+  { href: "/blocks/graph", label: "Graph", hint: "Graph algorithms and views" },
+  { href: "/blocks/pda", label: "PDA", hint: "Pushdown automaton demo" },
+  { href: "/blocks/regular-expression", label: "Regular Expression", hint: "Regex construction and simulation" },
+  { href: "/blocks/tm", label: "Turing Machine", hint: "Tape and transition demo" },
+  { href: "/blocks/trees", label: "Trees", hint: "Binary trees, BST, AVL, and heaps" },
+  { href: "/blocks/context-free-grammar", label: "Context-Free Grammar", hint: "Productions, derivations, and parse trees" },
 ];
 
 export default function BlocksIndexPage() {

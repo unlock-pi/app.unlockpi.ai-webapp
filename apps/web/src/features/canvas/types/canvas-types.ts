@@ -46,6 +46,8 @@ export type CanvasRootProps = {
 
 export type SlideBlockProps = {
   frameLabel?: string;
+  hiddenInPresentation?: boolean;
+  shareHiddenContextWithAi?: boolean;
   title: string;
   teachingBeat: "hook" | "explain" | "practice" | "recap";
   content: Slot;

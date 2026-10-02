@@ -283,6 +283,9 @@ export function normalizeCanvasFrames(
   getSlides(nextDocument).forEach((slide, index) => {
     slide.props.frameLabel = `Frame ${index + 1}`;
     slide.props.title = slide.props.title?.trim() || `Frame ${index + 1}`;
+    if (!slide.props.hiddenInPresentation) {
+      slide.props.shareHiddenContextWithAi = false;
+    }
   });
 
   return nextDocument;

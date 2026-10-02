@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type FieldProps, type Overrides } from "@puckeditor/core";
 import {
   BoxesIcon,
@@ -96,21 +97,35 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     label: "Array",
     description: "Resizable indexed elements",
     icon: BoxesIcon,
+    imageSrc: "/block-icons/arrays.svg",
   },
   Array: {
     label: "Array",
     description: "Resizable indexed elements",
     icon: BoxesIcon,
+    imageSrc: "/block-icons/arrays.svg",
+  },
+  QueueBlock: {
+    label: "Queue",
+    description: "Values enter at the back and leave from the front",
+    imageSrc: "/block-icons/queues.svg",
+  },
+  Queue: {
+    label: "Queue",
+    description: "Values enter at the back and leave from the front",
+    imageSrc: "/block-icons/queues.svg",
   },
   LinkedListBlock: {
     label: "Linked list",
     description: "Nodes connected by pointers",
     icon: GitBranchIcon,
+    imageSrc: "/block-icons/linked-list.svg",
   },
   "Linked list": {
     label: "Linked list",
     description: "Nodes connected by pointers",
     icon: GitBranchIcon,
+    imageSrc: "/block-icons/linked-list.svg",
   },
   MindMapBlock: {
     label: "Mind map",
@@ -266,11 +281,22 @@ export function CanvasDrawerItem({
         <>
           <div
             className={cn(
-              "grid shrink-0 place-items-center rounded-xl border border-border bg-muted/45- text-foreground",
-              compact ? "size-8" : "size-8",
+              "grid shrink-0 place-items-center rounded-sm text-foreground",
+              meta.imageSrc
+                ? "canvas-drawer-card-artwork relative h-12 w-full max-w-28"
+                : "size-8 border border-border bg-muted/45",
             )}
           >
-            <Icon className={compact ? "size-5" : "size-4"} />
+            {meta.imageSrc ? (
+              <Image
+                src={meta.imageSrc}
+                alt=""
+                fill
+                sizes="112px"
+                unoptimized
+                className="object-contain dark:invert"
+              />
+            ) : <Icon className={compact ? "size-5" : "size-4"} />}
           </div>
           <p
             className={cn(
@@ -382,7 +408,7 @@ function InspectorTextareaField(props: FieldProps) {
         className={cn(
           "min-h-28",
           isCodeEditor &&
-            "rounded-xl border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_16px_42px_rgba(0,0,0,0.18)] [&_[data-slot=textarea]]:min-h-52 [&_[data-slot=textarea]]:overflow-auto [&_[data-slot=textarea]]:font-mono [&_[data-slot=textarea]]:text-xs [&_[data-slot=textarea]]:leading-6 [&_[data-slot=textarea]]:text-zinc-100 [&_[data-slot=textarea]]:caret-zinc-100 [&_[data-slot=textarea]]:selection:bg-primary/40",
+            "rounded-sm border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_16px_42px_rgba(0,0,0,0.18)] [&_[data-slot=textarea]]:min-h-52 [&_[data-slot=textarea]]:overflow-auto [&_[data-slot=textarea]]:font-mono [&_[data-slot=textarea]]:text-xs [&_[data-slot=textarea]]:leading-6 [&_[data-slot=textarea]]:text-zinc-100 [&_[data-slot=textarea]]:caret-zinc-100 [&_[data-slot=textarea]]:selection:bg-primary/40",
         )}
       />
     </InspectorFieldShell>
@@ -471,7 +497,7 @@ function InspectorRadioField(props: FieldProps) {
               disabled={props.readOnly}
               aria-pressed={isActive}
               className={cn(
-                "justify-start rounded-xl px-3 py-2 text-left transition-[background-color,border-color,box-shadow,transform] active:scale-[0.96]",
+                "justify-start rounded-sm px-3 py-2 text-left transition-[background-color,border-color,box-shadow,transform] active:scale-[0.96]",
                 isActive
                   ? "border-primary bg-primary/8 text-foreground shadow-[inset_0_0_0_1px_var(--primary)]"
                   : "bg-background hover:bg-accent",

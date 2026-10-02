@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   BracesIcon,
   CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
   LayoutGridIcon,
   MaximizeIcon,
   PencilRulerIcon,
@@ -66,6 +68,7 @@ type CanvasEditorLeftPanelProps = {
     CanvasEditorController["actions"],
     | "applyAction"
     | "goToFrame"
+    | "toggleFrameVisibility"
     | "getSketchScene"
     | "runJsonCommand"
     | "setCommandDraft"
@@ -93,7 +96,7 @@ export function CanvasEditorLeftPanel({
   // Full per-frame documents (not just the id/title summaries in `frames`),
   // so each card in the Frames view can render an actual miniature of the
   // frame instead of a text-only row.
-  const previewFrames = getCanvasPresentationFrames(canvasDocument);
+  const previewFrames = getCanvasPresentationFrames(canvasDocument, { includeHidden: true });
 
   return (
     <motion.aside
@@ -213,37 +216,44 @@ export function CanvasEditorLeftPanel({
                 */}
                 <div className="grid grid-cols-2 gap-2">
                   {previewFrames.map((frame, index) => (
-                    <button
+                    <div
                       key={frame.id}
-                      type="button"
-                      onClick={() => actions.goToFrame(frame.id)}
                       className={cn(
-                        "group grid gap-1.5 rounded-lg border p-1.5 text-left transition hover:bg-accent",
+                        "group relative rounded-lg border p-1.5 transition hover:bg-accent",
                         activeSlideId === frame.id
                           ? "border-primary bg-primary/8"
                           : "border-border bg-background",
                       )}
                     >
-                      <div className="canvas-presenter-frame relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[var(--canvas-stage,var(--muted))]">
-                        <div
-                          className="pointer-events-none absolute left-0 top-0 origin-top-left"
-                          style={{ width: 1024, transform: "scale(0.115)" }}
-                        >
-                          <Render
-                            config={canvasPuckConfig}
-                            data={frame.document}
-                          />
+                      <button type="button" onClick={() => actions.goToFrame(frame.id)} className="grid w-full gap-1.5 text-left" aria-label={`Go to frame ${index + 1}: ${frame.title}`}>
+                        <div className="canvas-presenter-frame relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[var(--canvas-stage,var(--muted))]">
+                          <div
+                            className="pointer-events-none absolute left-0 top-0 origin-top-left"
+                            style={{ width: 1024, transform: "scale(0.115)" }}
+                          >
+                            <Render
+                              config={canvasPuckConfig}
+                              data={frame.document}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div className="min-w-0 px-0.5 pb-0.5">
-                        <span className="block text-[11px] font-semibold leading-tight">
-                          Frame {index + 1}
-                        </span>
-                        <span className="mt-0.5 block truncate text-[10px] leading-tight text-muted-foreground">
-                          {frame.title}
-                        </span>
-                      </div>
-                    </button>
+                        <div className="min-w-0 px-0.5 pb-0.5 pr-7">
+                          <span className="block text-[11px] font-semibold leading-tight">Frame {index + 1}</span>
+                          <span className="mt-0.5 block truncate text-[10px] leading-tight text-muted-foreground">{frame.title}</span>
+                          {frame.hiddenInPresentation ? <span className="text-[10px] text-muted-foreground">Hidden in presentation</span> : null}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => actions.toggleFrameVisibility(frame.id)}
+                        aria-label={`${frame.hiddenInPresentation ? "Show" : "Hide"} frame ${index + 1} in presentation`}
+                        aria-pressed={frame.hiddenInPresentation}
+                        title={frame.hiddenInPresentation ? "Show in presentation" : "Hide from presentation"}
+                        className="absolute bottom-1.5 right-1.5 z-10 grid size-8 cursor-pointer place-items-center rounded-md border border-border bg-card text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        {frame.hiddenInPresentation ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -94,6 +94,7 @@ type UseCanvasRealtimeSessionArgs = {
   canvasTitle: string;
   canvasId?: string | null;
   frames: CanvasPresentationFrame[];
+  hiddenFrameContext: string;
   mode: CanvasRealtimeMode;
   onAction: (action: CanvasRealtimeAction) => string;
   /** Fired when the model asks to render something in the side panel. */
@@ -105,6 +106,7 @@ export function useCanvasRealtimeSession({
   canvasTitle,
   canvasId,
   frames,
+  hiddenFrameContext,
   mode,
   onAction,
   onPanelRequest,
@@ -570,6 +572,7 @@ export function useCanvasRealtimeSession({
           canvasId,
           canvasTitle,
           mode,
+          hiddenFrameContext,
           frames: frames.map((frame) => ({
             frame_number: frame.index + 1,
             title: frame.title,
@@ -724,7 +727,7 @@ export function useCanvasRealtimeSession({
           : "The AI session could not connect.",
       );
     }
-  }, [canvasId, canvasTitle, disconnect, frames, handleServerEvent, mode, status]);
+  }, [canvasId, canvasTitle, disconnect, frames, handleServerEvent, hiddenFrameContext, mode, status]);
 
   const togglePause = useCallback(() => {
     const stream = localStreamRef.current;

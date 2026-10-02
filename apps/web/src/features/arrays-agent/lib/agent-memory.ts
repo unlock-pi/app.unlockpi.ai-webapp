@@ -39,6 +39,7 @@ export function frameLabel(frameDescription: string | null | undefined): string 
 
 export function buildLiveContext(input: {
   frame: string | null;
+  backgroundContext?: string;
   arrayState: string;
   memory: MemoryEntry[];
 }): string {
@@ -62,6 +63,11 @@ export function buildLiveContext(input: {
     "",
     "ON SCREEN NOW:",
     frame,
+    ...(input.backgroundContext ? [
+      "",
+      "HIDDEN REFERENCE FRAMES (not visible or navigable; use only as background):",
+      input.backgroundContext,
+    ] : []),
     "",
     `ARRAY YOU ARE WORKING WITH: ${input.arrayState}`,
     "",

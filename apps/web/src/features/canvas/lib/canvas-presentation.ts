@@ -31,15 +31,19 @@ export type CanvasPresentationFrame = {
   document: CanvasDocument;
   id: string;
   index: number;
+  hiddenInPresentation: boolean;
+  shareHiddenContextWithAi: boolean;
   searchText: string;
   title: string;
 };
 
 export function getCanvasPresentationFrames(
   document: CanvasDocument,
+  { includeHidden = false }: { includeHidden?: boolean } = {},
 ): CanvasPresentationFrame[] {
   return document.content
     .filter((item) => item.type === "SlideBlock")
+    .filter((item) => includeHidden || !item.props.hiddenInPresentation)
     .map((item, index) => {
       const title = item.props.title || `Frame ${index + 1}`;
 
@@ -58,10 +62,53 @@ export function getCanvasPresentationFrames(
         },
         id: item.props.id,
         index,
+        hiddenInPresentation: Boolean(item.props.hiddenInPresentation),
+        shareHiddenContextWithAi: Boolean(item.props.shareHiddenContextWithAi),
         searchText: collectSearchText(item.props).toLowerCase(),
         title,
       };
     });
+}
+
+/** Hidden frames are reference material only when the teacher opts in. */
+export function getHiddenAiContextFrames(document: CanvasDocument): CanvasPresentationFrame[] {
+  return getCanvasPresentationFrames(document, { includeHidden: true }).filter(
+    (frame) => frame.hiddenInPresentation && frame.shareHiddenContextWithAi,
+  );
+}
+
+export function describeHiddenAiContext(document: CanvasDocument): string {
+  const frames = getHiddenAiContextFrames(document);
+  if (!frames.length) return "";
+  return frames.map((frame) => JSON.stringify({
+    title: frame.title,
+    teaching_beat: getFrameTeachingBeat(frame),
+    blocks: readFrameBlocks(frame),
+    searchable_content: frame.searchText.slice(0, 2000),
+  })).join("\n").slice(0, 20000);
+}
+
+export function toggleFramePresentationVisibility(
+  document: CanvasDocument,
+  frameId: string,
+): CanvasDocument {
+  return {
+    ...document,
+    content: document.content.map((item) =>
+      item.type === "SlideBlock" && item.props.id === frameId
+        ? {
+            ...item,
+            props: {
+              ...item.props,
+              hiddenInPresentation: !item.props.hiddenInPresentation,
+              shareHiddenContextWithAi: item.props.hiddenInPresentation
+                ? false
+                : item.props.shareHiddenContextWithAi,
+            },
+          }
+        : item,
+    ),
+  };
 }
 
 export function describePresentationFrames(document: CanvasDocument) {

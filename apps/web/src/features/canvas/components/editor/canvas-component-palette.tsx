@@ -91,8 +91,8 @@ function CanvasPaletteSection({ section }: { section: PaletteSection }) {
           <div
             className={cn(
               section.layout === "blocks"
-                ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2.5"
-                : "grid grid-cols-1 gap-2.5",
+                ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2"
+                : "grid grid-cols-1 gap-2",
             )}
           >
             {componentNames.map((componentName) => (

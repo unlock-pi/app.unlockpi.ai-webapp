@@ -33,6 +33,8 @@ export type PanelGenerateRequest = {
   prompt?: string;
   /** Compact description of the current frame, so output stays relevant. */
   frameContext?: string;
+  /** Hidden reference frames the teacher explicitly shared with AI. */
+  hiddenFrameContext?: string;
 };
 
 /** Structured shape we ask the model for when generating code. */

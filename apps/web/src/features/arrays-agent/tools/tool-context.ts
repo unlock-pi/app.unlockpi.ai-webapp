@@ -139,6 +139,8 @@ export type PresentationControls = {
   goTo: (frameNumber: number) => string;
   find: (query: string) => string;
   describe: () => string;
+  /** Hidden frames the teacher explicitly shared for background reference. */
+  backgroundContext?: () => string;
 };
 
 /** What every tool returns to the model. */

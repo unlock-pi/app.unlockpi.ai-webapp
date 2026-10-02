@@ -73,6 +73,7 @@ export type LeftPanelCopy = Record<
 export type DrawerItemMeta = {
   description?: string;
   icon?: LucideIcon;
+  imageSrc?: string;
   label: string;
   variant?:
     "heading" | "subheading" | "heading3" | "body" | "callout" | "quote";
@@ -125,6 +126,7 @@ export type CanvasEditorController = {
     applyAction: (action: CanvasAiAction) => void;
     /** Focus a frame in the editor without modifying the canvas document. */
     goToFrame: (frameId: string) => void;
+    toggleFrameVisibility: (frameId: string) => void;
     /** Normalises the title (trim + fallback) and saves — call on blur/Enter. */
     commitCanvasTitle: () => void;
     copyPublicLink: () => Promise<void>;
