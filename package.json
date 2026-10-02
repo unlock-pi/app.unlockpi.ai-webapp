@@ -17,6 +17,9 @@
   "lint-staged": {
     "*": "secretlint"
   },
+  "dependencies": {
+    "next": "16.1.6"
+  },
   "devDependencies": {
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
     "eslint": "^9",
