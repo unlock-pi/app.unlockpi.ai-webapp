@@ -5,6 +5,7 @@ import {
   getRealtimeUsageRecord,
 } from "@/features/realtime/lib/realtime-usage-server";
 import type { RealtimeTokenUsage } from "@/features/realtime/types/realtime-usage";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/server";
 
 export const runtime = "nodejs";
@@ -51,15 +52,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.from("ai_realtime_responses").upsert(
-      {
-        usage_session_id: body.usageSessionId,
-        owner_id: user.id,
-        response_id: body.responseId,
-        ...getRealtimeUsageRecord(body.usage, usageSession.model),
-      },
-      { onConflict: "usage_session_id,response_id", ignoreDuplicates: true },
-    );
+    // Ownership was checked above with the authenticated client. The live
+    // response-table INSERT policy may lag behind migrations, so perform the
+    // server-only write with the service-role client after that check.
+    const { error } = await createAdminClient()
+      .from("ai_realtime_responses")
+      .upsert(
+        {
+          usage_session_id: body.usageSessionId,
+          owner_id: user.id,
+          response_id: body.responseId,
+          ...getRealtimeUsageRecord(body.usage, usageSession.model),
+        },
+        { onConflict: "usage_session_id,response_id", ignoreDuplicates: true },
+      );
     if (error) {
       // The client sends this with keepalive+fire-and-forget, so this log is
       // the ONLY place a broken insert (e.g. a missing column because a

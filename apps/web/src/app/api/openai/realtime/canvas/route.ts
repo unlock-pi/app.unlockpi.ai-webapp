@@ -38,9 +38,13 @@ export async function POST(request: NextRequest) {
     canvasTitle?: string;
     canvasId?: string;
     frames?: FrameContext[];
+    hiddenFrameContext?: string;
     mode?: RealtimeMode;
   };
   const frames = Array.isArray(body.frames) ? body.frames.slice(0, 100) : [];
+  const hiddenFrameContext = typeof body.hiddenFrameContext === "string"
+    ? body.hiddenFrameContext.slice(0, 20000)
+    : "";
   const mode: RealtimeMode =
     body.mode === "companion" ? "companion" : "director";
   const model = process.env.OPENAI_REALTIME_MODEL ?? DEFAULT_REALTIME_MODEL;
@@ -66,6 +70,7 @@ export async function POST(request: NextRequest) {
           instructions: buildSessionInstructions(
             body.canvasTitle,
             frames,
+            hiddenFrameContext,
             mode,
           ),
           audio: {
@@ -238,6 +243,7 @@ export async function POST(request: NextRequest) {
 function buildSessionInstructions(
   canvasTitle: string | undefined,
   frames: FrameContext[],
+  hiddenFrameContext: string,
   mode: RealtimeMode,
 ) {
   return [
@@ -282,5 +288,9 @@ function buildSessionInstructions(
     `Canvas: ${canvasTitle || "Untitled canvas"}.`,
     "FRAME INVENTORY (static snapshot from connect time — for the live current frame, trust `now_showing`):",
     JSON.stringify(frames),
+    ...(hiddenFrameContext ? [
+      "HIDDEN REFERENCE FRAMES: The teacher allowed you to use the following hidden frame contents as background context. These frames are not shown to the class and cannot be navigated to. Do not describe them as currently visible.",
+      hiddenFrameContext,
+    ] : []),
   ].join("\n");
 }

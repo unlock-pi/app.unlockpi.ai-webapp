@@ -18,29 +18,29 @@ export function soundForCanvasAction(
   action: CanvasAiAction,
 ): SoundName | undefined {
   switch (action.action) {
-    // Something appeared / the structure grew — `bloom` is the palette's
+    // Something appeared / the structure grew — `open` is the palette's
     // reveal-and-expand cue.
     case "append_array_value":
     case "push_stack_value":
     case "add_array_block":
     case "add_stack_block":
     case "duplicate_array_block":
-      return "bloom";
+      return "open";
 
-    // Something was taken away — `droplet` is the dismiss/collapse cue.
+    // Something was taken away — `close` is the dismiss/collapse cue.
     case "pop_array_value":
     case "pop_stack_value":
-      return "droplet";
+      return "close";
 
     // The contents changed shape without growing or shrinking.
     case "set_array_values":
     case "resize_array":
-      return "tick";
+      return "select";
 
-    // Moving the spotlight across cells — the same crisp tick used for
+    // Moving the spotlight across cells — the same crisp select cue used for
     // stepping through a traversal, so highlighting reads as navigation.
     case "highlight_array_index":
-      return "tick";
+      return "select";
 
     default:
       return undefined;

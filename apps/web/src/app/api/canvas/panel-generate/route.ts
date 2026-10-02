@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
   // The current-frame context keeps output relevant to what's on screen —
   // this is what stops the panel from wandering off-topic.
   const context = body.frameContext ? `\n\nContext of the current slide: ${body.frameContext}` : "";
+  const hiddenContext = body.hiddenFrameContext
+    ? `\n\nTeacher-approved hidden reference content (not shown to students): ${body.hiddenFrameContext.slice(0, 20000)}`
+    : "";
 
   try {
     if (body.type === "mermaid") {
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
         model: openai(STRUCTURED_MODEL),
         schema: mermaidResultSchema,
         system: buildMermaidSystemPrompt("auto"),
-        prompt: `Create a diagram for: ${ask}${context}`,
+        prompt: `Create a diagram for: ${ask}${context}${hiddenContext}`,
       });
       return NextResponse.json({
         content: sanitizeMermaidCode(object.code),
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
         model: openai(STRUCTURED_MODEL),
         schema: codeResultSchema,
         system: buildPanelSystemPrompt("code"),
-        prompt: `${ask}${context}`,
+        prompt: `${ask}${context}${hiddenContext}`,
       });
       return NextResponse.json({
         content: object.code,
@@ -78,7 +81,7 @@ export async function POST(request: NextRequest) {
     const { text } = await generateText({
       model: openai(TEXT_MODEL),
       system: buildPanelSystemPrompt(body.type),
-      prompt: `${ask}${context}`,
+      prompt: `${ask}${context}${hiddenContext}`,
     });
     return NextResponse.json({ content: text.trim() });
   } catch (error) {

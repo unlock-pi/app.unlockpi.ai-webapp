@@ -23,7 +23,10 @@ type CanvasMiniPreviewProps = {
  * here, we just look at the first frame's block types and sketch them as
  * bars/chips/icons so a card gives a rough sense of what's inside.
  */
-export function CanvasMiniPreview({ document, className }: CanvasMiniPreviewProps) {
+export function CanvasMiniPreview({
+  document,
+  className,
+}: CanvasMiniPreviewProps) {
   const items = getFirstFramePreviewItems(document);
 
   const sketchImage = items.find(
@@ -76,6 +79,8 @@ function PreviewBlock({ item }: { item: CanvasPreviewItem }) {
       return <div className="h-1.5 w-3/4 rounded-full bg-foreground/60" />;
     case "SubheadingTextBlock":
       return <div className="h-1 w-1/2 rounded-full bg-foreground/40" />;
+    case "Heading3TextBlock":
+      return <div className="h-1 w-2/5 rounded-full bg-foreground/40" />;
     case "BodyTextBlock":
       return (
         <div className="flex flex-col gap-0.5">
@@ -83,6 +88,10 @@ function PreviewBlock({ item }: { item: CanvasPreviewItem }) {
           <div className="h-0.5 w-5/6 rounded-full bg-foreground/25" />
         </div>
       );
+    case "CalloutTextBlock":
+      return <div className="h-3 w-4/5 rounded-r bg-primary/35" />;
+    case "QuoteTextBlock":
+      return <div className="h-3 w-3/4 border-l-2 border-foreground/45 pl-1" />;
     case "ArrayBlock":
     case "StackBlock":
     case "QueueBlock":
@@ -90,7 +99,10 @@ function PreviewBlock({ item }: { item: CanvasPreviewItem }) {
       return (
         <div className="flex gap-0.5">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-2.5 w-2.5 rounded-[2px] bg-primary/50" />
+            <div
+              key={index}
+              className="h-2.5 w-2.5 rounded-[2px] bg-primary/50"
+            />
           ))}
         </div>
       );

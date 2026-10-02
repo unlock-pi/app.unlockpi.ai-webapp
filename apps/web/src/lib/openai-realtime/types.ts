@@ -58,6 +58,8 @@ export type OpenAIRealtimeClientOptions = {
   onTranscriptDelta?: (delta: string) => void;
   /** A response finished generating. Carries usage for cost tracking. */
   onResponseDone?: (response: unknown) => void;
+  /** Usage accounting for an isolated teaching response; not playback completion. */
+  onNarrationResponseDone?: (response: unknown) => void;
   /** The model's audio track, for visualizers that react to the real voice. */
   onRemoteStream?: (stream: MediaStream | null) => void;
   /** The user started speaking — useful for interrupting a walkthrough. */

@@ -1,5 +1,6 @@
 import { ArrayView } from "@unlockpi/blocks/array";
 import { ArraysAgentDemo } from "@/features/arrays-agent/components/arrays-agent-demo";
+import AutomataTestPage from "@/app/blocks/automata/page";
 
 export default function Page() {
   const data = ["a", "b", "c", "d", "e"];
@@ -7,7 +8,7 @@ export default function Page() {
   return (
     <div className="flex flex-1 flex-col gap-2  px-8 py-4">
       <ArraysAgentDemo />
-
+      <AutomataTestPage />
       <ArrayView
         data={data}
         disabledElements={[0, 1, 3, 4]}

@@ -2,7 +2,10 @@ import type React from "react";
 import type { LucideIcon } from "lucide-react";
 
 import type { CanvasPresentationMode } from "@/features/canvas/components/canvas-presenter";
-import type { CanvasRecord, CanvasSummary } from "@/features/canvas/lib/canvas-records";
+import type {
+  CanvasRecord,
+  CanvasSummary,
+} from "@/features/canvas/lib/canvas-records";
 import type {
   CanvasAiAction,
   CanvasDocument,
@@ -54,13 +57,7 @@ export type FrameSummary = {
 };
 
 export type LeftPanelView =
-  | "home"
-  | "frames"
-  | "changes"
-  | "commands"
-  | "voice"
-  | "theme"
-  | "templates";
+  "home" | "frames" | "changes" | "commands" | "voice" | "theme" | "templates";
 
 export type LeftPanelItem = {
   icon: LucideIcon;
@@ -76,8 +73,10 @@ export type LeftPanelCopy = Record<
 export type DrawerItemMeta = {
   description?: string;
   icon?: LucideIcon;
+  imageSrc?: string;
   label: string;
-  variant?: "heading" | "subheading" | "body";
+  variant?:
+    "heading" | "subheading" | "heading3" | "body" | "callout" | "quote";
 };
 
 export type CanvasQuickCommand = {
@@ -127,6 +126,7 @@ export type CanvasEditorController = {
     applyAction: (action: CanvasAiAction) => void;
     /** Focus a frame in the editor without modifying the canvas document. */
     goToFrame: (frameId: string) => void;
+    toggleFrameVisibility: (frameId: string) => void;
     /** Normalises the title (trim + fallback) and saves — call on blur/Enter. */
     commitCanvasTitle: () => void;
     copyPublicLink: () => Promise<void>;
@@ -157,10 +157,12 @@ export type CanvasEditorController = {
     getSketchScene: () => SketchSceneData | null;
     setSketchScene: (next: SketchSceneData) => void;
     toggleTheme: () => void;
-    updateCanvasAppearance: (appearance: Partial<{
-      theme: CanvasThemeId;
-      typographyScale: CanvasTypographyScale;
-      fontFamily: CanvasFontFamily;
-    }>) => void;
+    updateCanvasAppearance: (
+      appearance: Partial<{
+        theme: CanvasThemeId;
+        typographyScale: CanvasTypographyScale;
+        fontFamily: CanvasFontFamily;
+      }>,
+    ) => void;
   };
 };

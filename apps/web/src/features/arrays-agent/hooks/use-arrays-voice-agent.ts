@@ -194,6 +194,7 @@ export function useArraysVoiceAgent({
       "live",
       buildLiveContext({
         frame: presentationRef.current?.describe() ?? null,
+        backgroundContext: presentationRef.current?.backgroundContext?.(),
         arrayState: describeAgentState(stateRef.current),
         memory: memoryRef.current,
       }),

@@ -89,7 +89,13 @@ function CanvasEditorStage({ controller }: { controller: CanvasEditorController 
       aria-label="Canvas stage"
       className="canvas-preview-pane min-h-0 overflow-hidden bg-background"
       style={getCanvasAppThemeVars(controller.isLightTheme)}
-      onClickCapture={removeBlockCopy}
+      onClickCapture={(event) => {
+        if ((event.target as HTMLElement).closest("[data-canvas-frame-visibility]")) {
+          controller.actions.handleFrameChromeAction(event);
+          return;
+        }
+        removeBlockCopy(event);
+      }}
       onBlurCapture={(event) => {
         const editable = (event.target as HTMLElement).closest<HTMLElement>(
           "[data-canvas-edit-block-copy]",
@@ -213,6 +219,7 @@ export function CanvasEditorScreen({ model }: CanvasEditorScreenProps) {
               actions={{
                 applyAction: controller.actions.applyAction,
                 goToFrame: controller.actions.goToFrame,
+                toggleFrameVisibility: controller.actions.toggleFrameVisibility,
                 getSketchScene: controller.actions.getSketchScene,
                 runJsonCommand: controller.actions.runJsonCommand,
                 setCommandDraft: controller.actions.setCommandDraft,

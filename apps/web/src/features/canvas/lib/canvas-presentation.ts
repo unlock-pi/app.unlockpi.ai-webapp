@@ -14,6 +14,9 @@ export const CANVAS_PRESENTATION_MODES = [
   "voice",
   "companion",
   "arrays",
+  "automata",
+  "regular-expression",
+  "context-free-grammar",
 ] as const;
 
 export type CanvasPresentationMode = (typeof CANVAS_PRESENTATION_MODES)[number];
@@ -28,15 +31,19 @@ export type CanvasPresentationFrame = {
   document: CanvasDocument;
   id: string;
   index: number;
+  hiddenInPresentation: boolean;
+  shareHiddenContextWithAi: boolean;
   searchText: string;
   title: string;
 };
 
 export function getCanvasPresentationFrames(
   document: CanvasDocument,
+  { includeHidden = false }: { includeHidden?: boolean } = {},
 ): CanvasPresentationFrame[] {
   return document.content
     .filter((item) => item.type === "SlideBlock")
+    .filter((item) => includeHidden || !item.props.hiddenInPresentation)
     .map((item, index) => {
       const title = item.props.title || `Frame ${index + 1}`;
 
@@ -55,10 +62,53 @@ export function getCanvasPresentationFrames(
         },
         id: item.props.id,
         index,
+        hiddenInPresentation: Boolean(item.props.hiddenInPresentation),
+        shareHiddenContextWithAi: Boolean(item.props.shareHiddenContextWithAi),
         searchText: collectSearchText(item.props).toLowerCase(),
         title,
       };
     });
+}
+
+/** Hidden frames are reference material only when the teacher opts in. */
+export function getHiddenAiContextFrames(document: CanvasDocument): CanvasPresentationFrame[] {
+  return getCanvasPresentationFrames(document, { includeHidden: true }).filter(
+    (frame) => frame.hiddenInPresentation && frame.shareHiddenContextWithAi,
+  );
+}
+
+export function describeHiddenAiContext(document: CanvasDocument): string {
+  const frames = getHiddenAiContextFrames(document);
+  if (!frames.length) return "";
+  return frames.map((frame) => JSON.stringify({
+    title: frame.title,
+    teaching_beat: getFrameTeachingBeat(frame),
+    blocks: readFrameBlocks(frame),
+    searchable_content: frame.searchText.slice(0, 2000),
+  })).join("\n").slice(0, 20000);
+}
+
+export function toggleFramePresentationVisibility(
+  document: CanvasDocument,
+  frameId: string,
+): CanvasDocument {
+  return {
+    ...document,
+    content: document.content.map((item) =>
+      item.type === "SlideBlock" && item.props.id === frameId
+        ? {
+            ...item,
+            props: {
+              ...item.props,
+              hiddenInPresentation: !item.props.hiddenInPresentation,
+              shareHiddenContextWithAi: item.props.hiddenInPresentation
+                ? false
+                : item.props.shareHiddenContextWithAi,
+            },
+          }
+        : item,
+    ),
+  };
 }
 
 export function describePresentationFrames(document: CanvasDocument) {
@@ -77,8 +127,7 @@ export function describePresentationFrames(document: CanvasDocument) {
  */
 export function getFrameBlockTypes(frame: CanvasPresentationFrame): string[] {
   const slide = frame.document.content[0] as
-    | { props?: { content?: Array<{ type?: string }> } }
-    | undefined;
+    { props?: { content?: Array<{ type?: string }> } } | undefined;
   const children = slide?.props?.content ?? [];
   return children
     .map((child) => String(child.type ?? "").replace(/Block$/, ""))
@@ -96,8 +145,7 @@ export function getFrameTeachingBeat(
   frame: CanvasPresentationFrame,
 ): string | undefined {
   const slide = frame.document.content[0] as
-    | { props?: { teachingBeat?: string } }
-    | undefined;
+    { props?: { teachingBeat?: string } } | undefined;
   return slide?.props?.teachingBeat;
 }
 
@@ -134,8 +182,7 @@ type AnyBlock = { type?: string; props?: Record<string, unknown> };
  */
 export function readFrameBlocks(frame: CanvasPresentationFrame) {
   const slide = frame.document.content[0] as
-    | { props?: { content?: AnyBlock[]; teachingBeat?: string } }
-    | undefined;
+    { props?: { content?: AnyBlock[]; teachingBeat?: string } } | undefined;
 
   return (slide?.props?.content ?? []).map((block) => {
     const props = (block.props ?? {}) as Record<string, unknown>;
@@ -175,8 +222,23 @@ export function readFrameBlocks(frame: CanvasPresentationFrame) {
       // only thing it can honestly talk about.
       drawingDescription: text("aiContext"),
       values: values ?? nodes,
+      automaton:
+        kind === "Automaton"
+          ? {
+              id: text("automatonId") ?? id,
+              type: text("type"),
+              alphabet: text("alphabet"),
+              input: text("input"),
+              states: Array.isArray(props.states) ? props.states : [],
+              transitions: Array.isArray(props.transitions)
+                ? props.transitions
+                : [],
+            }
+          : undefined,
       highlightedIndex:
-        typeof props.highlightedIndex === "number" ? props.highlightedIndex : undefined,
+        typeof props.highlightedIndex === "number"
+          ? props.highlightedIndex
+          : undefined,
     };
   });
 }
@@ -198,7 +260,10 @@ export function describeFrameContents(
 const BLOCK_NAMES: Record<string, string> = {
   HeadingText: "heading",
   SubheadingText: "subheading",
+  Heading3Text: "H3 heading",
   BodyText: "paragraph",
+  CalloutText: "callout",
+  QuoteText: "quote",
   Array: "array",
   Stack: "stack",
   Queue: "queue",
@@ -209,6 +274,8 @@ const BLOCK_NAMES: Record<string, string> = {
   Checkpoint: "question",
   MindMap: "mind map",
   Sketch: "drawing",
+  Automaton: "automaton",
+  ContextFreeGrammar: "context-free grammar",
 };
 
 function clip(text: string, max: number) {
@@ -240,7 +307,10 @@ export function describeFrameReadable(
     switch (block.kind) {
       case "HeadingText":
       case "SubheadingText":
+      case "Heading3Text":
       case "BodyText":
+      case "CalloutText":
+      case "QuoteText":
         return `${position}: "${clip(block.text ?? "", 600)}"`;
       case "Array":
         return `${position} ${arrayNameFromTitle(block.title)} = [${(block.values ?? []).join(", ")}] (${block.values?.length ?? 0} elements)`;
@@ -256,6 +326,19 @@ export function describeFrameReadable(
         return `${position}: "${clip(block.question ?? "", 200)}" (answer: "${clip(block.answer ?? "", 120)}")`;
       case "Sketch":
         return `${position}: ${block.drawingDescription ? `"${clip(block.drawingDescription, 200)}"` : "no description"}`;
+      case "Automaton": {
+        const automaton = block.automaton as
+          | {
+              id?: string;
+              type?: string;
+              alphabet?: string;
+              input?: string;
+              states?: unknown[];
+              transitions?: unknown[];
+            }
+          | undefined;
+        return `${position} ${automaton?.id ?? ""} (${(automaton?.type ?? "finite").toUpperCase()}), alphabet {${automaton?.alphabet ?? ""}}, ${automaton?.states?.length ?? 0} states, ${automaton?.transitions?.length ?? 0} transitions, input "${automaton?.input ?? ""}"`;
+      }
       default:
         return `${position}${block.title ? `: "${clip(block.title, 120)}"` : ""}`;
     }
@@ -277,13 +360,15 @@ function collectSearchText(value: unknown): string {
   }
 
   if (value && typeof value === "object") {
-    return Object.entries(value)
-      // `src` is a base64 image data URI (SketchBlock) — including it here
-      // would flood the model's truncated context budget with junk and push
-      // out the actually-useful text, e.g. the drawing's aiContext.
-      .filter(([key]) => key !== "id" && key !== "src")
-      .map(([, child]) => collectSearchText(child))
-      .join(" ");
+    return (
+      Object.entries(value)
+        // `src` is a base64 image data URI (SketchBlock) — including it here
+        // would flood the model's truncated context budget with junk and push
+        // out the actually-useful text, e.g. the drawing's aiContext.
+        .filter(([key]) => key !== "id" && key !== "src")
+        .map(([, child]) => collectSearchText(child))
+        .join(" ")
+    );
   }
 
   return "";

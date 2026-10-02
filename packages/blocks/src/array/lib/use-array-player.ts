@@ -81,7 +81,7 @@ export function useArrayPlayer() {
       if (!final) return;
       setFrame(final);
       setProgress(null);
-      playCue(frames.some((beat) => beat.found !== undefined) ? "success" : "bloom");
+      playCue(frames.some((beat) => beat.found !== undefined) ? "success" : "open");
       onSettleRef.current?.(final);
       flushAfterSettle();
     },
@@ -114,7 +114,7 @@ export function useArrayPlayer() {
       const beatMs = beatDurationMs(speed, frames.length);
       // One sound per operation, at the end — per-beat ticks were one more
       // thing competing with the board for attention.
-      const cue = frames.some((beat) => beat.found !== undefined) ? "success" : "bloom";
+      const cue = frames.some((beat) => beat.found !== undefined) ? "success" : "open";
 
       let index = 0;
       setIsPlaying(true);

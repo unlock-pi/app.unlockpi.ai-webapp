@@ -24,6 +24,13 @@
       }
     ],
     "paths": {
+      "@/packages/blocks/*": [
+        "../../packages/blocks/*"
+      ],
+      "@/components/*": [
+        "./src/components/*",
+        "../../packages/blocks/*"
+      ],
       "@/*": [
         "./src/*"
       ]

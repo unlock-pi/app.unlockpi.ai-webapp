@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type FieldProps, type Overrides } from "@puckeditor/core";
 import {
   BoxesIcon,
@@ -58,6 +59,14 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     label: "Subheading",
     variant: "subheading",
   },
+  Heading3TextBlock: {
+    label: "H3",
+    variant: "heading3",
+  },
+  Heading3: {
+    label: "H3",
+    variant: "heading3",
+  },
   BodyTextBlock: {
     label: "Body",
     variant: "body",
@@ -65,6 +74,14 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
   Body: {
     label: "Body",
     variant: "body",
+  },
+  CalloutTextBlock: {
+    label: "Callout",
+    variant: "callout",
+  },
+  QuoteTextBlock: {
+    label: "Quote",
+    variant: "quote",
   },
   CheckpointBlock: {
     label: "Checkpoint",
@@ -80,21 +97,35 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     label: "Array",
     description: "Resizable indexed elements",
     icon: BoxesIcon,
+    imageSrc: "/block-icons/arrays.svg",
   },
   Array: {
     label: "Array",
     description: "Resizable indexed elements",
     icon: BoxesIcon,
+    imageSrc: "/block-icons/arrays.svg",
+  },
+  QueueBlock: {
+    label: "Queue",
+    description: "Values enter at the back and leave from the front",
+    imageSrc: "/block-icons/queues.svg",
+  },
+  Queue: {
+    label: "Queue",
+    description: "Values enter at the back and leave from the front",
+    imageSrc: "/block-icons/queues.svg",
   },
   LinkedListBlock: {
     label: "Linked list",
     description: "Nodes connected by pointers",
     icon: GitBranchIcon,
+    imageSrc: "/block-icons/linked-list.svg",
   },
   "Linked list": {
     label: "Linked list",
     description: "Nodes connected by pointers",
     icon: GitBranchIcon,
+    imageSrc: "/block-icons/linked-list.svg",
   },
   MindMapBlock: {
     label: "Mind map",
@@ -106,10 +137,45 @@ export const drawerItemMeta: Record<string, DrawerItemMeta> = {
     description: "Concept map with branches",
     icon: NetworkIcon,
   },
+  GraphBlock: {
+    label: "Graph",
+    description: "Directed or undirected graph with list and matrix views",
+    icon: NetworkIcon,
+  },
+  Graph: {
+    label: "Graph",
+    description: "Directed or undirected graph with list and matrix views",
+    icon: NetworkIcon,
+  },
+  AutomatonBlock: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
+  },
+  PDABlock: {
+    label: "Pushdown automaton",
+    description: "Interactive state diagram and stack simulation",
+    icon: NetworkIcon,
+  },
+  RegularExpressionBlock: {
+    label: "Regular expression",
+    description: "Expression, syntax tree, and construction visuals",
+    icon: GitBranchIcon,
+  },
+  ContextFreeGrammarBlock: {
+    label: "Context-free grammar",
+    description: "Productions, derivation, and parse tree",
+    icon: GitBranchIcon,
+  },
   CodeBlock: {
     label: "Code",
     description: "Snippet and explanation",
     icon: Code2Icon,
+  },
+  Automaton: {
+    label: "Automaton",
+    description: "Interactive DFA or NFA state diagram",
+    icon: NetworkIcon,
   },
   Code: {
     label: "Code",
@@ -173,7 +239,13 @@ export function CanvasDrawerItem({
               "text-[2rem] font-bold tracking-[-0.05em]",
             meta.variant === "subheading" &&
               "text-[1.35rem] tracking-[-0.03em]",
+            meta.variant === "heading3" &&
+              "text-lg font-medium tracking-[-0.02em]",
             meta.variant === "body" && "text-base",
+            meta.variant === "callout" &&
+              "border-l-4 border-primary bg-primary/10 px-2 py-1 text-sm font-medium",
+            meta.variant === "quote" &&
+              "border-l-2 border-muted-foreground/50 pl-2 text-sm italic",
           )}
           style={{
             fontFamily:
@@ -181,7 +253,9 @@ export function CanvasDrawerItem({
                 ? "var(--font-canvas-heading), var(--font-system), sans-serif"
                 : meta.variant === "subheading"
                   ? "var(--font-canvas-subheading), var(--font-system), sans-serif"
-                  : "var(--font-canvas-body), var(--font-system), sans-serif",
+                  : meta.variant === "heading3"
+                    ? "var(--font-canvas-subheading), var(--font-system), sans-serif"
+                    : "var(--font-canvas-body), var(--font-system), sans-serif",
           }}
         >
           {meta.label}
@@ -207,11 +281,22 @@ export function CanvasDrawerItem({
         <>
           <div
             className={cn(
-              "grid shrink-0 place-items-center rounded-xl border border-border bg-muted/45- text-foreground",
-              compact ? "size-8" : "size-8",
+              "grid shrink-0 place-items-center rounded-sm text-foreground",
+              meta.imageSrc
+                ? "canvas-drawer-card-artwork relative h-12 w-full max-w-28"
+                : "size-8 border border-border bg-muted/45",
             )}
           >
-            <Icon className={compact ? "size-5" : "size-4"} />
+            {meta.imageSrc ? (
+              <Image
+                src={meta.imageSrc}
+                alt=""
+                fill
+                sizes="112px"
+                unoptimized
+                className="object-contain dark:invert"
+              />
+            ) : <Icon className={compact ? "size-5" : "size-4"} />}
           </div>
           <p
             className={cn(
@@ -323,7 +408,7 @@ function InspectorTextareaField(props: FieldProps) {
         className={cn(
           "min-h-28",
           isCodeEditor &&
-            "rounded-xl border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_16px_42px_rgba(0,0,0,0.18)] [&_[data-slot=textarea]]:min-h-52 [&_[data-slot=textarea]]:overflow-auto [&_[data-slot=textarea]]:font-mono [&_[data-slot=textarea]]:text-xs [&_[data-slot=textarea]]:leading-6 [&_[data-slot=textarea]]:text-zinc-100 [&_[data-slot=textarea]]:caret-zinc-100 [&_[data-slot=textarea]]:selection:bg-primary/40",
+            "rounded-sm border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_16px_42px_rgba(0,0,0,0.18)] [&_[data-slot=textarea]]:min-h-52 [&_[data-slot=textarea]]:overflow-auto [&_[data-slot=textarea]]:font-mono [&_[data-slot=textarea]]:text-xs [&_[data-slot=textarea]]:leading-6 [&_[data-slot=textarea]]:text-zinc-100 [&_[data-slot=textarea]]:caret-zinc-100 [&_[data-slot=textarea]]:selection:bg-primary/40",
         )}
       />
     </InspectorFieldShell>
@@ -401,28 +486,28 @@ function InspectorRadioField(props: FieldProps) {
         )}
       >
         {options.map((option) => {
-        const optionValue = String(option.value);
-        const isActive = optionValue === activeValue;
+          const optionValue = String(option.value);
+          const isActive = optionValue === activeValue;
 
-        return (
-          <Button
-            key={`${props.id}-${option.label}`}
-            type="button"
-            variant="outline"
-            disabled={props.readOnly}
-            aria-pressed={isActive}
-            className={cn(
-              "justify-start rounded-xl px-3 py-2 text-left transition-[background-color,border-color,box-shadow,transform] active:scale-[0.96]",
-              isActive
-                ? "border-primary bg-primary/8 text-foreground shadow-[inset_0_0_0_1px_var(--primary)]"
-                : "bg-background hover:bg-accent",
-            )}
-            onClick={() => props.onChange(option.value)}
-          >
-            {option.label}
-            {isActive ? <CheckIcon className="ml-auto size-3.5" /> : null}
-          </Button>
-        );
+          return (
+            <Button
+              key={`${props.id}-${option.label}`}
+              type="button"
+              variant="outline"
+              disabled={props.readOnly}
+              aria-pressed={isActive}
+              className={cn(
+                "justify-start rounded-sm px-3 py-2 text-left transition-[background-color,border-color,box-shadow,transform] active:scale-[0.96]",
+                isActive
+                  ? "border-primary bg-primary/8 text-foreground shadow-[inset_0_0_0_1px_var(--primary)]"
+                  : "bg-background hover:bg-accent",
+              )}
+              onClick={() => props.onChange(option.value)}
+            >
+              {option.label}
+              {isActive ? <CheckIcon className="ml-auto size-3.5" /> : null}
+            </Button>
+          );
         })}
       </RadioGroup>
     </InspectorFieldShell>

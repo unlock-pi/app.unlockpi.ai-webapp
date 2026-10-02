@@ -13,7 +13,7 @@ type CanvasComponentName = keyof typeof canvasPuckConfig.components & string;
 type PaletteLayout = "blocks" | "rows";
 
 type PaletteSection = {
-  components: CanvasComponentName[];
+  components: string[];
   id: string;
   layout: PaletteLayout;
   title: string;
@@ -24,7 +24,14 @@ const paletteSections: PaletteSection[] = [
     id: "text",
     title: "Text",
     layout: "rows",
-    components: ["HeadingTextBlock", "SubheadingTextBlock", "BodyTextBlock"],
+    components: [
+      "HeadingTextBlock",
+      "SubheadingTextBlock",
+      "Heading3TextBlock",
+      "BodyTextBlock",
+      "CalloutTextBlock",
+      "QuoteTextBlock",
+    ],
   },
   {
     id: "blocks",
@@ -38,9 +45,14 @@ const paletteSections: PaletteSection[] = [
       "QueueBlock",
       "LinkedListBlock",
       "MindMapBlock",
+      "GraphBlock",
       "CodeBlock",
       "MermaidBlock",
       "TableBlock",
+      "AutomatonBlock",
+      "PDABlock",
+      "RegularExpressionBlock",
+      "ContextFreeGrammarBlock",
     ],
   },
 ];
@@ -61,10 +73,12 @@ export function CanvasComponentPalette() {
   );
 }
 function CanvasPaletteSection({ section }: { section: PaletteSection }) {
+  const componentNames = section.components.filter(isCanvasComponentName);
+
   return (
     <section className="grid gap-3">
       <p className="px-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-        {section.title} 
+        {section.title}
       </p>
 
       <div
@@ -77,11 +91,11 @@ function CanvasPaletteSection({ section }: { section: PaletteSection }) {
           <div
             className={cn(
               section.layout === "blocks"
-                ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2.5"
-                : "grid grid-cols-1 gap-2.5",
+                ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2"
+                : "grid grid-cols-1 gap-2",
             )}
           >
-            {section.components.map((componentName) => (
+            {componentNames.map((componentName) => (
               <PaletteDrawerItem
                 key={componentName}
                 layout={section.layout}
@@ -93,6 +107,10 @@ function CanvasPaletteSection({ section }: { section: PaletteSection }) {
       </div>
     </section>
   );
+}
+
+function isCanvasComponentName(name: string): name is CanvasComponentName {
+  return name in canvasPuckConfig.components;
 }
 
 function PaletteDrawerItem({

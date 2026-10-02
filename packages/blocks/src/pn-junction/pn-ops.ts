@@ -23,7 +23,7 @@ export function showSeparateBlocks(): PNResult {
       note: "A P-type block — holes, the absence of an electron — and an N-type block, full of free electrons. Not touching yet.",
     }),
     summary: "Showed the two blocks apart.",
-    startCue: "chime",
+    startCue: "success",
   };
 }
 
@@ -34,7 +34,7 @@ export function bringTogether(): PNResult {
       note: "Bring them into contact — this interface is the pn junction. Carriers near the boundary start to interact.",
     }),
     summary: "Brought the P and N blocks together.",
-    startCue: "arrival",
+    startCue: "navigate",
   };
 }
 
@@ -46,7 +46,7 @@ export function formDepletionRegion(): PNResult {
       note: "Holes and electrons right at the junction recombine. What's left behind are fixed ions — negative on the P side, positive on the N side — and a carrier-free depletion region between them.",
     }),
     summary: "Formed the depletion region.",
-    startCue: "bloom",
+    startCue: "open",
   };
 }
 
@@ -59,7 +59,7 @@ export function showChargeLabels(): PNResult {
       note: `That separation of charge is the contact potential — about ${BARRIER_VOLTAGE}V in silicon. It's the barrier any current has to overcome to cross the junction.`,
     }),
     summary: "Revealed the contact-potential charge labels.",
-    startCue: "whisper",
+    startCue: "select",
   };
 }
 
@@ -91,6 +91,6 @@ export function resetJunction(): PNResult {
   return {
     scene: pnJunctionScene({ note: "" }),
     summary: "Reset the junction.",
-    startCue: "release",
+    startCue: "tap",
   };
 }
